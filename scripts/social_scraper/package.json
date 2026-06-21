@@ -1,0 +1,32 @@
+{
+  "name": "robot-scrape-jdm",
+  "version": "2.0.0",
+  "description": "Social Media Scraper for JDM Command Center - OrbitMart AI",
+  "main": "jdm-bridge.js",
+  "scripts": {
+    "start": "node jdm-bridge.js",
+    "dashboard": "npx http-server -p 4200",
+    "scrape:x": "node cli.js x",
+    "scrape:fb": "node cli.js facebook",
+    "scrape:ig": "node cli.js instagram",
+    "install-browsers": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.20",
+    "ws": "^8.20.0",
+    "user-agents": "^1.1.345"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.40.0"
+  },
+  "keywords": [
+    "social-media",
+    "scraper",
+    "osint",
+    "intelligence",
+    "openclaw",
+    "orbitmart"
+  ],
+  "author": "OrbitMart AI",
+  "license": "MIT"
+}
