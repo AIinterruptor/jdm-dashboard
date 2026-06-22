@@ -2264,24 +2264,24 @@ body {
 
 
 
-/* ═══════════════════════════════════════════════════
-   MOBILE RESPONSIVE — JDM COMMAND CENTER
-   ══════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — JDM COMMAND CENTER v2
+   Full mobile overhaul: bottom nav, stacked panels, touch-first
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ── LARGE TABLET / SMALL DESKTOP ── */
 @media (max-width: 1200px) {
-  :root {
-    --left: 240px;
-    --right: 260px;
-    --btm: 200px;
-  }
+  :root { --left: 240px; --right: 260px; --btm: 200px; }
   .hdr-stat { padding: 0 8px; }
   .hdr-stat-value { font-size: 12px; }
   .hdr-mode-btn { padding: 4px 7px; font-size: 8px; }
 }
 
-/* ── TABLET ── */
-@media (max-width: 960px) {
+/* ══════════════════════════════════════════════════
+   PHONE & TABLET — SINGLE COLUMN STACK
+   ══════════════════════════════════════════════════ */
+@media (max-width: 900px) {
   :root {
     --left: 0px;
     --right: 0px;
@@ -2289,29 +2289,60 @@ body {
     --hdr: 44px;
   }
 
+  /* ── RESET LAYOUT TO SINGLE COLUMN ── */
   #layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
+    display: flex !important;
+    flex-direction: column;
+    height: calc(100vh - var(--hdr) - 54px) !important;
+    margin-top: var(--hdr);
+    gap: 0;
     overflow: hidden;
   }
 
-  /* ── MOBILE TAB BAR ── */
-  .mobile-tabs {
+  /* All panels hidden by default on mobile */
+  #layout > .panel,
+  #layout > #panel-map,
+  #layout > #panel-left,
+  #layout > #panel-right,
+  #layout > #panel-bottom {
+    display: none !important;
+    flex: none;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Active panel fills viewport */
+  #layout > .panel.active-mobile,
+  #layout > #panel-map.active-mobile,
+  #layout > #panel-left.active-mobile,
+  #layout > #panel-right.active-mobile,
+  #layout > #panel-bottom.active-mobile {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  /* Map panel needs special handling */
+  #panel-map.active-mobile #map { height: 100%; width: 100%; }
+
+  /* ── MOBILE BOTTOM NAV ── */
+  #mobile-nav {
     display: flex !important;
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: 0; left: 0; right: 0;
     z-index: 99990;
     background: var(--dark-ops);
     border-top: 1px solid var(--border-hi);
-    height: 48px;
+    height: 54px;
     align-items: stretch;
     padding: 0;
     gap: 0;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.5);
   }
 
-  .mobile-tab {
+  .mob-nav-btn {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -2319,406 +2350,310 @@ body {
     justify-content: center;
     gap: 2px;
     font-family: var(--mono);
-    font-size: 8px;
-    letter-spacing: 0.5px;
+    font-size: 7.5px;
+    letter-spacing: 1px;
     color: var(--t3);
     cursor: pointer;
     transition: all 0.15s;
     border: none;
     background: none;
-    padding: 4px 2px;
+    padding: 6px 2px 4px;
     text-transform: uppercase;
     -webkit-tap-highlight-color: transparent;
+    position: relative;
+    border-right: 1px solid var(--border);
   }
-  .mobile-tab .tab-icon { font-size: 16px; line-height: 1; }
-  .mobile-tab.active { color: var(--amber); background: var(--amber-glow); }
-  .mobile-tab:active { background: rgba(200,168,75,0.12); }
-
-  /* ── PANEL VISIBILITY ON MOBILE ── */
-  #panel-left, #panel-right, #panel-bottom {
-    display: none !important;
+  .mob-nav-btn:last-child { border-right: none; }
+  .mob-nav-btn .nav-ico { font-size: 18px; line-height: 1; }
+  .mob-nav-btn .nav-lbl { white-space: nowrap; }
+  .mob-nav-btn .nav-badge {
+    position: absolute; top: 3px; right: 8px;
+    min-width: 14px; height: 14px;
+    border-radius: 7px; font-size: 7px;
+    background: var(--red); color: #fff;
+    display: none; align-items: center; justify-content: center;
+    font-family: var(--mono); font-weight: 700;
   }
-  #panel-map {
-    display: flex !important;
-    grid-column: 1 !important;
-    grid-row: 1 !important;
+  .mob-nav-btn .nav-badge.show { display: flex; }
+  .mob-nav-btn.active {
+    color: var(--amber);
+    background: var(--amber-glow);
   }
-  #layout.mobile-feed #panel-left {
-    display: flex !important;
-    grid-column: 1 !important;
-    grid-row: 1 !important;
+  .mob-nav-btn.active::after {
+    content: '';
+    position: absolute; top: 0; left: 20%; right: 20%;
+    height: 2px; background: var(--amber);
+    box-shadow: 0 0 8px var(--amber);
   }
-  #layout.mobile-feed #panel-map { display: none !important; }
-  #layout.mobile-threat #panel-right {
-    display: flex !important;
-    grid-column: 1 !important;
-    grid-row: 1 !important;
-  }
-  #layout.mobile-threat #panel-map { display: none !important; }
-  #layout.mobile-jarvis #panel-bottom {
-    display: flex !important;
-    grid-column: 1 !important;
-    grid-row: 1 !important;
-  }
-  #layout.mobile-jarvis #panel-map { display: none !important; }
-
-  /* Make active mobile panel fill screen below header, above tab bar */
-  #layout {
-    height: calc(100vh - var(--hdr) - 48px) !important;
-    margin-top: var(--hdr);
-  }
+  .mob-nav-btn:active { background: rgba(200,168,75,0.15); }
 
   /* ── COMPACT HEADER ── */
+  #header { height: var(--hdr); }
   .hdr-loc-block { display: none; }
-  .hdr-stat { padding: 0 6px; }
+  .hdr-stat { padding: 0 5px; }
   .hdr-stat-value { font-size: 11px; }
   .hdr-stat-label { font-size: 6px; letter-spacing: 1px; }
   .hdr-sentinel-cell { display: none; }
   .hdr-ml-cell { display: none; }
   .hdr-mode-group { display: none; }
-  .hdr-btn { padding: 4px 7px; font-size: 8px; }
-  .hdr-btn-primary { padding: 4px 10px; font-size: 8px; }
+  .hdr-btn { padding: 4px 6px; font-size: 8px; }
+  .hdr-btn-primary { padding: 4px 8px; font-size: 8px; letter-spacing: 1.5px; }
   .hdr-sep { display: none; }
+  .hdr-wordmark .hdr-tagline { display: none; }
 
-  /* ── FEED PANEL MOBILE ── */
-  #panel-left {
-    grid-row: auto !important;
-  }
+  /* ── FEED PANEL ── */
+  #panel-left .panel-header { padding: 6px 12px; }
+  #feed-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .feed-tab { padding: 5px 8px; font-size: 7px; white-space: nowrap; }
+  .feed-item { padding: 8px 12px 8px 14px; min-height: 44px; }
+  .feed-title { font-size: 11px; line-height: 1.3; }
+  .feed-body { font-size: 9px; -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  #source-health { padding: 4px 8px; gap: 2px; }
+  .src-health-dot { font-size: 7px; padding: 1px 3px; }
+  #source-filters { padding: 4px 8px; gap: 2px; }
+  .src-filter { font-size: 7px; padding: 2px 5px; }
 
-  /* ── RIGHT PANEL MOBILE ── */
-  #panel-right {
-    grid-row: auto !important;
-  }
+  /* ── THREAT / RIGHT PANEL ── */
+  #panel-right .panel-header { padding: 6px 12px; }
+  .metric-grid { grid-template-columns: 1fr 1fr; gap: 1px; }
+  .m-value { font-size: 18px; }
+  .m-label { font-size: 7px; }
+  .m-sub { display: none; }
+  .alert-body .a-title { font-size: 11px; }
+  .alert-body .a-meta { font-size: 8px; }
 
-  /* ── JARVIS PANEL MOBILE ── */
-  #panel-bottom {
-    grid-column: 1 !important;
-    grid-row: auto !important;
-  }
+  /* ── JARVIS / BOTTOM PANEL ── */
+  #panel-bottom .panel-header { padding: 6px 12px; }
+  #jarvis-input { font-size: 16px; } /* Prevent iOS zoom */
+  #jarvis-send { min-height: 44px; min-width: 56px; }
 
   /* ── MAP ── */
   #map-controls {
-    flex-direction: row;
-    flex-wrap: wrap;
-    max-width: 160px;
-    max-height: none;
-    right: 6px;
-    top: 6px;
-    padding: 4px;
-    gap: 2px;
+    flex-direction: row; flex-wrap: wrap;
+    max-width: 140px; max-height: none;
+    right: 6px; top: 6px; padding: 3px; gap: 2px;
   }
   .ctrl-group-label { display: none; }
   .ctrl-divider { display: none; }
-  .map-ctrl-btn { min-width: unset; font-size: 7px; padding: 3px 6px; }
+  .map-ctrl-btn { min-width: unset; font-size: 7px; padding: 3px 5px; min-height: 28px; }
 
   #region-bar { flex-wrap: wrap; }
-  .region-btn { padding: 4px 8px; font-size: 7px; }
+  .region-btn { padding: 4px 7px; font-size: 7px; min-height: 32px; }
+  #map-hud { font-size: 7px; padding: 2px 6px; }
+  #map-radar { width: 32px; height: 32px; }
+  #map-legend { bottom: 56px; font-size: 7px; }
+  #map-watermark { font-size: 6px; }
+  #sub-areas-panel { left: 6px; right: 6px; width: auto; max-width: none; }
 
-  #map-hud { font-size: 7px; padding: 2px 8px; }
-
-  /* ── BRIEF / MODALS ── */
-  #brief-box { width: 95vw; max-height: 85vh; }
+  /* ── MODALS FULL WIDTH ── */
+  #brief-box, #assess-box, #matrix-box { width: 96vw; left: 2vw; }
   #brief-content { padding: 14px; font-size: 12px; }
-
-  #assess-box { width: 95vw; }
   #assess-content { grid-template-columns: 1fr; }
 
-  #matrix-box { width: 95vw; }
-  #matrix-grid { height: 240px; }
-
-  /* ── METRICS ── */
-  .metric-grid { grid-template-columns: 1fr 1fr; }
-  .m-value { font-size: 18px; }
-
-  /* ── SOURCE HEALTH ── */
-  #source-health { gap: 2px; padding: 3px 8px; }
-  .src-health-dot { font-size: 7px; padding: 1px 3px; }
-
-  /* ── THREAT METER ── */
-  .threat-cats { gap: 3px; }
-  .threat-cat-pill { font-size: 6px; padding: 1px 4px; }
-
-  /* ── INCIDENT LOG ── */
-  .log-entry { grid-template-columns: 70px 60px 1fr 80px; font-size: 8px; }
-  .le-src { display: none; }
-
-  /* ── ANALYTICS ── */
-  #analytics-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-  }
-
   /* ── BIZ MODE ── */
-  #biz-overlay-inner { width: 100vw; height: calc(100vh - var(--hdr) - 48px); }
+  #biz-overlay-inner { width: 100vw; height: calc(100vh - var(--hdr) - 54px); border-radius: 0; }
   #biz-main { flex-direction: column; }
   #biz-side { width: 100%; max-height: 40vh; overflow-y: auto; }
   .biz-tile-grid { grid-template-columns: 1fr 1fr; }
 
-  /* ── HOME MODE ── */
-  .hm-grid { grid-template-columns: 1fr !important; }
-
-  /* ── LGU / PNP MODES ── */
-  .lgu-grid { grid-template-columns: 1fr !important; }
-
   /* ── LOCATION SELECTOR ── */
-  #loc-selector { width: 95vw; left: 2.5vw; transform: none; }
+  #loc-selector { width: 96vw; left: 2vw; transform: none; }
+  #model-selector { left: 5px; right: 5px; width: auto; }
+
+  /* ── OVERLAY MODES ── */
+  .hm-grid { grid-template-columns: 1fr !important; }
+  .lgu-grid { grid-template-columns: 1fr !important; }
+  .ew-tile-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* ── INCIDENT LOG ── */
+  .log-entry { grid-template-columns: 50px 40px 1fr 60px; font-size: 8px; padding: 5px 8px; }
+  .log-header { grid-template-columns: 50px 40px 1fr 60px; }
+  .le-src { display: none; }
+
+  /* ── CHARTS ── */
+  .msg-chart-wrap canvas { max-height: 140px; }
+
+  /* ── PERFORMANCE: Kill effects on mobile ── */
+  .scanlines { display: none !important; }
+  body::after { display: none !important; }
+
+  /* ── PREVENT BODY SCROLL ── */
+  html, body { overflow: hidden; height: 100%; position: fixed; width: 100%; }
+
+  /* ── TICKER COMPACT ── */
+  #ticker { height: 16px; min-height: 16px; }
+  .ticker-item { font-size: 7px; }
+
+  /* ── THREAT CATS WRAP ── */
+  .threat-cats { flex-wrap: wrap; gap: 2px; }
+  .threat-cat-pill { font-size: 6px; padding: 1px 4px; }
 }
 
-/* ── SMALL PHONE (≤480px) ── */
+/* ══════════════════════════════════════════════════
+   SMALL PHONE — EXTRA COMPACT
+   ══════════════════════════════════════════════════ */
 @media (max-width: 480px) {
-  :root {
-    --hdr: 40px;
-  }
-  #layout {
-    height: calc(100vh - 40px - 48px) !important;
-  }
+  :root { --hdr: 40px; }
+
+  #layout { height: calc(100vh - 40px - 54px) !important; }
+  #mobile-nav { height: 50px; }
+
+  .mob-nav-btn { font-size: 7px; padding: 4px 1px 3px; }
+  .mob-nav-btn .nav-ico { font-size: 16px; }
 
   .hdr-logo { display: none; }
-  .hdr-center { padding: 0 4px; }
-  .hdr-stat { padding: 0 4px; }
+  .hdr-center { padding: 0 2px; }
+  .hdr-stat { padding: 0 3px; }
   .hdr-stat-value { font-size: 10px; letter-spacing: 0; }
   .hdr-stat-label { font-size: 5px; }
-  .hdr-right { padding: 0 4px; gap: 3px; }
+  .hdr-right { padding: 0 3px; gap: 2px; }
   .hdr-btn { padding: 3px 5px; font-size: 7px; }
-  .hdr-btn-primary { padding: 3px 7px; font-size: 7px; letter-spacing: 1px; }
+  .hdr-btn-primary { padding: 3px 6px; font-size: 7px; letter-spacing: 1px; }
+  .hdr-brand { font-size: 10px; letter-spacing: 2px; }
 
-  .feed-item { padding: 7px 10px 7px 12px; }
   .feed-title { font-size: 10px; }
-  .feed-body { font-size: 9px; -webkit-line-clamp: 1; }
+  .feed-body { display: none; } /* Hide body on tiny screens */
+  .feed-meta { gap: 3px; }
+  .feed-src-tag { font-size: 7px; }
+  .feed-time { font-size: 7px; }
 
-  .metric-cell { padding: 7px 10px; }
-  .m-value { font-size: 16px; }
+  .m-value { font-size: 15px; }
   .m-label { font-size: 6px; }
+  .metric-cell { padding: 6px 8px; }
 
-  .alert-body .a-title { font-size: 10px; }
-
-  .panel-title { font-size: 8px; letter-spacing: 2px; }
+  .panel-title { font-size: 8px; letter-spacing: 1.5px; }
   .section-label { font-size: 7px; }
 
-  .mobile-tab { font-size: 7px; }
-  .mobile-tab .tab-icon { font-size: 14px; }
+  #map-controls { max-width: 110px; }
+  .region-btn { font-size: 6px; padding: 3px 5px; }
 }
 
-/* ── MOBILE TAB BAR (hidden on desktop) ── */
-.mobile-tabs {
+/* ═══ MOBILE NAV — HIDDEN ON DESKTOP ═══ */
+#mobile-nav {
   display: none;
-}
-
-
-
-/* ═══ MOBILE TOUCH IMPROVEMENTS ═══ */
-@media (max-width: 960px) {
-  /* Make feed items more touch-friendly */
-  .feed-item { min-height: 44px; }
-  .feed-item:hover { background: transparent; }
-  .feed-item:active { background: rgba(200,168,75,0.08); }
-  
-  /* Larger tap targets */
-  .map-ctrl-btn { min-height: 32px; min-width: 44px; }
-  .region-btn { min-height: 36px; }
-  .feed-tab { min-height: 36px; padding: 8px 12px; }
-  .src-filter { min-height: 32px; padding: 4px 8px; }
-  
-  /* Better scrolling on panels */
-  #feed-list { -webkit-overflow-scrolling: touch; }
-  .alert-list { -webkit-overflow-scrolling: touch; }
-  #jarvis-chat { -webkit-overflow-scrolling: touch; }
-  
-  /* Prevent body scroll when panels are open */
-  body { overflow: hidden; position: fixed; width: 100%; height: 100%; }
-  
-  /* Full-width panels on mobile */
-  #panel-left, #panel-right, #panel-bottom {
-    width: 100% !important;
-  }
-  
-  /* Jarvis input row mobile */
-  #jarvis-input-row { flex-wrap: nowrap; }
-  #jarvis-input { font-size: 16px; } /* Prevent zoom on iOS */
-  #jarvis-send { min-height: 44px; min-width: 60px; }
-  
-  /* Context row scrollable */
-  .ctx-row { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  
-  /* Sim bar scrollable */
-  #sim-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
-  
-  /* Sub-areas panel full width */
-  #sub-areas-panel { left: 10px; right: 10px; width: auto; max-width: none; }
-  
-  /* Model selector full width */
-  #model-selector { right: 5px; left: 5px; width: auto; }
-  
-  /* Location selector full width */
-  #loc-selector { left: 5px; right: 5px; width: auto; }
-  
-  /* Ticker more compact */
-  #ticker { height: 18px; min-height: 18px; }
-  .ticker-item { font-size: 7px; }
-  
-  /* Threat score compact */
-  .metric-grid { gap: 1px; }
-  
-  /* Feed tabs scrollable */
-  #feed-tabs { overflow-x: auto; }
-  
-  /* Hide scanlines on mobile (performance) */
-  .scanlines { display: none; }
-  
-  /* Hide body::after noise on mobile (performance) */
-  body::after { display: none; }
-  
-  /* Map watermark smaller */
-  #map-watermark { font-size: 6px; }
-  
-  /* Radar smaller */
-  #map-radar { width: 36px; height: 36px; bottom: 30px; left: 6px; }
-  
-  /* Legend compact */
-  #map-legend { bottom: 70px; }
-  
-  /* Source filters wrap */
-  #source-filters { gap: 1px; }
-  
-  /* Biz mode full screen */
-  #biz-overlay-inner { 
-    border-radius: 0; 
-    margin: 0;
-    height: calc(100vh - var(--hdr) - 48px) !important;
-  }
-  
-  /* Home mode grid */
-  .hm-card { min-height: 60px; }
-  
-  /* LGU mode tabs */
-  .lgu-tabs { overflow-x: auto; }
-  
-  /* PNP mode */
-  .pnp-tabs { overflow-x: auto; }
-  
-  /* Chart canvas responsive */
-  .msg-chart-wrap canvas { max-height: 160px; }
-  
-  /* Image grid mobile */
-  .msg-img-grid { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
-  
-  /* Incident log mobile */
-  .log-entry { grid-template-columns: 50px 40px 1fr 60px; font-size: 8px; padding: 5px 10px; }
-  .log-header { grid-template-columns: 50px 40px 1fr 60px; }
-  
-  /* Assessment modal mobile */
-  #assess-content { grid-template-columns: 1fr; }
-  
-  /* Timeline compact */
-  .tl-item { width: 60px; }
-  
-  /* Early warning mobile */
-  .ew-tile-grid { grid-template-columns: 1fr 1fr !important; }
-  .ew-push-item { padding: 6px 10px; }
-}
-
-@media (max-width: 480px) {
-  /* Extra small phone adjustments */
-  .metric-grid { grid-template-columns: 1fr 1fr; gap: 1px; }
-  .m-value { font-size: 14px; }
-  .m-label { font-size: 5px; }
-  .m-sub { display: none; }
-  
-  .feed-title { font-size: 9px; }
-  .feed-body { display: none; } /* Hide body text on very small screens */
-  .feed-meta { gap: 3px; }
-  .feed-src-tag { font-size: 7px; padding: 0 3px; }
-  .feed-time { font-size: 7px; }
-  
-  .alert-body .a-title { font-size: 10px; }
-  .alert-body .a-meta { font-size: 7px; }
-  
-  .trend-tags { gap: 2px; }
-  .trend-tag { font-size: 7px; padding: 1px 5px; }
-  
-  .hdr-brand { font-size: 10px; letter-spacing: 2px; }
-  .hdr-tagline { display: none; }
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 
-// ═══ MOBILE TAB SWITCHING ═══
-function mobileTab(panel) {
-  const layout = document.getElementById('layout');
-  const tabs = document.querySelectorAll('.mobile-tab');
-  
-  // Remove all mobile classes
-  layout.classList.remove('mobile-feed', 'mobile-threat', 'mobile-jarvis');
-  
-  // Update tab active states
-  tabs.forEach(t => t.classList.remove('active'));
-  document.querySelector(`.mobile-tab[data-panel="${panel}"]`)?.classList.add('active');
-  
-  // Show the right panel
-  if (panel === 'map') {
-    // Default layout, map is visible
-    layout.classList.remove('mobile-feed', 'mobile-threat', 'mobile-jarvis');
-  } else if (panel === 'feed') {
-    layout.classList.add('mobile-feed');
-  } else if (panel === 'threat') {
-    layout.classList.add('mobile-threat');
-  } else if (panel === 'jarvis') {
-    layout.classList.add('mobile-jarvis');
-  }
-  
-  // Resize map if switching to map
-  if (panel === 'map' && typeof map !== 'undefined' && map) {
-    setTimeout(() => { 
-      if (typeof invalidateMapSize === 'function') invalidateMapSize();
-      else if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize();
-    }, 100);
-  }
-}
 
-// Auto-detect mobile on load and resize
-function checkMobileLayout() {
-  const isMobile = window.innerWidth <= 960;
-  const tabs = document.getElementById('mobile-tabs');
-  if (tabs) {
-    tabs.style.display = isMobile ? 'flex' : 'none';
-  }
-  // Reset layout classes on desktop
-  if (!isMobile) {
+
+// ═══ MOBILE NAVIGATION ═══
+(function(){
+  let _mobileActive = null;
+  let _resizeTimer;
+
+  function mobileInit() {
+    const isMob = window.innerWidth <= 900;
+    const nav = document.getElementById('mobile-nav');
+    if (!nav) return;
+
+    // Show/hide nav
+    nav.style.display = isMob ? 'flex' : 'none';
+
+    // Layout height
     const layout = document.getElementById('layout');
     if (layout) {
-      layout.classList.remove('mobile-feed', 'mobile-threat', 'mobile-jarvis');
-      layout.style.height = '';
+      layout.style.height = isMob
+        ? 'calc(100vh - ' + (window.innerWidth <= 480 ? 40 : 44) + 'px - ' + (window.innerWidth <= 480 ? 50 : 54) + 'px)'
+        : '';
     }
-  } else {
-    // Ensure correct height on mobile
-    const layout = document.getElementById('layout');
-    if (layout) {
-      const activeTab = document.querySelector('.mobile-tab.active');
-      if (!activeTab) {
-        // Default to map tab
-        mobileTab('map');
+
+    if (isMob) {
+      // Default to map if nothing active
+      if (!_mobileActive) {
+        mobileShow('panel-map');
+        const firstBtn = nav.querySelector('.mob-nav-btn[data-panel="panel-map"]');
+        if (firstBtn) firstBtn.classList.add('active');
+      }
+    } else {
+      // Desktop: show all panels, remove active classes
+      document.querySelectorAll('#layout > .panel, #panel-map, #panel-left, #panel-right, #panel-bottom')
+        .forEach(p => { p.style.display = ''; p.classList.remove('active-mobile'); });
+      _mobileActive = null;
+      // Reset layout
+      if (layout) {
+        layout.style.display = '';
+        layout.style.height = '';
       }
     }
   }
-}
 
-// Initialize on DOM ready
-window.addEventListener('DOMContentLoaded', () => {
-  checkMobileLayout();
-  // Default to map on mobile
-  if (window.innerWidth <= 960) {
-    mobileTab('map');
-  }
-});
+  function mobileShow(panelId) {
+    // Hide all panels
+    const panels = document.querySelectorAll('#layout > .panel, #panel-map, #panel-left, #panel-right, #panel-bottom');
+    panels.forEach(p => { p.classList.remove('active-mobile'); p.style.display = 'none'; });
 
-window.addEventListener('resize', () => {
-  checkMobileLayout();
-  // Resize map when switching back to map view
-  if (window.innerWidth <= 960 && typeof map !== 'undefined' && map && map.invalidateSize) {
-    setTimeout(() => map.invalidateSize(), 150);
+    // Show target
+    const target = document.getElementById(panelId);
+    if (target) {
+      target.classList.add('active-mobile');
+      target.style.display = 'flex';
+      target.style.flexDirection = 'column';
+    }
+
+    _mobileActive = panelId;
+
+    // Resize map if showing map
+    if (panelId === 'panel-map') {
+      setTimeout(() => {
+        if (typeof map !== 'undefined' && map && map.invalidateSize) {
+          map.invalidateSize();
+        }
+      }, 120);
+    }
+
+    // Update feed badge
+    updateFeedBadge();
   }
-});
+
+  function updateFeedBadge() {
+    const badge = document.getElementById('nav-badge-feed');
+    if (!badge) return;
+    try {
+      const count = (typeof allFeeds !== 'undefined' && allFeeds) ? allFeeds.length : 0;
+      const critCount = (typeof allFeeds !== 'undefined' && allFeeds) ? allFeeds.filter(f => f.severity === 'critical').length : 0;
+      if (critCount > 0) {
+        badge.textContent = critCount;
+        badge.classList.add('show');
+        badge.style.background = 'var(--red)';
+      } else if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.classList.add('show');
+        badge.style.background = 'var(--amber-dim)';
+      } else {
+        badge.classList.remove('show');
+      }
+    } catch(e) {}
+  }
+
+  // Expose to global
+  window.mobileNav = function(btn, panelId) {
+    // Update active button
+    document.querySelectorAll('.mob-nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    mobileShow(panelId);
+  };
+
+  window.mobileInit = mobileInit;
+  window.updateFeedBadge = updateFeedBadge;
+
+  // Run on load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mobileInit);
+  } else {
+    mobileInit();
+  }
+
+  // Run on resize (debounced)
+  window.addEventListener('resize', function() {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(mobileInit, 150);
+  });
+
+  // Update badge periodically
+  setInterval(updateFeedBadge, 5000);
+})();
 
 // Global callback when Google Maps is ready - must be defined BEFORE loading API
 window.googleMapsReady = false;
@@ -2740,21 +2675,23 @@ window.gm_authFailure = function() {
 </head>
 <body>
 
-<!-- ═══ MOBILE TAB BAR ═══ -->
-<div class="mobile-tabs" id="mobile-tabs">
-  <button class="mobile-tab active" data-panel="map" onclick="mobileTab('map')">
-    <span class="tab-icon">🗺</span>MAP
+<!-- ═══ MOBILE NAV BAR ═══ -->
+<div id="mobile-nav">
+  <button class="mob-nav-btn active" data-panel="panel-map" onclick="mobileNav(this,'panel-map')">
+    <span class="nav-ico">🗺️</span><span class="nav-lbl">MAP</span>
   </button>
-  <button class="mobile-tab" data-panel="feed" onclick="mobileTab('feed')">
-    <span class="tab-icon">📋</span>FEED
+  <button class="mob-nav-btn" data-panel="panel-left" onclick="mobileNav(this,'panel-left')">
+    <span class="nav-ico">📋</span><span class="nav-lbl">FEED</span>
+    <span class="nav-badge" id="nav-badge-feed"></span>
   </button>
-  <button class="mobile-tab" data-panel="threat" onclick="mobileTab('threat')">
-    <span class="tab-icon">⚡</span>THREAT
+  <button class="mob-nav-btn" data-panel="panel-right" onclick="mobileNav(this,'panel-right')">
+    <span class="nav-ico">⚡</span><span class="nav-lbl">THREAT</span>
   </button>
-  <button class="mobile-tab" data-panel="jarvis" onclick="mobileTab('jarvis')">
-    <span class="tab-icon">🤵</span>JARVIS
+  <button class="mob-nav-btn" data-panel="panel-bottom" onclick="mobileNav(this,'panel-bottom')">
+    <span class="nav-ico">🤵</span><span class="nav-lbl">JARVIS</span>
   </button>
 </div>
+
 <div class="scanlines"></div>
 <div id="class-banner" title="PH Command Center v2.0 — Build 20260328">TOP SECRET // SENSITIVE COMPARTMENTED INFORMATION // ILOILO OPERATIONS // ORBITMART</div>
 
