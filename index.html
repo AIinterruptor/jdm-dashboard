@@ -3250,12 +3250,9 @@ const CONFIG = {
   MODEL: 'nvidia/nemotron-3-super-120b-a12b:free', // Best free model on OpenRouter
 };
 
-// ── Load API keys from localStorage (set once via browser console, never committed) ──
-// Usage: localStorage.setItem('jdm_keys', JSON.stringify({ TAVILY_KEY:'tvly-...', FIRMS_KEY:'...' }))
-try {
-  const stored = JSON.parse(localStorage.getItem('jdm_keys') || '{}');
-  Object.keys(stored).forEach(k => { if (k in CONFIG && stored[k]) CONFIG[k] = stored[k]; });
-} catch(e) {}
+// API keys (FIRMS, CURRENTS, TAVILY, FRANKFURTER) are in Cloudflare Worker env secrets.
+// Frontend calls /api/* endpoints on the worker — keys never reach the browser.
+// To configure: cd worker && wrangler secret put FIRMS_KEY && wrangler secret put CURRENTS_KEY && wrangler secret put TAVILY_KEY
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LEAFLET COMPATIBILITY LAYER — Google Maps API → Leaflet translation
@@ -5611,9 +5608,6 @@ const TAVILY_CACHE_KEY = 'tavily_cache';
 const TAVILY_CACHE_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 async function fetchTavilyNews() {
-  const key = CONFIG.TAVILY_KEY;
-  if (!key) { setSourceStatus('TAVILY', 'fail'); return []; }
-
   // Check cache first
   try {
     const cached = localStorage.getItem(TAVILY_CACHE_KEY);
@@ -5630,27 +5624,11 @@ async function fetchTavilyNews() {
   } catch (e) { /* Cache miss, proceed to fetch */ }
 
   return fetchWithRetry(async () => {
-    const locQuery = encodeURIComponent(ACTIVE_LOC.label.replace(/🇵🇭 /,'') + ' Philippines latest news');
-    const url = 'https://api.tavily.com/search';
-    
-    const body = {
-      api_key: key,
-      query: `${locQuery}`,
-      search_depth: 'basic',
-      include_answer: false,
-      include_raw_content: false,
-      max_results: 15,
-      topic: 'news'
-    };
+    const locQuery = ACTIVE_LOC.label.replace(/🇵🇭 /,'') + ' Philippines latest news';
+    const r = await fetch(`${CLOUDFLARE_WORKER_URL}/api/tavily?q=${encodeURIComponent(locQuery)}&max=15`, { signal: AbortSignal.timeout(15000) });
 
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    
     if (!r.ok) { throw new Error(`Tavily error: ${r.status}`); }
-    
+
     const data = await r.json();
     if (!data.results || !data.results.length) return [];
     
@@ -5842,21 +5820,13 @@ async function fetchMediaStack() {
   }, 'MEDIASTACK');
 }
 
-// ── CurrentsAPI — live news stream ─────────────────────────────────────────
+// ── CurrentsAPI — live news stream (via worker proxy) ─────────────────────
 async function fetchCurrents() {
-  const key = CONFIG.CURRENTS_KEY;
-  if (!key) { setSourceStatus('CURRENTS', 'fail'); return []; }
-
   return fetchWithRetry(async () => {
     const articles = [];
 
     try {
-      // CurrentsAPI uses Authorization header (not query param)
-      const url = `https://api.currentsapi.services/v1/latest-news?language=en&category=world,politics,business,science,technology,health&pageSize=15`;
-      const r = await fetch(url, {
-        headers: { 'Authorization': key },
-        signal: AbortSignal.timeout(10000)
-      });
+      const r = await fetch(`${CLOUDFLARE_WORKER_URL}/api/currents?q=Philippines`, { signal: AbortSignal.timeout(12000) });
       if (r.ok) {
         const d = await r.json();
         if (d.news) {
@@ -5974,10 +5944,10 @@ async function fetchCrypto() {
 
 // ─── EXTENDED DATA SOURCES ────────────────────────────────────────────────
 
-// 1. FRANKFURTER — Live PHP exchange rates (no key, CORS open)
+// 1. FRANKFURTER — Live PHP exchange rates (via worker proxy)
 async function fetchFXRates() {
   return fetchWithRetry(async () => {
-    const r = await fetchWithProxy('https://api.frankfurter.app/latest?from=USD&to=PHP,SGD,EUR,JPY,SAR,AED,CNY,KRW,AUD,GBP,HKD,THB,MYR');
+    const r = await fetch(`${CLOUDFLARE_WORKER_URL}/api/frankfurter?from=USD&to=PHP,SGD,EUR,JPY,SAR,AED,CNY,KRW,AUD,GBP,HKD,THB,MYR`, { signal: AbortSignal.timeout(10000) });
     const d = await r.json();
     const php = d.rates?.PHP || 0;
     const rates = Object.entries(d.rates||{}).map(([cur,rate]) => `1 ${cur} = ₱${(php/rate).toFixed(2)}`).join(' · ');
