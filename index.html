@@ -14938,23 +14938,22 @@ function toggleCrisisZones() {
       const alert = getAlertLevel(score);
       const radiusKm = score >= 75 ? 25 : score >= 50 ? 15 : 8;
       const radiusM  = radiusKm * 1000;
+      const cLat = ACTIVE_LOC.lat + (Math.random()-0.5)*0.3;
+      const cLng = ACTIVE_LOC.lng + (Math.random()-0.5)*0.3;
 
-      const circle = new google.maps.Circle({
-        center:        { lat: ACTIVE_LOC.lat + (Math.random()-0.5)*0.3, lng: ACTIVE_LOC.lng + (Math.random()-0.5)*0.3 },
-        radius:        radiusM,
-        map:           gmap,
-        strokeColor:   alert.bg,
-        strokeOpacity: 0.6,
-        strokeWeight:  1.5,
-        fillColor:     alert.bg,
-        fillOpacity:   0.06,
-        clickable:     true,
-        zIndex:        2,
-      });
+      const circle = L.circle([cLat, cLng], {
+        radius: radiusM,
+        color: alert.bg,
+        opacity: 0.6,
+        weight: 1.5,
+        fillColor: alert.bg,
+        fillOpacity: 0.06,
+      }).addTo(gmap);
 
-      circle.addListener('click', () => {
-        const iw = new google.maps.InfoWindow({
-          content: buildInfoWindowHTML(
+      circle.on('click', () => {
+        L.popup({ maxWidth: 300 })
+          .setLatLng([cLat, cLng])
+          .setContent(buildInfoWindowHTML(
             `${crisis.icon} ${crisis.label}`,
             `<div style="font-family:var(--mono);font-size:10px;color:var(--t2);line-height:1.8">
               <div>Score: <strong style="color:${alert.bg}">${score}/100 — ${alert.label}</strong></div>
@@ -14963,9 +14962,8 @@ function toggleCrisisZones() {
               <div style="margin-top:6px;color:var(--t3)">${crisis.worstCaseScenario?.substring(0,80)}</div>
             </div>`,
             null
-          ),
-        });
-        iw.open({ map: gmap, anchor: { position: circle.getCenter(), map: gmap } });
+          ))
+          .openOn(gmap);
       });
 
       crisisZones.push(circle);
@@ -14980,7 +14978,7 @@ function toggleCrisisZones() {
 }
 
 function clearCrisisZones() {
-  crisisZones.forEach(c => c.setMap(null));
+  crisisZones.forEach(c => { try { gmap.removeLayer(c); } catch(e){} });
   crisisZones = [];
 }
 
@@ -14995,19 +14993,16 @@ function toggleThreatCircles() {
 
     critHighFeeds.forEach(f => {
       const color  = SEV_COLOR[f.severity];
-      const radius = f.severity==='critical' ? 5000 : 3000; // meters
+      const radius = f.severity==='critical' ? 5000 : 3000;
 
-      const circle = new google.maps.Circle({
-        center:        { lat: f.lat, lng: f.lng },
+      const circle = L.circle([f.lat, f.lng], {
         radius,
-        map:           gmap,
-        strokeColor:   color,
-        strokeOpacity: 0.7,
-        strokeWeight:  1,
-        fillColor:     color,
-        fillOpacity:   0.07,
-        zIndex:        3,
-      });
+        color: color,
+        opacity: 0.7,
+        weight: 1,
+        fillColor: color,
+        fillOpacity: 0.07,
+      }).addTo(gmap);
       threatCircles.push(circle);
     });
 
@@ -15117,7 +15112,6 @@ function toggleEvacRoutes() {
     clearRoutes();
     const { lat, lng } = ACTIVE_LOC;
 
-    // Simplified evacuation route corridors (cardinal directions from center)
     const routes = [
       { label:'NORTH EVAC',  color:'#00cc44', path:[[lat,lng],[lat+0.05,lng+0.01],[lat+0.12,lng-0.02],[lat+0.2,lng]] },
       { label:'SOUTH EVAC',  color:'#00cc44', path:[[lat,lng],[lat-0.05,lng-0.01],[lat-0.12,lng+0.02],[lat-0.2,lng]] },
@@ -15127,32 +15121,28 @@ function toggleEvacRoutes() {
     ];
 
     routes.forEach(route => {
-      const polyline = new google.maps.Polyline({
-        path:          route.path.map(([lt,ln]) => ({lat:lt,lng:ln})),
-        map:           gmap,
-        strokeColor:   route.color,
-        strokeOpacity: 0.7,
-        strokeWeight:  2.5,
-        icons: [{
-          icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, strokeColor: route.color, scale: 3 },
-          offset: '50%', repeat: '80px',
-        }],
-        zIndex: 4,
-      });
+      const polyline = L.polyline(route.path, {
+        color: route.color, opacity: 0.7, weight: 2.5, dashArray: '10 6',
+      }).addTo(gmap);
 
-      // Label at midpoint
+      const arrowHead = L.polylineDecorator ? L.polylineDecorator(polyline) : null;
+
       const mid = route.path[Math.floor(route.path.length/2)];
-      const label = new google.maps.InfoWindow({
-        content: `<div style="background:rgba(0,0,0,0.85);border:1px solid ${route.color};color:${route.color};font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 8px;letter-spacing:1px">${route.label}</div>`,
-        position: { lat: mid[0], lng: mid[1] },
-        disableAutoPan: true,
-      });
-      label.open(gmap);
+      const label = L.marker(mid, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="background:rgba(0,0,0,0.85);border:1px solid ${route.color};color:${route.color};font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 8px;letter-spacing:1px;white-space:nowrap">${route.label}</div>`,
+          iconSize: [100, 18], iconAnchor: [50, 9],
+        }),
+        interactive: false,
+      }).addTo(gmap);
+
       routeLines.push(polyline, label);
+      if (arrowHead) routeLines.push(arrowHead);
     });
 
     if (btn) { btn.classList.add('active'); btn.textContent = '→ ROUTES ON'; }
-    addJarvisMsg('jarvis', `Evacuation route corridors active — <strong>${routes.length}</strong> routes plotted from ${ACTIVE_LOC.label.replace(/🇵🇭 /,'')}. Directional arrows show egress flow. For accurate routing, use Google Maps Directions API with current traffic.`);
+    addJarvisMsg('jarvis', `Evacuation route corridors active — <strong>${routes.length}</strong> routes plotted from ${ACTIVE_LOC.label.replace(/🇵🇭 /,'')}.`);
   } else {
     clearRoutes();
     if (btn) { btn.classList.remove('active'); btn.textContent = '→ EVAC ROUTES'; }
@@ -15160,7 +15150,7 @@ function toggleEvacRoutes() {
 }
 
 function clearRoutes() {
-  routeLines.forEach(r => { if (r.setMap) r.setMap(null); else r.close?.(); });
+  routeLines.forEach(r => { try { gmap.removeLayer(r); } catch(e){} });
   routeLines = [];
 }
 
@@ -15172,38 +15162,28 @@ function toggleSectorGrid() {
   if (sectorActive) {
     clearSectorGrid();
     const { lat, lng } = ACTIVE_LOC;
-    const gridSize     = 0.05; // ~5.5km grid squares
-    const gridExtent   = 0.25; // how far to extend
+    const gridSize     = 0.05;
+    const gridExtent   = 0.25;
     const cols = ['A','B','C','D','E','F','G','H','I','J'];
     let colIdx = 0, rowIdx = 1;
 
     for (let dLat = -gridExtent; dLat <= gridExtent; dLat += gridSize) {
       for (let dLng = -gridExtent; dLng <= gridExtent; dLng += gridSize) {
-        // Grid square polygon
-        const sq = new google.maps.Rectangle({
-          bounds: {
-            north: lat+dLat+gridSize, south: lat+dLat,
-            east:  lng+dLng+gridSize, west:  lng+dLng,
-          },
-          map:           gmap,
-          strokeColor:   'rgba(200,168,75,0.2)',
-          strokeWeight:  0.5,
-          fillOpacity:   0,
-          clickable:     false,
-          zIndex:        1,
-        });
+        const sq = L.rectangle(
+          [[lat+dLat, lng+dLng], [lat+dLat+gridSize, lng+dLng+gridSize]],
+          { color:'rgba(200,168,75,0.2)', weight:0.5, fillOpacity:0, interactive:false }
+        ).addTo(gmap);
         sectorGrid.push(sq);
 
-        // Sector label at center
         const sectorLabel = cols[colIdx % cols.length] + rowIdx;
-        const labelMarker = new google.maps.Marker({
-          position: { lat: lat+dLat+gridSize/2, lng: lng+dLng+gridSize/2 },
-          map:      gmap,
-          label:    { text: sectorLabel, color:'rgba(200,168,75,0.3)', fontSize:'9px', fontFamily:'IBM Plex Mono' },
-          icon:     { path:google.maps.SymbolPath.CIRCLE, scale:0, fillOpacity:0 },
-          clickable: false,
-          zIndex:   1,
-        });
+        const labelMarker = L.marker([lat+dLat+gridSize/2, lng+dLng+gridSize/2], {
+          icon: L.divIcon({
+            className: '',
+            html: `<div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(200,168,75,0.3);text-align:center">${sectorLabel}</div>`,
+            iconSize: [24, 14], iconAnchor: [12, 7],
+          }),
+          interactive: false,
+        }).addTo(gmap);
         sectorGrid.push(labelMarker);
         colIdx++;
       }
@@ -15218,7 +15198,7 @@ function toggleSectorGrid() {
 }
 
 function clearSectorGrid() {
-  sectorGrid.forEach(s => s.setMap(null));
+  sectorGrid.forEach(s => { try { gmap.removeLayer(s); } catch(e){} });
   sectorGrid = [];
 }
 
@@ -15424,16 +15404,24 @@ function clearAllLayers() {
   if (heatLayer) { try { gmap.removeLayer(heatLayer); } catch(e){} heatLayer = null; heatActive = false; }
   clearCrisisZones(); crisisZonesActive = false;
   clearThreatCircles(); threatCircleActive = false;
-  infraMarkers.forEach(m => { if(m.setMap) m.setMap(null); else { try { gmap.removeLayer(m); } catch(e){} } }); infraMarkers = []; infraActive = false;
+  infraMarkers.forEach(m => { try { gmap.removeLayer(m); } catch(e){ if(m.setMap) m.setMap(null); } }); infraMarkers = []; infraActive = false;
   clearRoutes(); routesActive = false;
   clearSectorGrid(); sectorActive = false;
-  if (drawPolygon) { if(drawPolygon.setMap) drawPolygon.setMap(null); else { try { gmap.removeLayer(drawPolygon); } catch(e){} } drawPolygon = null; }
-  drawMarkers.forEach(m => { if(m.setMap) m.setMap(null); else { try { gmap.removeLayer(m); } catch(e){} } }); drawMarkers = []; drawPoints = [];
-  distanceMarkers.forEach(m => { if(m.setMap) m.setMap(null); else if(m.close) m.close(); else { try { gmap.removeLayer(m); } catch(e){} } }); distanceMarkers = [];
-  if (distanceTool) { distanceTool.setMap(null); distanceTool = null; }
+  if (drawPolygon) { try { gmap.removeLayer(drawPolygon); } catch(e){ if(drawPolygon.setMap) drawPolygon.setMap(null); } drawPolygon = null; }
+  drawMarkers.forEach(m => { try { gmap.removeLayer(m); } catch(e){ if(m.setMap) m.setMap(null); } }); drawMarkers = []; drawPoints = [];
+  distanceMarkers.forEach(m => { try { gmap.removeLayer(m); } catch(e){ if(m.setMap) m.setMap(null); else if(m.close) m.close(); } }); distanceMarkers = [];
+  if (distanceTool) { try { gmap.removeLayer(distanceTool); } catch(e){} distanceTool = null; }
+
+  // Clear Palantir layers too
+  if (typeof palantirToggleArcs === 'function' && document.getElementById('palantir-arcs-btn')?.classList.contains('active')) window.palantirToggleArcs();
+  if (typeof palantirTogglePulse === 'function' && document.getElementById('palantir-pulse-btn')?.classList.contains('active')) window.palantirTogglePulse();
+  if (typeof palantirToggleNetwork === 'function' && document.getElementById('palantir-network-btn')?.classList.contains('active')) window.palantirToggleNetwork();
+  if (typeof palantirToggleWatchzones === 'function' && document.getElementById('palantir-watchzone-btn')?.classList.contains('active')) window.palantirToggleWatchzones();
+  if (typeof palantirToggleTimeline === 'function' && document.getElementById('palantir-timeline-btn')?.classList.contains('active')) window.palantirToggleTimeline();
 
   // Reset buttons
-  ['heatmap-btn','crisis-btn','threat-btn','infra-btn','routes-btn','sector-btn','draw-btn','distance-btn']
+  ['heatmap-btn','crisis-btn','threat-btn','infra-btn','routes-btn','sector-btn','draw-btn','distance-btn',
+   'palantir-timeline-btn','palantir-arcs-btn','palantir-pulse-btn','palantir-network-btn','palantir-watchzone-btn']
     .forEach(id => {
       const btn = document.getElementById(id);
       if (btn) btn.classList.remove('active');
@@ -24647,6 +24635,646 @@ document.addEventListener('keydown',e=>{
   if(e.key.toLowerCase()==='b'&&!bizActive&&!pnpActive&&!lguActive&&!hmActive)openBizMode();
   else if(e.key==='Escape'&&bizActive)closeBizMode();
 });
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PALANTIR MAP ENGINE — Advanced Geospatial Intelligence Overlay
+     Arc connections, temporal timeline, threat pulse, network graph
+═══════════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── PALANTIR TEMPORAL TIMELINE ── */
+#palantir-timeline {
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+  width:min(600px, calc(100% - 40px)); z-index:800;
+  background:rgba(6,6,5,0.92); border:1px solid var(--border-hi);
+  border-radius:4px; padding:8px 14px 10px; backdrop-filter:blur(8px);
+  font-family:var(--mono); display:none;
+  box-shadow:0 4px 24px rgba(0,0,0,0.6);
+}
+#palantir-timeline.active { display:block; }
+.ptl-header {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:6px;
+}
+.ptl-title { font-size:8px; color:var(--amber-text); letter-spacing:2px; font-weight:700; }
+.ptl-range { font-size:9px; color:var(--t2); letter-spacing:0.5px; }
+.ptl-close { background:none; border:1px solid var(--border); color:var(--t3);
+  font-size:8px; padding:2px 6px; cursor:pointer; font-family:var(--mono); }
+.ptl-close:hover { color:var(--amber); border-color:var(--amber-dim); }
+.ptl-track {
+  position:relative; height:32px; margin:4px 0;
+  background:rgba(200,168,75,0.03); border:1px solid var(--border);
+  border-radius:2px; overflow:hidden; cursor:pointer;
+}
+.ptl-bar { position:absolute; bottom:0; width:3px; min-height:2px;
+  border-radius:1px 1px 0 0; transition:opacity 0.15s; }
+.ptl-bar:hover { opacity:1!important; }
+.ptl-cursor {
+  position:absolute; top:0; bottom:0; width:2px;
+  background:var(--amber); box-shadow:0 0 8px var(--amber);
+  pointer-events:none; transition:left 0.08s;
+}
+.ptl-cursor::after {
+  content:''; position:absolute; top:-3px; left:-4px;
+  width:10px; height:10px; border-radius:50%;
+  background:var(--amber); border:2px solid var(--void);
+  box-shadow:0 0 6px var(--amber);
+}
+.ptl-controls {
+  display:flex; align-items:center; gap:8px; margin-top:4px;
+}
+.ptl-btn { background:none; border:1px solid var(--border); color:var(--t3);
+  font-size:9px; padding:3px 8px; cursor:pointer; font-family:var(--mono);
+  letter-spacing:1px; transition:all 0.12s; }
+.ptl-btn:hover { color:var(--amber); border-color:var(--amber-dim); background:var(--amber-glow); }
+.ptl-btn.active { color:var(--amber); border-color:var(--amber-dim); }
+.ptl-time-label { font-size:10px; color:var(--amber); letter-spacing:1px; flex:1; text-align:center; }
+.ptl-count { font-size:8px; color:var(--t3); letter-spacing:1px; }
+
+/* ── PALANTIR ARC CONNECTIONS ── */
+.palantir-arc-layer { position:absolute; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; z-index:450; }
+.palantir-arc-layer svg { width:100%; height:100%; }
+.p-arc { fill:none; stroke-linecap:round; opacity:0.6; }
+.p-arc-crit { stroke:var(--red); stroke-width:1.5; }
+.p-arc-high { stroke:var(--orange); stroke-width:1; }
+.p-arc-med  { stroke:var(--amber); stroke-width:0.8; opacity:0.4; }
+@keyframes arc-dash { to { stroke-dashoffset:0; } }
+.p-arc-animated { stroke-dasharray:8 4; stroke-dashoffset:120; animation:arc-dash 3s linear infinite; }
+
+/* ── PALANTIR THREAT PULSE ── */
+@keyframes palantir-pulse-1 { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(3.5);opacity:0} }
+@keyframes palantir-pulse-2 { 0%{transform:scale(1);opacity:0.4} 100%{transform:scale(5);opacity:0} }
+@keyframes palantir-pulse-3 { 0%{transform:scale(1);opacity:0.25} 100%{transform:scale(7);opacity:0} }
+.palantir-pulse-ring {
+  position:absolute; border-radius:50%; pointer-events:none;
+  border:1.5px solid; transform-origin:center;
+}
+.palantir-pulse-r1 { animation:palantir-pulse-1 2.5s ease-out infinite; }
+.palantir-pulse-r2 { animation:palantir-pulse-2 2.5s ease-out infinite 0.6s; }
+.palantir-pulse-r3 { animation:palantir-pulse-3 2.5s ease-out infinite 1.2s; }
+
+/* ── PALANTIR ENTITY CARD ── */
+.palantir-entity-card {
+  background:rgba(6,6,5,0.95); border:1px solid var(--border-hi);
+  border-radius:4px; padding:10px 12px; min-width:240px; max-width:320px;
+  backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.7),0 0 1px var(--amber-dim);
+  font-family:var(--mono);
+}
+.pec-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.pec-sev-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0;
+  box-shadow:0 0 8px currentColor; }
+.pec-source { font-size:7px; color:var(--t3); letter-spacing:2px; text-transform:uppercase; }
+.pec-title { font-size:11px; color:var(--t1); line-height:1.4; margin-bottom:6px; font-weight:600; }
+.pec-body { font-size:9px; color:var(--t2); line-height:1.5; margin-bottom:8px;
+  border-top:1px solid var(--border); padding-top:6px; }
+.pec-meta { display:flex; gap:12px; font-size:8px; color:var(--t3); letter-spacing:0.5px;
+  padding-top:6px; border-top:1px solid var(--border); }
+.pec-meta-item { display:flex; align-items:center; gap:4px; }
+.pec-actions { display:flex; gap:4px; margin-top:8px; }
+.pec-btn { flex:1; padding:4px 6px; font-size:7px; font-family:var(--mono);
+  letter-spacing:1px; text-align:center; cursor:pointer;
+  border:1px solid var(--border); background:rgba(200,168,75,0.04);
+  color:var(--t3); transition:all 0.12s; text-transform:uppercase; }
+.pec-btn:hover { color:var(--amber); border-color:var(--amber-dim); background:var(--amber-glow); }
+.pec-connections { margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
+.pec-conn-label { font-size:7px; color:var(--t3); letter-spacing:1.5px; margin-bottom:4px; }
+.pec-conn-item { font-size:8px; color:var(--t2); padding:2px 0; display:flex; align-items:center; gap:6px; }
+.pec-conn-dot { width:4px; height:4px; border-radius:50%; flex-shrink:0; }
+
+/* ── PALANTIR WATCHZONE ── */
+.palantir-watchzone-ring {
+  border:2px dashed; border-radius:50%; opacity:0.5;
+  animation:watchzone-rotate 30s linear infinite;
+}
+@keyframes watchzone-rotate { to { transform:rotate(360deg); } }
+
+/* ── PALANTIR MAP CONTROLS INJECTION ── */
+.palantir-ctrl-group { margin-top:4px; padding-top:4px; border-top:1px solid var(--border); }
+.palantir-ctrl-label { font-size:7px; color:var(--amber-dim); letter-spacing:2px;
+  padding:2px 6px; font-family:var(--mono); }
+
+/* ── NETWORK GRAPH OVERLAY ── */
+#palantir-network-svg { position:absolute; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; z-index:440; }
+.p-net-line { stroke:var(--amber-dim); stroke-width:0.5; opacity:0.4; }
+.p-net-node { fill:var(--amber); opacity:0.7; cursor:pointer; pointer-events:all; }
+.p-net-node:hover { opacity:1; r:6; }
+.p-net-label { font-family:var(--mono); font-size:7px; fill:var(--t3); pointer-events:none; }
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// PALANTIR ENGINE v1.0 — Geospatial Intelligence Overlay
+// ═══════════════════════════════════════════════════════════════════════════
+
+(function() {
+'use strict';
+
+// ─── STATE ────────────────────────────────────────────────────────────────
+let palantirActive = false;
+let timelineActive = false;
+let arcsActive = false;
+let networkActive = false;
+let watchzonesActive = false;
+let pulseActive = false;
+let timelineInterval = null;
+let timelinePlaying = false;
+let currentTimeIdx = 0;
+let arcLayer = null;
+let networkSvg = null;
+let watchzoneCircles = [];
+let pulseMarkers = [];
+let arcLines = [];
+
+const SEV_COLORS = {
+  critical:'#c82030', high:'#c06018', medium:'#b89828', low:'#3a8838', info:'#555'
+};
+
+// ─── INJECT PALANTIR CONTROLS ────────────────────────────────────────────
+function injectPalantirControls() {
+  const ctrl = document.getElementById('map-controls');
+  if (!ctrl || ctrl.dataset.palantirAdded) return;
+  ctrl.dataset.palantirAdded = '1';
+
+  ctrl.insertAdjacentHTML('beforeend', `
+    <div class="ctrl-divider"></div>
+    <div class="ctrl-group-label" style="color:var(--amber)">PALANTIR</div>
+    <button class="map-ctrl-btn" id="palantir-timeline-btn" onclick="window.palantirToggleTimeline()">⏱ TIMELINE</button>
+    <button class="map-ctrl-btn" id="palantir-arcs-btn" onclick="window.palantirToggleArcs()">⌁ ARC LINKS</button>
+    <button class="map-ctrl-btn" id="palantir-pulse-btn" onclick="window.palantirTogglePulse()">◎ THREAT PULSE</button>
+    <button class="map-ctrl-btn" id="palantir-network-btn" onclick="window.palantirToggleNetwork()">⬡ NETWORK</button>
+    <button class="map-ctrl-btn" id="palantir-watchzone-btn" onclick="window.palantirToggleWatchzones()">⊚ WATCHZONE</button>
+  `);
+}
+
+// ─── 1. TEMPORAL TIMELINE ────────────────────────────────────────────────
+function buildTimeline() {
+  if (document.getElementById('palantir-timeline')) return;
+  const mapEl = document.getElementById('panel-map') || document.getElementById('gmap')?.parentElement;
+  if (!mapEl) return;
+
+  const tl = document.createElement('div');
+  tl.id = 'palantir-timeline';
+  tl.innerHTML = `
+    <div class="ptl-header">
+      <span class="ptl-title">TEMPORAL ANALYSIS</span>
+      <span class="ptl-range" id="ptl-range">—</span>
+      <button class="ptl-close" onclick="window.palantirToggleTimeline()">✕</button>
+    </div>
+    <div class="ptl-track" id="ptl-track">
+      <div class="ptl-cursor" id="ptl-cursor" style="left:100%"></div>
+    </div>
+    <div class="ptl-controls">
+      <button class="ptl-btn" id="ptl-play" onclick="window.palantirTimelinePlay()">▶ PLAY</button>
+      <button class="ptl-btn" onclick="window.palantirTimelineSpeed()">1×</button>
+      <span class="ptl-time-label" id="ptl-time-label">ALL EVENTS</span>
+      <span class="ptl-count" id="ptl-count">—</span>
+    </div>
+  `;
+  mapEl.style.position = 'relative';
+  mapEl.appendChild(tl);
+
+  document.getElementById('ptl-track').addEventListener('click', function(e) {
+    const rect = this.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    palantirTimelineSeek(pct);
+  });
+}
+
+function renderTimelineBars() {
+  const track = document.getElementById('ptl-track');
+  if (!track) return;
+  const feeds = (window.allFeeds || []).filter(f => f.lat && f.lng);
+  if (!feeds.length) return;
+
+  track.querySelectorAll('.ptl-bar').forEach(b => b.remove());
+
+  const now = Date.now();
+  const oldest = now - 7 * 24 * 3600 * 1000;
+  const range = now - oldest;
+  const buckets = 120;
+  const bucketData = new Array(buckets).fill(null).map(() => ({ count:0, maxSev:'info' }));
+  const sevRank = { critical:0, high:1, medium:2, low:3, info:4 };
+
+  feeds.forEach(f => {
+    const ts = f.timestamp || f._ts || now;
+    const age = now - ts;
+    if (age > range) return;
+    const idx = Math.min(buckets - 1, Math.floor(((ts - oldest) / range) * buckets));
+    if (idx >= 0 && idx < buckets) {
+      bucketData[idx].count++;
+      if (sevRank[f.severity] < sevRank[bucketData[idx].maxSev]) bucketData[idx].maxSev = f.severity;
+    }
+  });
+
+  const maxCount = Math.max(1, ...bucketData.map(b => b.count));
+  const trackH = 28;
+
+  bucketData.forEach((b, i) => {
+    if (!b.count) return;
+    const bar = document.createElement('div');
+    bar.className = 'ptl-bar';
+    const h = Math.max(2, (b.count / maxCount) * trackH);
+    const color = SEV_COLORS[b.maxSev] || SEV_COLORS.info;
+    bar.style.cssText = `left:${(i/buckets)*100}%;height:${h}px;background:${color};opacity:0.7;`;
+    bar.title = `${b.count} events`;
+    track.appendChild(bar);
+  });
+
+  const oldestDate = new Date(oldest).toLocaleDateString('en-PH', { month:'short', day:'numeric' });
+  const nowDate = new Date().toLocaleDateString('en-PH', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  const rangeEl = document.getElementById('ptl-range');
+  if (rangeEl) rangeEl.textContent = `${oldestDate} → ${nowDate}`;
+  const countEl = document.getElementById('ptl-count');
+  if (countEl) countEl.textContent = `${feeds.length} EVENTS`;
+}
+
+function palantirTimelineSeek(pct) {
+  pct = Math.max(0, Math.min(1, pct));
+  currentTimeIdx = pct;
+  const cursor = document.getElementById('ptl-cursor');
+  if (cursor) cursor.style.left = `${pct * 100}%`;
+
+  const now = Date.now();
+  const oldest = now - 7 * 24 * 3600 * 1000;
+  const cutoff = oldest + pct * (now - oldest);
+
+  const feeds = (window.allFeeds || []).filter(f => {
+    const ts = f.timestamp || f._ts || now;
+    return ts <= cutoff;
+  });
+
+  const label = document.getElementById('ptl-time-label');
+  if (label) {
+    if (pct >= 0.99) label.textContent = 'ALL EVENTS';
+    else label.textContent = new Date(cutoff).toLocaleString('en-PH', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  if (typeof window.addEventMarkers === 'function') {
+    window.addEventMarkers(feeds);
+  }
+}
+
+let timelineSpeed = 1;
+function palantirTimelinePlay() {
+  const btn = document.getElementById('ptl-play');
+  if (timelinePlaying) {
+    clearInterval(timelineInterval);
+    timelinePlaying = false;
+    if (btn) btn.textContent = '▶ PLAY';
+    palantirTimelineSeek(1);
+    return;
+  }
+  timelinePlaying = true;
+  if (btn) btn.textContent = '⏸ PAUSE';
+  currentTimeIdx = 0;
+  palantirTimelineSeek(0);
+
+  timelineInterval = setInterval(() => {
+    currentTimeIdx += 0.005 * timelineSpeed;
+    if (currentTimeIdx >= 1) {
+      currentTimeIdx = 1;
+      clearInterval(timelineInterval);
+      timelinePlaying = false;
+      if (btn) btn.textContent = '▶ PLAY';
+    }
+    palantirTimelineSeek(currentTimeIdx);
+  }, 50);
+}
+
+function palantirTimelineSpeedFn() {
+  timelineSpeed = timelineSpeed >= 4 ? 1 : timelineSpeed * 2;
+  const btns = document.querySelectorAll('#palantir-timeline .ptl-btn');
+  btns.forEach(b => { if (b.textContent.includes('×')) b.textContent = `${timelineSpeed}×`; });
+}
+
+// ─── 2. ARC CONNECTIONS ─────────────────────────────────────────────────
+function createArcLayer() {
+  const mapEl = document.getElementById('gmap');
+  if (!mapEl) return;
+  if (arcLayer) arcLayer.remove();
+
+  arcLayer = document.createElement('div');
+  arcLayer.className = 'palantir-arc-layer';
+  arcLayer.innerHTML = '<svg id="palantir-arc-svg"></svg>';
+  mapEl.parentElement.appendChild(arcLayer);
+}
+
+function renderArcs() {
+  if (!window.gmap || !arcsActive) return;
+  const svg = document.getElementById('palantir-arc-svg');
+  if (!svg) return;
+  svg.innerHTML = '';
+
+  const feeds = (window.allFeeds || []).filter(f => f.lat && f.lng);
+  if (feeds.length < 2) return;
+
+  const mapEl = document.getElementById('gmap');
+  const rect = mapEl.getBoundingClientRect();
+  const connections = findRelatedEvents(feeds);
+
+  connections.forEach(({ from, to, strength }) => {
+    const fromPt = gmap.latLngToContainerPoint(L.latLng(from.lat, from.lng));
+    const toPt = gmap.latLngToContainerPoint(L.latLng(to.lat, to.lng));
+    if (!fromPt || !toPt) return;
+
+    const dx = toPt.x - fromPt.x;
+    const dy = toPt.y - fromPt.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < 20 || dist > 800) return;
+
+    const cx = (fromPt.x + toPt.x) / 2 - dy * 0.3;
+    const cy = (fromPt.y + toPt.y) / 2 + dx * 0.3;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${fromPt.x},${fromPt.y} Q${cx},${cy} ${toPt.x},${toPt.y}`);
+    const sevClass = strength >= 0.7 ? 'p-arc-crit' : strength >= 0.4 ? 'p-arc-high' : 'p-arc-med';
+    path.setAttribute('class', `p-arc ${sevClass} p-arc-animated`);
+    svg.appendChild(path);
+  });
+}
+
+function findRelatedEvents(feeds) {
+  const connections = [];
+  const maxConns = 40;
+  const processed = new Set();
+
+  for (let i = 0; i < feeds.length && connections.length < maxConns; i++) {
+    for (let j = i + 1; j < feeds.length && connections.length < maxConns; j++) {
+      const a = feeds[i], b = feeds[j];
+      const key = `${i}-${j}`;
+      if (processed.has(key)) continue;
+
+      let strength = 0;
+      if (a.category === b.category && a.category !== 'info') strength += 0.3;
+      if (a.source === b.source) strength += 0.1;
+      if (a.severity === 'critical' && b.severity === 'critical') strength += 0.4;
+      else if (a.severity === b.severity && a.severity !== 'low') strength += 0.15;
+
+      const titleA = (a.title || '').toLowerCase();
+      const titleB = (b.title || '').toLowerCase();
+      const wordsA = new Set(titleA.split(/\s+/).filter(w => w.length > 4));
+      const wordsB = new Set(titleB.split(/\s+/).filter(w => w.length > 4));
+      const shared = [...wordsA].filter(w => wordsB.has(w)).length;
+      strength += Math.min(0.4, shared * 0.15);
+
+      const dist = Math.sqrt(Math.pow(a.lat - b.lat, 2) + Math.pow(a.lng - b.lng, 2));
+      if (dist < 0.05) strength += 0.2;
+      else if (dist < 0.2) strength += 0.1;
+
+      if (strength >= 0.35) {
+        connections.push({ from: a, to: b, strength: Math.min(1, strength) });
+        processed.add(key);
+      }
+    }
+  }
+  return connections.sort((a, b) => b.strength - a.strength).slice(0, 25);
+}
+
+// ─── 3. THREAT PULSE ────────────────────────────────────────────────────
+function renderPulseRings() {
+  clearPulseRings();
+  if (!window.gmap || !pulseActive) return;
+
+  const critFeeds = (window.allFeeds || []).filter(f =>
+    f.lat && f.lng && (f.severity === 'critical' || f.severity === 'high')
+  ).slice(0, 15);
+
+  critFeeds.forEach(f => {
+    const color = SEV_COLORS[f.severity];
+    const baseRadius = f.severity === 'critical' ? 8000 : 5000;
+
+    for (let ring = 0; ring < 3; ring++) {
+      const circle = L.circle([f.lat, f.lng], {
+        radius: baseRadius * (1 + ring * 0.8),
+        color: color,
+        weight: 1,
+        fillColor: color,
+        fillOpacity: 0.02 / (ring + 1),
+        opacity: 0.3 / (ring + 1),
+        interactive: false,
+        className: `palantir-pulse-r${ring + 1}`,
+      }).addTo(gmap);
+      pulseMarkers.push(circle);
+    }
+  });
+}
+
+function clearPulseRings() {
+  pulseMarkers.forEach(m => { try { gmap.removeLayer(m); } catch(e){} });
+  pulseMarkers = [];
+}
+
+// ─── 4. NETWORK GRAPH ───────────────────────────────────────────────────
+function createNetworkSvg() {
+  const mapEl = document.getElementById('gmap');
+  if (!mapEl) return;
+  if (networkSvg) networkSvg.remove();
+  networkSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  networkSvg.id = 'palantir-network-svg';
+  mapEl.parentElement.appendChild(networkSvg);
+}
+
+function renderNetwork() {
+  if (!networkSvg || !window.gmap || !networkActive) return;
+  networkSvg.innerHTML = '';
+
+  const feeds = (window.allFeeds || []).filter(f => f.lat && f.lng);
+  if (!feeds.length) return;
+
+  const locGroups = {};
+  feeds.forEach(f => {
+    const key = `${Math.round(f.lat * 20) / 20},${Math.round(f.lng * 20) / 20}`;
+    if (!locGroups[key]) locGroups[key] = { lat: f.lat, lng: f.lng, feeds: [], categories: new Set(), maxSev: 'info' };
+    locGroups[key].feeds.push(f);
+    locGroups[key].categories.add(f.category);
+    const sevRank = { critical:0, high:1, medium:2, low:3, info:4 };
+    if (sevRank[f.severity] < sevRank[locGroups[key].maxSev]) locGroups[key].maxSev = f.severity;
+  });
+
+  const nodes = Object.values(locGroups).sort((a, b) => b.feeds.length - a.feeds.length).slice(0, 30);
+
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      const sharedCats = [...a.categories].filter(c => b.categories.has(c));
+      if (!sharedCats.length) continue;
+
+      const ptA = gmap.latLngToContainerPoint(L.latLng(a.lat, a.lng));
+      const ptB = gmap.latLngToContainerPoint(L.latLng(b.lat, b.lng));
+      if (!ptA || !ptB) continue;
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', ptA.x); line.setAttribute('y1', ptA.y);
+      line.setAttribute('x2', ptB.x); line.setAttribute('y2', ptB.y);
+      line.setAttribute('class', 'p-net-line');
+      line.style.opacity = Math.min(0.6, sharedCats.length * 0.2);
+      networkSvg.appendChild(line);
+    }
+  }
+
+  nodes.forEach(node => {
+    const pt = gmap.latLngToContainerPoint(L.latLng(node.lat, node.lng));
+    if (!pt) return;
+    const r = Math.min(10, 3 + node.feeds.length * 0.8);
+    const color = SEV_COLORS[node.maxSev] || SEV_COLORS.info;
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', pt.x); circle.setAttribute('cy', pt.y);
+    circle.setAttribute('r', r);
+    circle.setAttribute('class', 'p-net-node');
+    circle.style.fill = color;
+    networkSvg.appendChild(circle);
+
+    if (node.feeds.length >= 3) {
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', pt.x + r + 3); label.setAttribute('y', pt.y + 3);
+      label.setAttribute('class', 'p-net-label');
+      label.textContent = `${node.feeds.length}`;
+      networkSvg.appendChild(label);
+    }
+  });
+}
+
+// ─── 5. WATCHZONES ──────────────────────────────────────────────────────
+function renderWatchzones() {
+  clearWatchzones();
+  if (!window.gmap || !watchzonesActive) return;
+
+  const loc = window.ACTIVE_LOC || { lat: 10.72, lng: 122.56 };
+  const zones = [
+    { label:'INNER PERIMETER', radius:5000, color:'var(--red)', dash:'8,4' },
+    { label:'SECURITY ZONE', radius:15000, color:'var(--orange)', dash:'12,6' },
+    { label:'OUTER WATCH', radius:30000, color:'var(--amber)', dash:'16,8' },
+  ];
+
+  zones.forEach(z => {
+    const circle = L.circle([loc.lat, loc.lng], {
+      radius: z.radius,
+      color: z.color,
+      weight: 1.5,
+      fillColor: 'transparent',
+      fillOpacity: 0,
+      dashArray: z.dash,
+      interactive: false,
+    }).addTo(gmap);
+
+    const labelPt = L.latLng(loc.lat + (z.radius / 111000), loc.lng);
+    const labelMarker = L.marker(labelPt, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="font-family:var(--mono);font-size:7px;color:${z.color};letter-spacing:2px;white-space:nowrap;opacity:0.6">${z.label} · ${z.radius/1000}km</div>`,
+        iconSize: [120, 14],
+        iconAnchor: [60, 7],
+      }),
+      interactive: false,
+    }).addTo(gmap);
+
+    watchzoneCircles.push(circle, labelMarker);
+  });
+}
+
+function clearWatchzones() {
+  watchzoneCircles.forEach(m => { try { gmap.removeLayer(m); } catch(e){} });
+  watchzoneCircles = [];
+}
+
+// ─── TOGGLE FUNCTIONS (window-exposed) ──────────────────────────────────
+window.palantirToggleTimeline = function() {
+  timelineActive = !timelineActive;
+  const tl = document.getElementById('palantir-timeline');
+  const btn = document.getElementById('palantir-timeline-btn');
+  if (timelineActive) {
+    buildTimeline();
+    document.getElementById('palantir-timeline')?.classList.add('active');
+    renderTimelineBars();
+    if (btn) { btn.classList.add('active'); btn.textContent = '⏱ TIMELINE ON'; }
+    if (typeof addJarvisMsg === 'function') addJarvisMsg('jarvis', '⏱ <strong>PALANTIR Temporal Analysis</strong> active. Click the timeline to scrub through events. Press PLAY for animated playback.');
+  } else {
+    document.getElementById('palantir-timeline')?.classList.remove('active');
+    if (timelinePlaying) { clearInterval(timelineInterval); timelinePlaying = false; }
+    palantirTimelineSeek(1);
+    if (btn) { btn.classList.remove('active'); btn.textContent = '⏱ TIMELINE'; }
+  }
+};
+
+window.palantirToggleArcs = function() {
+  arcsActive = !arcsActive;
+  const btn = document.getElementById('palantir-arcs-btn');
+  if (arcsActive) {
+    createArcLayer();
+    renderArcs();
+    if (btn) { btn.classList.add('active'); btn.textContent = '⌁ ARCS ON'; }
+    if (typeof addJarvisMsg === 'function') addJarvisMsg('jarvis', '⌁ <strong>PALANTIR Arc Links</strong> active. Animated arcs show connections between related events based on category, proximity, severity, and keyword overlap.');
+  } else {
+    if (arcLayer) { arcLayer.remove(); arcLayer = null; }
+    if (btn) { btn.classList.remove('active'); btn.textContent = '⌁ ARC LINKS'; }
+  }
+};
+
+window.palantirTogglePulse = function() {
+  pulseActive = !pulseActive;
+  const btn = document.getElementById('palantir-pulse-btn');
+  if (pulseActive) {
+    renderPulseRings();
+    if (btn) { btn.classList.add('active'); btn.textContent = '◎ PULSE ON'; }
+    if (typeof addJarvisMsg === 'function') addJarvisMsg('jarvis', '◎ <strong>PALANTIR Threat Pulse</strong> active. Concentric rings radiate from critical/high-severity event locations showing threat impact zones.');
+  } else {
+    clearPulseRings();
+    if (btn) { btn.classList.remove('active'); btn.textContent = '◎ THREAT PULSE'; }
+  }
+};
+
+window.palantirToggleNetwork = function() {
+  networkActive = !networkActive;
+  const btn = document.getElementById('palantir-network-btn');
+  if (networkActive) {
+    createNetworkSvg();
+    renderNetwork();
+    if (btn) { btn.classList.add('active'); btn.textContent = '⬡ NETWORK ON'; }
+    if (typeof addJarvisMsg === 'function') addJarvisMsg('jarvis', '⬡ <strong>PALANTIR Network Graph</strong> active. Nodes represent event clusters, lines show shared intelligence categories. Node size = event density, color = max severity.');
+  } else {
+    if (networkSvg) { networkSvg.remove(); networkSvg = null; }
+    if (btn) { btn.classList.remove('active'); btn.textContent = '⬡ NETWORK'; }
+  }
+};
+
+window.palantirToggleWatchzones = function() {
+  watchzonesActive = !watchzonesActive;
+  const btn = document.getElementById('palantir-watchzone-btn');
+  if (watchzonesActive) {
+    renderWatchzones();
+    if (btn) { btn.classList.add('active'); btn.textContent = '⊚ ZONES ON'; }
+    if (typeof addJarvisMsg === 'function') addJarvisMsg('jarvis', '⊚ <strong>PALANTIR Watchzones</strong> active. Three concentric security perimeters: Inner (5km), Security Zone (15km), Outer Watch (30km) centered on current AOR.');
+  } else {
+    clearWatchzones();
+    if (btn) { btn.classList.remove('active'); btn.textContent = '⊚ WATCHZONE'; }
+  }
+};
+
+window.palantirTimelinePlay = palantirTimelinePlay;
+window.palantirTimelineSpeed = palantirTimelineSpeedFn;
+
+// ─── MAP MOVE/ZOOM REFRESH ─────────────────────────────────────────────
+function onMapUpdate() {
+  if (arcsActive) requestAnimationFrame(renderArcs);
+  if (networkActive) requestAnimationFrame(renderNetwork);
+}
+
+// ─── INIT ───────────────────────────────────────────────────────────────
+function palantirInit() {
+  if (!window.gmap) { setTimeout(palantirInit, 1000); return; }
+  injectPalantirControls();
+  gmap.on('moveend', onMapUpdate);
+  gmap.on('zoomend', onMapUpdate);
+  console.info('[PALANTIR] Engine v1.0 initialized');
+}
+
+if (document.readyState === 'complete') setTimeout(palantirInit, 2000);
+else window.addEventListener('load', () => setTimeout(palantirInit, 2000));
+
+})();
 </script>
 
 </body>
