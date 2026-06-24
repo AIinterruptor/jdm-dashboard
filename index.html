@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ORBITMART · ILOILO SITDECK</title>
+<title>JDM · COMMAND CENTER</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <!-- Leaflet OpenStreetMap (no API key required) -->
@@ -16,7 +16,7 @@
 <style>
 /* ═══════════════════════════════════════════════════
    CIA COMMAND CENTER — DESIGN SYSTEM
-   ORBITMART // ILOILO OPS
+   JDM // COMMAND CENTER
 ═══════════════════════════════════════════════════ */
 :root {
   /* Core palette — refined dark intelligence */
@@ -2669,9 +2669,7 @@ window.gm_authFailure = function() {
   console.warn('[GMAPS] Google Maps API key error - falling back to Leaflet');
 };
 </script>
-<!-- Google Maps API for PNP and LGU specialized modes -->
-<!-- Google Maps JS API — Maps + Markers only (free tier, no billing for basic map display) -->
-<script src="https://maps.googleapis.com/maps/api/js?key=&callback=initGoogleMapsCallback" async defer></script>
+<!-- Google Maps removed — Leaflet handles all map rendering. Shim at L3256 provides compatibility. -->
 </head>
 <body>
 
@@ -2693,7 +2691,7 @@ window.gm_authFailure = function() {
 </div>
 
 <div class="scanlines"></div>
-<div id="class-banner" title="PH Command Center v2.0 — Build 20260328">TOP SECRET // SENSITIVE COMPARTMENTED INFORMATION // ILOILO OPERATIONS // ORBITMART</div>
+<div id="class-banner" title="JDM Command Center v5.0 — Build 20260624">TOP SECRET // SENSITIVE COMPARTMENTED INFORMATION // JDM COMMAND CENTER</div>
 
 <!-- HEADER — Professional Command Bar -->
 <div id="header">
@@ -2703,8 +2701,8 @@ window.gm_authFailure = function() {
     <div class="hdr-logo">
       <div class="hdr-logo-mark"></div>
       <div class="hdr-wordmark">
-        <div class="hdr-brand">ORBITMART</div>
-        <div class="hdr-tagline">SITDECK v4.1</div>
+        <div class="hdr-brand">JDM</div>
+        <div class="hdr-tagline">COMMAND CENTER v5.0</div>
       </div>
     </div>
   </div>
@@ -2864,7 +2862,7 @@ window.gm_authFailure = function() {
           <span class="hud-sep">|</span>
           <span>EVT:<span class="hud-val" id="map-event-count">0</span></span>
         </div>
-        <div id="map-watermark">ILOILO CITY SITUATIONAL AWARENESS // ORBITMART</div>
+        <div id="map-watermark">SITUATIONAL AWARENESS // JDM COMMAND CENTER</div>
         <div id="map-radar">
           <div class="rx rx-h"></div>
           <div class="rx rx-v"></div>
@@ -3177,7 +3175,7 @@ window.gm_authFailure = function() {
 <div id="brief-modal">
   <div id="brief-box">
     <div id="brief-header">
-      <div id="brief-title">▮ JARVIS INTELLIGENCE BRIEFING // ILOILO OPERATIONS</div>
+      <div id="brief-title">▮ JARVIS INTELLIGENCE BRIEFING // JDM OPERATIONS</div>
       <button id="brief-close" onclick="closeBrief()">✕</button>
     </div>
     <div id="brief-content"></div>
@@ -3986,7 +3984,7 @@ function switchLocation(locKey) {
   // Update classification banner + watermark
   // classification banner hidden
   const watermark = document.getElementById('map-watermark');
-  if (watermark) watermark.textContent = `SECRET // ${loc.label.toUpperCase().replace(/🇵🇭 /,'')} SITUATIONAL AWARENESS // ORBITMART`;
+  if (watermark) watermark.textContent = `${loc.label.toUpperCase().replace(/🇵🇭 /,'')} SITUATIONAL AWARENESS // JDM COMMAND CENTER`;
 
   // ── Update Areas button ───────────────────────────────────────────────────
   const subAreas = getSubAreas(locKey);
@@ -4259,8 +4257,8 @@ function gdeltThrottledFetch(url, sourceKey) {
         raw = await r.text();
       } catch(e) { /* fall through */ }
     }
-    // Fallback: direct browser fetch (GDELT supports CORS)
-    if (!raw) {
+    // Fallback: direct browser fetch (GDELT supports CORS) — skip if proxy was expected
+    if (!raw && proxyMode !== 'cloudflare') {
       try {
         const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
         raw = await r.text();
@@ -4642,10 +4640,7 @@ function renderGdeltFeedBadge(item) {
 const CORS_PROXIES = [
   'https://api.allorigins.win/raw?url=',
   'https://corsproxy.io/?url=',
-  'https://api.codetabs.com/v1/proxy/?quest=',
-  'https://proxy.cors.sh/',
   'https://cors.eu.org/',
-  'https://thingproxy.freeboard.io/fetch/',
 ];
 let _corsProxyIdx = 0;
 const CORS_PROXY = CORS_PROXIES[0]; // backwards compat
@@ -5975,7 +5970,7 @@ async function fetchCrypto() {
 // 1. FRANKFURTER — Live PHP exchange rates (no key, CORS open)
 async function fetchFXRates() {
   return fetchWithRetry(async () => {
-    const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=PHP,SGD,EUR,JPY,SAR,AED,CNY,KRW,AUD,GBP,HKD,THB,MYR');
+    const r = await fetchWithProxy('https://api.frankfurter.app/latest?from=USD&to=PHP,SGD,EUR,JPY,SAR,AED,CNY,KRW,AUD,GBP,HKD,THB,MYR');
     const d = await r.json();
     const php = d.rates?.PHP || 0;
     const rates = Object.entries(d.rates||{}).map(([cur,rate]) => `1 ${cur} = ₱${(php/rate).toFixed(2)}`).join(' · ');
@@ -7813,7 +7808,7 @@ function buildTicker(feeds) {
   }
 
   const now = new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',hour12:false});
-  const timeStamp = `<span class="ticker-item" style="color:var(--amber-dim)">◆ ${now} PHT ◆ ORBITMART SITDECK LIVE</span>`;
+  const timeStamp = `<span class="ticker-item" style="color:var(--amber-dim)">◆ ${now} PHT ◆ JDM COMMAND CENTER LIVE</span>`;
 
   inner.innerHTML = timeStamp + [...items, ...items].map(f => {
     const icon  = f.tag==='radio'?'📻':f.severity==='critical'?'🚨':f.severity==='high'?'⚠':'◆';
@@ -8057,7 +8052,7 @@ ${fmtBlock(soc, 3)}
 📻 RADIO INTEL (${radioItems.length}):
 ${fmtBlock(radioItems, 3)}`;
 
-  let sysPrompt = buildMediaSystemPromptAddition() + `CLASSIFICATION: SECRET // ORBITMART // ${locRegion.toUpperCase()} OPERATIONS
+  let sysPrompt = buildMediaSystemPromptAddition() + `CLASSIFICATION: SECRET // JDM COMMAND CENTER // ${locRegion.toUpperCase()} OPERATIONS
 SYSTEM: J.A.R.V.I.S. — Philippines National Intelligence Platform
 OPERATOR: Commander JD | ACTIVE AOR: ${locName} | ${locRegion}
 COVERS: ${aliases}
@@ -9336,7 +9331,11 @@ async function registerServiceWorker() {
     console.log('[PWA] Service Worker not supported');
     return false;
   }
-  
+  if (window.location.protocol === 'file:' || window.location.hostname.includes('github.io')) {
+    console.log('[PWA] Service Worker skipped on static hosting');
+    return false;
+  }
+
   try {
     // Create service worker inline (embedded)
     const swCode = `
@@ -12498,7 +12497,7 @@ function switchSCCTab(tab, el) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ORBITMART ML INTELLIGENCE ENGINE
+// JDM ML INTELLIGENCE ENGINE
 // Browser-native machine learning — learns from every event, grows smarter
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -13966,7 +13965,7 @@ async function osintBoot() {
     { t:650, cls:'success', txt:`[OK] ML engine — ${modelTrained ? `ACTIVE (${(modelAccuracy*100).toFixed(0)}% accuracy)` : 'LEARNING MODE'}` },
     { t:800, cls:'success', txt:'[OK] Jarvis AI analysis module ready' },
     { t:900, cls:'dim',     txt:'─'.repeat(60) },
-    { t:1000,cls:'header',  txt:'ORBITMART SITDECK — OSINT INTELLIGENCE TERMINAL' },
+    { t:1000,cls:'header',  txt:'JDM COMMAND CENTER — OSINT INTELLIGENCE TERMINAL' },
     { t:1100,cls:'dim',     txt:`AOR: ${ACTIVE_LOC.label.replace(/🇵🇭 /,'')} | ${ACTIVE_LOC.region} | ${new Date().toLocaleString('en-PH')}` },
     { t:1200,cls:'dim',     txt:'─'.repeat(60) },
     { t:1300,cls:'info',    txt:'Type "help" for command list, or click tools on the left.' },
@@ -14794,7 +14793,7 @@ async function osintExportReport() {
   const lines = [...document.getElementById('osint-output').querySelectorAll('.osint-out,.osint-line')]
     .map(el => el.textContent.replace(/\s+/g,' ').trim()).filter(Boolean);
   const report = [
-    'ORBITMART SITDECK — OSINT INTELLIGENCE REPORT',
+    'JDM COMMAND CENTER — OSINT INTELLIGENCE REPORT',
     `Generated: ${new Date().toLocaleString('en-PH')}`,
     `Location: ${ACTIVE_LOC.label}`,
     '='.repeat(60),
@@ -16202,55 +16201,8 @@ async function fetchSocialFeeds() {
   }));
   subFeeds.filter(r => r.status === 'fulfilled').forEach(r => results.push(...r.value));
 
-  // 2. Nitter/Twitter public RSS (no login needed via Nitter instances)
-  const twitterTopics = [
-    { q: `${loc.label.replace(/🇵🇭 /,'')} latest news OR alert OR update`, cat: 'social'   },
-    { q: 'Philippines typhoon OR earthquake OR flood OR bagyo OR linog',    cat: 'disaster' },
-    { q: 'Philippines AFP PNP crime OR shooting OR arrest OR raid',         cat: 'crime'    },
-    { q: 'PAGASA PHIVOLCS NDRRMC PCG warning OR alert OR advisory',        cat: 'disaster' },
-    { q: 'Philippines Marcos economy peso inflation OFW',                   cat: 'economy'  },
-    { q: 'WPS South China Sea Philippines maritime PCG',                    cat: 'crime'    },
-  ];
-
-  const nitterInstances = [
-    'https://nitter.privacydev.net',
-    'https://nitter.poast.org',
-    'https://nitter.1d4.us',
-    'https://nitter.mint.lgbt',
-    'https://nitter.lucahammer.com',
-    'https://nitter.cz',
-  ];
-
-  for (const topic of twitterTopics.slice(0, 2)) {
-    for (const nitter of nitterInstances) {
-      try {
-        const rssFeed = `${nitter}/search/rss?q=${encodeURIComponent(topic.q)}&f=tweets`;
-        const r = await fetchWithProxy(rssFeed, {});
-        if (!r.ok) continue;
-        const txt = await r.text();
-        if (!txt.includes('<item>')) continue;
-        const xml   = new DOMParser().parseFromString(txt, 'text/xml');
-        const items = [...xml.querySelectorAll('item')].slice(0, 6);
-        if (items.length) {
-          results.push(...items.map((item, i) => ({
-            id:       `twitter-${topic.cat}-${i}-${Date.now()}`,
-            source:   `Twitter/X (via ${nitter.replace('https://', '')})`,
-            tag:      'social',
-            category: topic.cat,
-            severity: guessGdeltSeverity(item.querySelector('title')?.textContent || ''),
-            title:    (item.querySelector('title')?.textContent || '').substring(0, 120),
-            body:     (item.querySelector('description')?.textContent || '').replace(/<[^>]+>/g, '').substring(0, 200),
-            loc:      loc.label.replace(/🇵🇭 /, ''),
-            lat:      loc.lat + (Math.random() - 0.5) * 0.5,
-            lng:      loc.lng + (Math.random() - 0.5) * 0.5,
-            time:     timeAgo(item.querySelector('pubDate')?.textContent || Date.now()),
-            url:      item.querySelector('link')?.textContent || nitter,
-          })));
-          break; // Found a working instance
-        }
-      } catch(e) { continue; }
-    }
-  }
+  // 2. Nitter/Twitter — disabled on static hosting (all public nitter instances are dead/unreliable)
+  // To re-enable: deploy a self-hosted nitter instance and update nitterInstances array
 
   // 3. Philippine news social engagement via RSS aggregators
   const socialRss = [
@@ -16441,12 +16393,17 @@ const SOCIAL_SCRAPER_CONFIG = {
   connected: false,
 };
 
-// Check if social scraper bridge is available
+// Check if social scraper bridge is available (requires local Node.js bridge)
 let socialBridgeAvailable = false;
 async function checkSocialBridge() {
+  if (window.location.hostname.includes('github.io') || window.location.protocol === 'file:') {
+    socialBridgeAvailable = false;
+    SOCIAL_SCRAPER_CONFIG.connected = false;
+    return false;
+  }
   try {
-    const r = await fetch(`${SOCIAL_SCRAPER_CONFIG.bridgeUrl}/status`, { 
-      signal: AbortSignal.timeout(2000) 
+    const r = await fetch(`${SOCIAL_SCRAPER_CONFIG.bridgeUrl}/status`, {
+      signal: AbortSignal.timeout(2000)
     });
     if (r.ok) {
       const status = await r.json();
@@ -19625,7 +19582,7 @@ document.addEventListener('click', function resumeAudio() {
 <!-- OSINT TERMINAL MODAL -->
 <div id="osint-modal">
   <div id="osint-header">
-    <div class="osint-title">◈ ORBITMART OSINT TERMINAL // INTELLIGENCE GATHERING MODE</div>
+    <div class="osint-title">◈ JDM OSINT TERMINAL // INTELLIGENCE GATHERING MODE</div>
     <div class="osint-status">
       <span class="live">● ACTIVE</span>
       <span id="osint-op-count">0 OPS</span>
@@ -19694,7 +19651,7 @@ document.addEventListener('click', function resumeAudio() {
   <div id="cinema-header">
     <div class="cinema-title">
       <div class="cinema-live-dot"></div>
-      ◎ ORBITMART CINEMA — IP CAMERA INTELLIGENCE DISPLAY
+      ◎ JDM CINEMA — IP CAMERA INTELLIGENCE DISPLAY
     </div>
     <div id="cinema-controls">
       <button class="cin-btn" onclick="setCinLayout('1x1')">1×1</button>
@@ -20242,7 +20199,7 @@ document.addEventListener('click', function resumeAudio() {
 <div id="lgu-overlay">
   <!-- TOP BAR -->
   <div id="lgu-topbar">
-    <div class="lgu-wordmark">SITDECK</div>
+    <div class="lgu-wordmark">JDM</div>
     <div class="lgu-location-strip">
       <div class="lgu-loc-name" id="lgu-loc-name">Iloilo City</div>
       <div class="lgu-loc-sub" id="lgu-loc-sub">WESTERN VISAYAS · VI</div>
