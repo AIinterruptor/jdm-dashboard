@@ -3217,7 +3217,7 @@ const CONFIG = {
   
   // ── NASA FIRMS (Fire Detection) — get key at earthdata.nasa.gov ───────
   // Free: 10,000 requests/month — VIIRS active fire data
-  FIRMS_KEY: 'dSorgaySbZAgpJrgyRyBFvLA4v7lhfLkGP4WArXL',
+  FIRMS_KEY: '',
   ACLED_EMAIL: '', // Required alongside ACLED_KEY — register at acleddata.com
 
   // ── NewsAPI — get key at newsapi.org ───────────────────────────────────
@@ -3233,7 +3233,7 @@ const CONFIG = {
 
   // ── CurrentsAPI — get key at currentsapi.services ──────────────────────
   // Free: 200 requests/day — live news with categories
-  CURRENTS_KEY: 'Jvk4_ir1hdjAk7oa5RoSPfjxmUREOL6iYaDo9vTsjG5V85Ch',
+  CURRENTS_KEY: '',
 
   // ── OpenWeatherMap One Call API 3.0 — get key at openweathermap.org ───
   // Free: 1,000 calls/day — current, hourly, daily, alerts, air quality
@@ -3242,13 +3242,20 @@ const CONFIG = {
 
   // ── Tavily — AI-powered search API ──────────────────────────────────────
   // Free tier available at tavily.com — excellent for real-time news search
-  TAVILY_KEY: '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',
+  TAVILY_KEY: '',
 
   // ── Default AI Model ──────────────────────────────────────────────────
   // Gemini:  gemini-2.0-flash | gemini-1.5-flash | gemini-1.5-pro | gemini-2.5-pro-preview-03-25
   // Claude:  claude-haiku-4-5-20251001 | claude-sonnet-4-5-20251022 | claude-opus-4-5-20251101
   MODEL: 'nvidia/nemotron-3-super-120b-a12b:free', // Best free model on OpenRouter
 };
+
+// ── Load API keys from localStorage (set once via browser console, never committed) ──
+// Usage: localStorage.setItem('jdm_keys', JSON.stringify({ TAVILY_KEY:'tvly-...', FIRMS_KEY:'...' }))
+try {
+  const stored = JSON.parse(localStorage.getItem('jdm_keys') || '{}');
+  Object.keys(stored).forEach(k => { if (k in CONFIG && stored[k]) CONFIG[k] = stored[k]; });
+} catch(e) {}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LEAFLET COMPATIBILITY LAYER — Google Maps API → Leaflet translation
@@ -16999,7 +17006,7 @@ const NASA_SOURCES = {
     wmsUrl: 'https://firms.modaps.eosdis.nasa.gov/wms/key/KEY/?',
     // Note: The provided key is for map visualization, not data API
     // For fire data API: get key at https://earthdata.nasa.gov/eosdis/daac
-    apiKey: 'dSorgaySbZAgpJrgyRyBFvLA4v7lhfLkGP4WArXL',
+    apiKey: CONFIG.FIRMS_KEY,
     interval: 1800000,
     enabled: true,
   },
