@@ -5414,37 +5414,36 @@ function updateBizWeatherDisplay(data) {
 
 function updateLguWeatherDisplay(data) {
   if (!data || !data.current) return;
-  
-  // LGU Panel - Weather summary in header
-  const lguHeader = document.querySelector('.lgu-panel-title');
-  if (lguHeader) {
-    const temp = Math.round(data.current.temp);
-    const desc = data.current.weather?.[0]?.description || '';
-    const humidity = data.current.humidity;
-    
-    // Check if weather badge exists
-    let badge = document.getElementById('lgu-wx-badge');
-    if (!badge) {
-      lguHeader.innerHTML += ` <span id="lgu-wx-badge" style="font-size:10px;background:rgba(0,150,255,0.2);padding:2px 6px;border-radius:4px;margin-left:8px">🌤️ ${temp}°C ${humidity}%</span>`;
-    } else {
-      badge.textContent = `🌤️ ${temp}°C ${humidity}%`;
+  const temp = Math.round(data.current.temp || data.current.temperature_2m || 0);
+  const humidity = data.current.humidity || data.current.relative_humidity_2m || '';
+  if (isNaN(temp) || temp === 0) return;
+
+  let badge = document.getElementById('lgu-wx-badge');
+  if (!badge) {
+    const lguHeader = document.querySelector('.lgu-panel-title');
+    if (lguHeader) {
+      lguHeader.innerHTML += ` <span id="lgu-wx-badge" style="font-size:10px;background:rgba(0,150,255,0.15);padding:2px 6px;border-radius:4px;margin-left:8px;color:rgba(200,168,75,0.7)">🌤️ ${temp}°C${humidity ? ' '+humidity+'%' : ''}</span>`;
     }
+  } else {
+    badge.textContent = `🌤️ ${temp}°C${humidity ? ' '+humidity+'%' : ''}`;
   }
 }
 
 function updatePnpWeatherDisplay(data) {
   if (!data || !data.current) return;
-  
-  // PNP Panel - Add weather status
-  const pnpHeader = document.querySelector('.pnp-panel-hdr');
-  if (pnpHeader && !document.getElementById('pnp-wx-status')) {
-    const temp = Math.round(data.current.temp);
-    const wind = Math.round(data.current.wind_speed || 0);
-    pnpHeader.innerHTML += `<div id="pnp-wx-status" style="font-size:9px;color:#8ab4f8;margin-top:4px">WX: ${temp}°C | Wind: ${wind}m/s</div>`;
-  } else if (document.getElementById('pnp-wx-status')) {
-    const temp = Math.round(data.current.temp);
-    const wind = Math.round(data.current.wind_speed || 0);
-    document.getElementById('pnp-wx-status').textContent = `WX: ${temp}°C | Wind: ${wind}m/s`;
+  const temp = Math.round(data.current.temp || data.current.temperature_2m || 0);
+  const wind = Math.round(data.current.wind_speed || data.current.wind_speed_10m || 0);
+  if (isNaN(temp) || temp === 0) return;
+
+  const el = document.getElementById('pnp-wx-status');
+  const text = `WX: ${temp}°C | Wind: ${wind}m/s`;
+  if (el) {
+    el.textContent = text;
+  } else {
+    const pnpHeader = document.querySelector('.pnp-panel-hdr');
+    if (pnpHeader) {
+      pnpHeader.innerHTML += `<div id="pnp-wx-status" style="font-size:9px;color:#8ab4f8;margin-top:4px">${text}</div>`;
+    }
   }
 }
 
@@ -19978,18 +19977,18 @@ document.addEventListener('click', function resumeAudio() {
 }
 #lgu-search-bar button:hover { background: rgba(200,168,75,0.25); }
 .lgu-map-btn {
-  padding: 6px 14px; font-size: 9px; font-weight: 700;
+  padding: 4px 10px; font-size: 8px; font-weight: 600;
   letter-spacing: 1.5px; cursor: pointer;
   font-family: 'IBM Plex Mono', monospace;
-  background: rgba(200,168,75,0.06);
-  border: 1px solid rgba(200,168,75,0.2);
-  color: rgba(200,168,75,0.7);
-  transition: all 0.12s;
+  background: rgba(200,168,75,0.04);
+  border: 1px solid rgba(200,168,75,0.15);
+  color: rgba(200,168,75,0.55);
+  transition: all 0.12s; white-space: nowrap;
 }
-.lgu-map-btn:hover { background: rgba(200,168,75,0.14); color: rgba(200,168,75,1); border-color: rgba(200,168,75,0.4); }
-.lgu-map-btn.active { background: rgba(200,168,75,0.18); color: rgba(200,168,75,1); }
-.lgu-map-btn.red { border-color: rgba(204,34,51,0.3); color: rgba(204,34,51,0.7); }
-.lgu-map-btn.red:hover { background: rgba(204,34,51,0.1); color: rgba(204,34,51,1); }
+.lgu-map-btn:hover { background: rgba(200,168,75,0.1); color: rgba(200,168,75,0.9); border-color: rgba(200,168,75,0.35); }
+.lgu-map-btn.active { background: rgba(200,168,75,0.14); color: rgba(200,168,75,1); border-color: rgba(200,168,75,0.4); }
+.lgu-map-btn.red { border-color: rgba(204,34,51,0.3); color: rgba(204,34,51,0.6); }
+.lgu-map-btn.red:hover { background: rgba(204,34,51,0.08); color: rgba(204,34,51,1); }
 
 /* ── RIGHT: JARVIS COMMAND ───────────────────────────────────────── */
 #lgu-right {
@@ -20219,6 +20218,7 @@ document.addEventListener('click', function resumeAudio() {
         <button class="lgu-map-btn" id="lgu-btn-shelters" onclick="lguToggleShelters()">🏛 SHELTERS</button>
         <button class="lgu-map-btn" id="lgu-btn-radar" onclick="lguToggleRadar()">📡 RADAR</button>
         <button class="lgu-map-btn" id="lgu-btn-fires" onclick="lguToggleFires()">🔥 FIRES</button>
+        <button class="lgu-map-btn active" id="lgu-btn-dark" onclick="lguSetLayer('dark')">◉ DARK</button>
         <button class="lgu-map-btn" id="lgu-btn-streets" onclick="lguSetLayer('streets')">📍 STREETS</button>
         <button class="lgu-map-btn" id="lgu-btn-topo" onclick="lguSetLayer('topo')">⛰ TOPO</button>
         <button class="lgu-map-btn red" onclick="lguQuickBrief()">⚡ BRIEF</button>
@@ -20390,15 +20390,15 @@ function initLGUMapLeaflet() {
   
   lguMap = L.map('lgu-map', {
     center: [ACTIVE_LOC?.lat || 10.7202, ACTIVE_LOC?.lng || 122.5621],
-    zoom: ACTIVE_LOC?.zoom || 10,
+    zoom: ACTIVE_LOC?.zoom || 12,
     zoomControl: false, attributionControl: false,
   });
 
-  // OpenStreetMap standard tiles (default)
-  lguBaseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    subdomains: 'abc', maxZoom: 19,
+  // Dark tiles by default to match LGU command theme
+  lguBaseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 19,
   }).addTo(lguMap);
-  lguCurrentLayer = 'streets';
+  lguCurrentLayer = 'dark';
   
   // Map events
   lguMap.on('mousemove', e => {
@@ -20424,25 +20424,19 @@ function initLGUMapLeaflet() {
 // ── LGU Layer Switching ──────────────────────────────────────────────────
 function lguSetLayer(layer) {
   if (!lguMap || !lguBaseLayer) return;
-  
-  // Remove current layer
   lguMap.removeLayer(lguBaseLayer);
-  
-  if (layer === 'streets') {
-    lguBaseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      subdomains: 'abc', maxZoom: 19,
-    }).addTo(lguMap);
-    lguCurrentLayer = 'streets';
-    document.getElementById('lgu-btn-streets')?.classList.add('active');
-    document.getElementById('lgu-btn-topo')?.classList.remove('active');
-  } else if (layer === 'topo') {
-    lguBaseLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-      subdomains: 'abc', maxZoom: 17,
-    }).addTo(lguMap);
-    lguCurrentLayer = 'topo';
-    document.getElementById('lgu-btn-topo')?.classList.add('active');
-    document.getElementById('lgu-btn-streets')?.classList.remove('active');
-  }
+
+  const layers = {
+    dark:    { url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subs:'abcd', maxZ:19 },
+    streets: { url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:19 },
+    topo:    { url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:17 },
+  };
+  const cfg = layers[layer] || layers.dark;
+  lguBaseLayer = L.tileLayer(cfg.url, { subdomains:cfg.subs, maxZoom:cfg.maxZ }).addTo(lguMap);
+  lguCurrentLayer = layer;
+  ['lgu-btn-dark','lgu-btn-streets','lgu-btn-topo'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  const activeBtn = layer === 'dark' ? 'lgu-btn-dark' : layer === 'streets' ? 'lgu-btn-streets' : layer === 'topo' ? 'lgu-btn-topo' : null;
+  if (activeBtn) document.getElementById(activeBtn)?.classList.add('active');
 }
 
 // Google Maps initialization for LGU
@@ -21634,9 +21628,13 @@ if (_origUpdateMetrics) {
 .pnp-inc-type-icon {
   width: 28px; height: 28px; border-radius: 3px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px; background: rgba(60,120,200,0.08);
+  font-size: 13px; background: rgba(60,120,200,0.06);
   border: 1px solid var(--pnp-border);
 }
+.pnp-inc-item.priority-alpha .pnp-inc-type-icon { background:rgba(224,48,64,0.12); border-color:rgba(224,48,64,0.3); }
+.pnp-inc-item.priority-bravo .pnp-inc-type-icon { background:rgba(232,180,32,0.1); border-color:rgba(232,180,32,0.25); }
+.pnp-inc-item.priority-alpha .pnp-inc-title { color:var(--pnp-red); }
+.pnp-inc-item.priority-alpha .pnp-inc-type span:first-child { color:var(--pnp-red); }
 .pnp-inc-right { flex: 1; min-width: 0; }
 .pnp-inc-type {
   font-size: 8px; font-weight: 700; letter-spacing: 1.5px;
@@ -21730,13 +21728,13 @@ if (_origUpdateMetrics) {
   backdrop-filter: blur(10px);
 }
 .pnp-map-btn {
-  padding: 5px 13px; font-size: 9px; font-weight: 700;
+  padding: 4px 10px; font-size: 8px; font-weight: 600;
   letter-spacing: 1.5px; cursor: pointer;
   font-family: var(--pnp-mono);
-  background: rgba(60,120,200,0.06);
+  background: rgba(60,120,200,0.04);
   border: 1px solid var(--pnp-border);
   color: var(--pnp-t3);
-  transition: all 0.12s;
+  transition: all 0.12s; white-space: nowrap;
 }
 .pnp-map-btn:hover { background: var(--pnp-blue-glow); color: var(--pnp-blue); border-color: var(--pnp-blue-dim); }
 .pnp-map-btn.active { background: rgba(60,120,200,0.15); color: var(--pnp-blue); border-color: var(--pnp-blue-dim); }
@@ -22001,6 +21999,7 @@ if (_origUpdateMetrics) {
         <button class="pnp-map-btn" id="pnp-btn-heat" onclick="pnpToggleHeat()">◈ HEAT</button>
         <button class="pnp-map-btn" id="pnp-btn-precincts" onclick="pnpTogglePrecincts()">🏛 PRECINCTS</button>
         <button class="pnp-map-btn" id="pnp-btn-stations" onclick="pnpToggleStations()">📍 STATIONS</button>
+        <button class="pnp-map-btn active" id="pnp-btn-dark" onclick="pnpSetLayer('dark')">◉ DARK</button>
         <button class="pnp-map-btn" id="pnp-btn-streets" onclick="pnpSetLayer('streets')">🗺 STREETS</button>
         <button class="pnp-map-btn" id="pnp-btn-topo" onclick="pnpSetLayer('topo')">⛰ TOPO</button>
         <button class="pnp-map-btn" id="pnp-btn-directions" onclick="pnpToggleDirections()">🚗 ETA</button>
@@ -22221,14 +22220,14 @@ function pnpInitMapLeaflet() {
   
   pnpMap = L.map('pnp-map', {
     center: [ACTIVE_LOC?.lat || 10.7202, ACTIVE_LOC?.lng || 122.5621],
-    zoom: 13, zoomControl: false, attributionControl: false,
+    zoom: ACTIVE_LOC?.zoom || 13, zoomControl: false, attributionControl: false,
   });
 
-  // OpenStreetMap standard tiles (default)
-  pnpBaseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    subdomains: 'abc', maxZoom: 19,
+  // Dark tiles by default to match PNP command theme
+  pnpBaseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 19,
   }).addTo(pnpMap);
-  pnpCurrentLayer = 'streets';
+  pnpCurrentLayer = 'dark';
 
   pnpMap.on('mousemove', e => {
     const coordsEl = document.getElementById('pnp-hud-coords');
@@ -22249,25 +22248,19 @@ function pnpInitMapLeaflet() {
 // ── PNP Layer Switching ──────────────────────────────────────────────────
 function pnpSetLayer(layer) {
   if (!pnpMap || !pnpBaseLayer) return;
-  
-  // Remove current layer
   pnpMap.removeLayer(pnpBaseLayer);
-  
-  if (layer === 'streets') {
-    pnpBaseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      subdomains: 'abc', maxZoom: 19,
-    }).addTo(pnpMap);
-    pnpCurrentLayer = 'streets';
-    document.getElementById('pnp-btn-streets')?.classList.add('active');
-    document.getElementById('pnp-btn-topo')?.classList.remove('active');
-  } else if (layer === 'topo') {
-    pnpBaseLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-      subdomains: 'abc', maxZoom: 17,
-    }).addTo(pnpMap);
-    pnpCurrentLayer = 'topo';
-    document.getElementById('pnp-btn-topo')?.classList.add('active');
-    document.getElementById('pnp-btn-streets')?.classList.remove('active');
-  }
+
+  const layers = {
+    dark:    { url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subs:'abcd', maxZ:19 },
+    streets: { url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:19 },
+    topo:    { url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:17 },
+  };
+  const cfg = layers[layer] || layers.dark;
+  pnpBaseLayer = L.tileLayer(cfg.url, { subdomains:cfg.subs, maxZoom:cfg.maxZ }).addTo(pnpMap);
+  pnpCurrentLayer = layer;
+  ['pnp-btn-dark','pnp-btn-streets','pnp-btn-topo'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+  const activeBtn = layer === 'dark' ? 'pnp-btn-dark' : layer === 'streets' ? 'pnp-btn-streets' : layer === 'topo' ? 'pnp-btn-topo' : null;
+  if (activeBtn) document.getElementById(activeBtn)?.classList.add('active');
 }
 
 // Google Maps initialization for PNP
