@@ -749,7 +749,7 @@ body {
 }
 
 #yt-channel-bar {
-  display:flex; gap:4px; padding:6px 12px;
+  display:flex; gap:4px; padding:5px 12px;
   border-bottom:1px solid var(--border);
   background:var(--void);
   flex-wrap:wrap; align-items:center;
@@ -758,20 +758,79 @@ body {
 .yt-ch-btn {
   background:transparent;
   border:1px solid var(--border);
-  color:var(--t3); padding:3px 10px;
-  font-family:var(--mono); font-size:8px;
+  color:var(--t3); padding:3px 8px;
+  font-family:var(--mono); font-size:7px;
   letter-spacing:1px; cursor:pointer;
   transition:all 0.12s; text-transform:uppercase;
 }
 .yt-ch-btn:hover { color:var(--t2); border-color:var(--border-hi); }
 .yt-ch-btn.active { color:var(--amber); border-color:var(--amber-dim); background:var(--amber-glow); }
 
-#yt-embed-wrap {
-  flex:1; position:relative; overflow:hidden;
+#yt-split {
+  flex:1; display:flex; overflow:hidden;
 }
-#yt-embed-wrap iframe {
-  position:absolute; top:0; left:0;
+
+#yt-grid-wrap {
+  flex:1; overflow-y:auto; overflow-x:hidden;
+  scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+}
+#yt-grid-wrap::-webkit-scrollbar { width:3px; }
+#yt-grid-wrap::-webkit-scrollbar-thumb { background:var(--border); }
+
+#yt-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+  gap:8px; padding:8px;
+}
+
+.yt-card {
+  cursor:pointer; border:1px solid var(--border);
+  background:var(--surface); transition:all 0.15s;
+  overflow:hidden;
+}
+.yt-card:hover { border-color:var(--amber-dim); background:rgba(200,168,75,0.04); }
+.yt-card.active { border-color:var(--amber); box-shadow:0 0 8px rgba(200,168,75,0.15); }
+.yt-card-thumb {
+  width:100%; aspect-ratio:16/9; object-fit:cover;
+  display:block; background:var(--void);
+}
+.yt-card-info { padding:6px 8px; }
+.yt-card-title {
+  font-family:var(--ui); font-size:10px; line-height:1.35;
+  color:var(--t1); display:-webkit-box; -webkit-line-clamp:2;
+  -webkit-box-orient:vertical; overflow:hidden;
+}
+.yt-card-meta {
+  font-family:var(--mono); font-size:7px; letter-spacing:0.5px;
+  color:var(--t3); margin-top:3px; text-transform:uppercase;
+}
+.yt-card-live {
+  display:inline-block; background:rgba(204,34,51,0.8);
+  color:#fff; font-size:7px; font-family:var(--mono);
+  padding:1px 5px; letter-spacing:1px; margin-right:4px;
+}
+
+.yt-loading {
+  grid-column:1/-1; text-align:center; padding:30px;
+  font-family:var(--mono); font-size:9px; color:var(--t3);
+  letter-spacing:1px;
+}
+
+#yt-player-wrap {
+  width:45%; min-width:320px; position:relative;
+  border-left:1px solid var(--border);
+  background:var(--void); display:flex;
+  flex-direction:column;
+}
+#yt-player-wrap iframe {
   width:100%; height:100%; border:none;
+}
+#yt-player-placeholder {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:10px; color:var(--t3);
+  letter-spacing:2px; text-transform:uppercase;
+  pointer-events:none;
 }
 
 /* ═══ BRIEF MODAL ═══ */
@@ -2345,6 +2404,9 @@ body {
   #panel-bottom .panel-header { padding: 6px 12px; }
   #yt-channel-bar { padding: 4px 8px; }
   .yt-ch-btn { padding: 4px 8px; font-size: 7px; }
+  #yt-split { flex-direction:column; }
+  #yt-player-wrap { width:100%; min-width:unset; height:200px; border-left:none; border-top:1px solid var(--border); }
+  #yt-grid { grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:6px; padding:6px; }
 
   /* ── MAP ── */
   #map-controls {
@@ -3048,20 +3110,27 @@ window.gm_authFailure = function() {
     </div>
     <div id="yt-news-content">
       <div id="yt-channel-bar">
-        <button class="yt-ch-btn" onclick="switchYT('abs-cbn',this)">ABS-CBN NEWS</button>
-        <button class="yt-ch-btn" onclick="switchYT('gma',this)">GMA NEWS</button>
+        <button class="yt-ch-btn active" onclick="switchYT('all',this)">ALL</button>
+        <button class="yt-ch-btn" onclick="switchYT('abs-cbn',this)">ABS-CBN</button>
+        <button class="yt-ch-btn" onclick="switchYT('gma',this)">GMA</button>
         <button class="yt-ch-btn" onclick="switchYT('cnn-ph',this)">CNN PH</button>
         <button class="yt-ch-btn" onclick="switchYT('one-news',this)">ONE NEWS</button>
-        <button class="yt-ch-btn active" onclick="switchYT('al-jazeera',this)">AL JAZEERA</button>
+        <button class="yt-ch-btn" onclick="switchYT('al-jazeera',this)">AL JAZEERA</button>
         <button class="yt-ch-btn" onclick="switchYT('france24',this)">FRANCE 24</button>
-        <button class="yt-ch-btn" onclick="switchYT('bbc',this)">BBC NEWS</button>
+        <button class="yt-ch-btn" onclick="switchYT('bbc',this)">BBC</button>
         <button class="yt-ch-btn" onclick="switchYT('reuters',this)">REUTERS</button>
       </div>
-      <div id="yt-embed-wrap">
-        <iframe id="yt-iframe"
-          src="https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg&autoplay=0&mute=1"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen loading="lazy"></iframe>
+      <div id="yt-split">
+        <div id="yt-grid-wrap">
+          <div id="yt-grid"><div class="yt-loading">Loading latest news videos…</div></div>
+        </div>
+        <div id="yt-player-wrap">
+          <iframe id="yt-iframe"
+            src="about:blank"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen></iframe>
+          <div id="yt-player-placeholder">Select a video to play</div>
+        </div>
       </div>
     </div>
   </div>
@@ -6297,6 +6366,7 @@ async function initSystem() {
   addJarvisMsg('jarvis', `J.A.R.V.I.S. Philippines National Intelligence Platform online.<br>Coverage: <strong>All 17 Regions · 82 Provinces · Key Cities</strong>.<br>Sources: <strong>Google News · GDELT · Inquirer · GMA · Rappler · PhilStar · PNA · PAGASA · NDRRMC · ReliefWeb · Reddit · USGS · Weather · GDACS · BSP/FX · World Bank · OpenStreetMap · Crypto</strong><br>Early Warning: <strong>18 crisis types · 72h ML forecast · 8 precursor chains · Z-score anomaly detection</strong>.<br><br>${proxyStatus}<br><br>Select a location using the <strong>◉ LOCATION</strong> button or search by city/province/region. Press <strong>?</strong> for keyboard shortcuts. Press <strong>F</strong> for a 72-hour early warning forecast.<br>${hasActiveKey() ? 'AI analysis <strong style="color:var(--green-hi)">ONLINE</strong> via <strong>' + (OPENROUTER_KEY ? 'OpenRouter' : GEMINI_KEY ? 'Google Gemini' : 'Anthropic Claude') + '</strong> · Model: <strong>' + ACTIVE_MODEL.split('/').pop().replace(':free','').substring(0,24) + '</strong>. Awaiting orders, Commander.' : '⚠ Set CONFIG.OPENROUTER_KEY (free) or CONFIG.GEMINI_KEY / CLAUDE_KEY to activate AI analysis.'}<br><br><span style="color:var(--t3)">📱 <strong>PWA Ready</strong> — Works offline with cached data. Type /offline for status.</span>`);
   
   setTimeout(injectRadioPanel, 1000);
+  setTimeout(() => loadYTGrid('all'), 2000);
   setTimeout(runScraperEngine, 5000);
   setTimeout(() => { checkSocialBridge(); startSocialScraperPolling(); }, 8000);
   initMLEngine().catch(e => console.warn("ML Engine:", e.message));
@@ -7839,22 +7909,90 @@ function showKeyboardHelp() {
 
 // ─── YOUTUBE NEWS PANEL ───────────────────────────────────────────────────
 const YT_CHANNELS = {
-  'abs-cbn':    'UCE2606prvXQc_noEqKxVJXA',
-  'gma':        'UCqYw-CTd1dU2yGI71sEyqNw',
-  'cnn-ph':     'UCbhMGG0ZievPtK8mzLH5jhQ',
-  'one-news':   'UCzEAC4xGrhpShopTYgBhGJA',
-  'al-jazeera': 'UCNye-wNBqNL5ZzHSJj3l8Bg',
-  'bbc':        'UC16niRr50-MSBwiO3YDb3RA',
-  'reuters':    'UCaIQKSOlK4LaYbOcOJCI9DA',
-  'france24':   'UCQfwfsi5VrQ8yKZ-UWmAEFg',
+  'abs-cbn':    { id:'UCE2606prvXQc_noEqKxVJXA', label:'ABS-CBN' },
+  'gma':        { id:'UCqYw-CTd1dU2yGI71sEyqNw', label:'GMA' },
+  'cnn-ph':     { id:'UCbhMGG0ZievPtK8mzLH5jhQ', label:'CNN PH' },
+  'one-news':   { id:'UCzEAC4xGrhpShopTYgBhGJA', label:'ONE NEWS' },
+  'al-jazeera': { id:'UCNye-wNBqNL5ZzHSJj3l8Bg', label:'AL JAZEERA' },
+  'france24':   { id:'UCQfwfsi5VrQ8yKZ-UWmAEFg', label:'FRANCE 24' },
+  'bbc':        { id:'UC16niRr50-MSBwiO3YDb3RA', label:'BBC' },
+  'reuters':    { id:'UCaIQKSOlK4LaYbOcOJCI9DA', label:'REUTERS' },
 };
-function switchYT(key, btn) {
+let ytVideoCache = {};
+let ytActiveFilter = 'all';
+
+async function fetchYTFeed(key) {
   const ch = YT_CHANNELS[key];
-  if (!ch) return;
-  document.getElementById('yt-iframe').src =
-    'https://www.youtube.com/embed/live_stream?channel=' + ch + '&autoplay=1&mute=1';
+  if (!ch) return [];
+  if (ytVideoCache[key] && Date.now() - ytVideoCache[key].ts < 300000) return ytVideoCache[key].vids;
+  try {
+    const proxy = 'https://api.allorigins.win/raw?url=';
+    const feedUrl = encodeURIComponent('https://www.youtube.com/feeds/videos.xml?channel_id=' + ch.id);
+    const resp = await fetch(proxy + feedUrl);
+    const xml = await resp.text();
+    const doc = new DOMParser().parseFromString(xml, 'text/xml');
+    const entries = doc.querySelectorAll('entry');
+    const vids = [];
+    entries.forEach(e => {
+      const videoId = e.querySelector('videoId')?.textContent;
+      const title = e.querySelector('title')?.textContent || '';
+      const published = e.querySelector('published')?.textContent || '';
+      const thumb = e.querySelector('group thumbnail')?.getAttribute('url')
+        || (videoId ? 'https://i.ytimg.com/vi/' + videoId + '/mqdefault.jpg' : '');
+      if (videoId) vids.push({ videoId, title, published, thumb, channel: ch.label, channelKey: key });
+    });
+    ytVideoCache[key] = { vids, ts: Date.now() };
+    return vids;
+  } catch(e) { return []; }
+}
+
+async function loadYTGrid(filter) {
+  ytActiveFilter = filter || 'all';
+  const grid = document.getElementById('yt-grid');
+  grid.innerHTML = '<div class="yt-loading">Loading latest news videos…</div>';
+  let allVids = [];
+  const keys = filter === 'all' ? Object.keys(YT_CHANNELS) : [filter];
+  const results = await Promise.allSettled(keys.map(k => fetchYTFeed(k)));
+  results.forEach(r => { if (r.status === 'fulfilled') allVids = allVids.concat(r.value); });
+  allVids.sort((a, b) => new Date(b.published) - new Date(a.published));
+  if (!allVids.length) { grid.innerHTML = '<div class="yt-loading">No videos found</div>'; return; }
+  grid.innerHTML = allVids.map(v => {
+    const ago = timeAgo(v.published);
+    return `<div class="yt-card" onclick="playYT('${v.videoId}',this)" data-vid="${v.videoId}">
+      <img class="yt-card-thumb" src="${v.thumb}" alt="" loading="lazy">
+      <div class="yt-card-info">
+        <div class="yt-card-title">${escHtml(v.title)}</div>
+        <div class="yt-card-meta">${v.channel} · ${ago}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function playYT(videoId, card) {
+  const iframe = document.getElementById('yt-iframe');
+  iframe.src = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&rel=0';
+  const ph = document.getElementById('yt-player-placeholder');
+  if (ph) ph.style.display = 'none';
+  document.querySelectorAll('.yt-card').forEach(c => c.classList.remove('active'));
+  if (card) card.classList.add('active');
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + 'd ago';
+}
+
+function switchYT(key, btn) {
   document.querySelectorAll('.yt-ch-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+  loadYTGrid(key);
 }
 
 // ─── JARVIS STUBS (called from many places — kept as no-ops) ─────────────
