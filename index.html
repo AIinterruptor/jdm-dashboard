@@ -727,15 +727,14 @@ body {
 .trend-tag:hover { color:var(--amber-text); border-color:var(--amber-dim); background:var(--amber-glow); }
 .trend-tag.hot { color:var(--orange); border-color:rgba(200,92,26,0.3); }
 
-/* ═══ BOTTOM — JARVIS ═══ */
+/* ═══ BOTTOM — YOUTUBE NEWS ═══ */
 #panel-bottom {
   grid-column:2; grid-row:2;
   display:flex; flex-direction:column;
   border-top:1px solid var(--border);
   overflow:hidden;
 }
-#panel-bottom.collapsed #jarvis-chat,
-#panel-bottom.collapsed #jarvis-input-row { display:none; }
+#panel-bottom.collapsed #yt-news-content { display:none; }
 
 .jarvis-toggle-btn {
   background:none; border:none; color:var(--amber-dim);
@@ -744,110 +743,36 @@ body {
 }
 .jarvis-toggle-btn.collapsed { transform:rotate(180deg); }
 
-/* Chat */
-#jarvis-chat {
-  flex:1; overflow-y:auto; padding:8px 12px;
-  scrollbar-width:thin; scrollbar-color:var(--border) transparent;
-  display:flex; flex-direction:column; gap:7px;
+#yt-news-content {
+  flex:1; display:flex; flex-direction:column; overflow:hidden;
   background:var(--dark-ops);
 }
-#jarvis-chat::-webkit-scrollbar { width:3px; }
-#jarvis-chat::-webkit-scrollbar-thumb { background:var(--border); }
 
-.msg { display:flex; gap:8px; align-items:flex-start; }
-
-.msg-avatar {
-  width:22px; height:22px; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  font-family:var(--mono); font-size:9px; font-weight:700;
-}
-.msg-avatar.jarvis {
-  background:var(--amber-glow);
-  border:1px solid var(--amber-dim);
-  color:var(--amber);
-}
-.msg-avatar.user {
-  background:rgba(200,92,26,0.1);
-  border:1px solid rgba(200,92,26,0.3);
-  color:var(--orange);
-}
-
-.msg-bubble {
-  flex:1; padding:6px 10px;
-  font-size:11px; line-height:1.55; max-width:calc(100% - 30px);
-}
-.msg-bubble.jarvis {
-  background:rgba(200,168,75,0.04);
-  border:1px solid rgba(200,168,75,0.1);
-  color:var(--t1);
-  border-left:2px solid var(--amber-dim);
-}
-.msg-bubble.user {
-  background:rgba(200,92,26,0.04);
-  border:1px solid rgba(200,92,26,0.1);
-  color:var(--t2);
-}
-.msg-bubble.thinking { opacity:0.6; font-style:italic; color:var(--amber-dim); }
-
-.typing-dots { display:inline-flex; gap:3px; align-items:center; }
-.typing-dots span {
-  width:3px; height:3px; background:var(--amber); border-radius:50%;
-  animation:typing 1.2s ease-in-out infinite;
-}
-.typing-dots span:nth-child(2) { animation-delay:0.2s; }
-.typing-dots span:nth-child(3) { animation-delay:0.4s; }
-@keyframes typing { 0%,100%{opacity:0.3;transform:translateY(0)} 50%{opacity:1;transform:translateY(-3px)} }
-
-/* Jarvis input */
-#jarvis-input-row {
-  display:flex; gap:6px; padding:6px 12px;
-  border-top:1px solid var(--border);
+#yt-channel-bar {
+  display:flex; gap:4px; padding:6px 12px;
+  border-bottom:1px solid var(--border);
   background:var(--void);
-  align-items:center;
+  flex-wrap:wrap; align-items:center;
 }
 
-.ctx-row {
-  display:flex; gap:4px; align-items:center;
-}
-
-.ctx-btn {
+.yt-ch-btn {
   background:transparent;
   border:1px solid var(--border);
-  color:var(--t3); padding:3px 8px;
+  color:var(--t3); padding:3px 10px;
   font-family:var(--mono); font-size:8px;
   letter-spacing:1px; cursor:pointer;
   transition:all 0.12s; text-transform:uppercase;
 }
-.ctx-btn:hover { color:var(--t2); border-color:var(--border-hi); }
-.ctx-btn.active { color:var(--amber); border-color:var(--amber-dim); background:var(--amber-glow); }
+.yt-ch-btn:hover { color:var(--t2); border-color:var(--border-hi); }
+.yt-ch-btn.active { color:var(--amber); border-color:var(--amber-dim); background:var(--amber-glow); }
 
-#jarvis-input {
-  flex: 1;
-  background: rgba(200,168,75,0.03);
-  border: 1px solid rgba(200,175,110,0.15);
-  border-left: 2px solid var(--amber-dim);
-  color: var(--t1); padding: 7px 12px;
-  font-family: var(--mono); font-size: 11px;
-  outline: none; transition: all 0.15s;
-  letter-spacing: 0.3px;
+#yt-embed-wrap {
+  flex:1; position:relative; overflow:hidden;
 }
-#jarvis-input:focus {
-  border-color: var(--amber-dim);
-  background: rgba(200,168,75,0.05);
-  box-shadow: inset 0 0 0 1px rgba(200,168,75,0.08);
+#yt-embed-wrap iframe {
+  position:absolute; top:0; left:0;
+  width:100%; height:100%; border:none;
 }
-#jarvis-input::placeholder { color: var(--t3); font-style: italic; }
-
-#jarvis-send {
-  background: rgba(200,168,75,0.10);
-  border: 1px solid var(--amber-dim);
-  color: var(--amber); padding: 7px 18px;
-  font-family: var(--mono); font-size: 9px; font-weight: 700;
-  letter-spacing: 2px; text-transform: uppercase;
-  cursor: pointer; transition: all 0.15s; flex-shrink: 0;
-}
-#jarvis-send:hover { background: rgba(200,168,75,0.18); box-shadow: 0 0 14px rgba(200,168,75,0.15); }
-#jarvis-send:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* ═══ BRIEF MODAL ═══ */
 #brief-modal {
@@ -2111,13 +2036,7 @@ body {
   border-top: 1px solid rgba(200,175,110,0.08);
 }
 
-/* JARVIS chat bubbles — more readable */
-.msg-bubble.jarvis {
-  border-left-color: rgba(200,168,75,0.3);
-  background: rgba(200,168,75,0.03);
-  font-size: 12px;
-}
-.msg-bubble.user { font-size: 12px; }
+/* YouTube news panel — responsive */
 
 /* Map controls — refined */
 #map-controls {
@@ -2422,10 +2341,10 @@ body {
   .alert-body .a-title { font-size: 11px; }
   .alert-body .a-meta { font-size: 8px; }
 
-  /* ── JARVIS / BOTTOM PANEL ── */
+  /* ── YOUTUBE NEWS / BOTTOM PANEL ── */
   #panel-bottom .panel-header { padding: 6px 12px; }
-  #jarvis-input { font-size: 16px; } /* Prevent iOS zoom */
-  #jarvis-send { min-height: 44px; min-width: 56px; }
+  #yt-channel-bar { padding: 4px 8px; }
+  .yt-ch-btn { padding: 4px 8px; font-size: 7px; }
 
   /* ── MAP ── */
   #map-controls {
@@ -2686,7 +2605,7 @@ window.gm_authFailure = function() {
     <span class="nav-ico">⚡</span><span class="nav-lbl">THREAT</span>
   </button>
   <button class="mob-nav-btn" data-panel="panel-bottom" onclick="mobileNav(this,'panel-bottom')">
-    <span class="nav-ico">🤵</span><span class="nav-lbl">JARVIS</span>
+    <span class="nav-ico">📺</span><span class="nav-lbl">NEWS</span>
   </button>
 </div>
 
@@ -3119,53 +3038,30 @@ window.gm_authFailure = function() {
         </div>
     </div>
 
-  <!-- BOTTOM: JARVIS -->
+  <!-- BOTTOM: YOUTUBE NEWS -->
   <div class="panel" id="panel-bottom">
     <div class="panel-header">
-      <div class="panel-title">JARVIS · AI ANALYSIS</div>
+      <div class="panel-title">YOUTUBE · NEWS FEED</div>
       <div style="display:flex;align-items:center;gap:4px">
         <button class="jarvis-toggle-btn" id="jarvis-toggle" onclick="toggleJarvis()" title="Collapse">▼</button>
-        <div id="auto-monitor-badge"><div class="dot"></div>AUTO</div>
-        <button id="voice-btn" onclick="toggleVoice()" title="Voice Command (V)">🎙</button>
-        <button id="sound-btn" onclick="toggleSound()" title="Toggle Sounds">🔊</button>
-        <button class="ctx-btn active" id="ctx-feed" onclick="toggleCtx('feed',this)">FEED</button>
-        <button class="ctx-btn active" id="ctx-map" onclick="toggleCtx('map',this)">MAP</button>
-        <button class="ctx-btn" onclick="sendBriefing()">BRIEF</button>
-        <button class="ctx-btn" onclick="clearChat()">CLEAR</button>
       </div>
     </div>
-    <div id="jarvis-chat"></div>
-    <div id="sim-bar">
-      <span class="sim-label">SIM</span>
-      <span id="sim-status">● SIMULATION ACTIVE</span>
-      <button class="sim-btn cat-disaster" onclick="runSim('typhoon')">🌀 TYPHOON</button>
-      <button class="sim-btn cat-disaster" onclick="runSim('earthquake')">⚡ EARTHQUAKE</button>
-      <button class="sim-btn cat-disaster" onclick="runSim('flood')">🌊 FLOOD</button>
-      <button class="sim-btn cat-disaster" onclick="runSim('volcano')">🌋 ERUPTION</button>
-      <button class="sim-btn cat-conflict"  onclick="runSim('armed_clash')">⚔ ARMED CLASH</button>
-      <button class="sim-btn cat-conflict"  onclick="runSim('terror')">💣 TERROR ALERT</button>
-      <button class="sim-btn cat-conflict"  onclick="runSim('protest')">✊ CIVIL UNREST</button>
-      <button class="sim-btn cat-health"    onclick="runSim('outbreak')">🦠 OUTBREAK</button>
-      <button class="sim-btn cat-intel"     onclick="runSim('missing_persons')">👤 MISSING</button>
-      <button class="sim-btn cat-intel"     onclick="runSim('maritime')">⚓ MARITIME INC.</button>
-      <button class="sim-btn cat-intel"     onclick="runSim('custom')">◆ CUSTOM</button>
-      <button class="sim-btn" onclick="clearSim()" style="margin-left:auto;border-color:rgba(204,34,51,0.4);color:var(--red)">✕ CLEAR SIM</button>
-    </div>
-    <div id="timeline-panel">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 12px;border-bottom:1px solid var(--border);background:var(--dark-ops);flex-shrink:0">
-        <span style="font-family:var(--mono);font-size:8px;letter-spacing:2px;color:var(--amber-dim)">▸ 24H TIMELINE</span>
-        <button onclick="toggleTimeline()" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px">✕</button>
+    <div id="yt-news-content">
+      <div id="yt-channel-bar">
+        <button class="yt-ch-btn active" onclick="switchYT('abs-cbn',this)">ABS-CBN NEWS</button>
+        <button class="yt-ch-btn" onclick="switchYT('gma',this)">GMA NEWS</button>
+        <button class="yt-ch-btn" onclick="switchYT('cnn-ph',this)">CNN PH</button>
+        <button class="yt-ch-btn" onclick="switchYT('one-news',this)">ONE NEWS</button>
+        <button class="yt-ch-btn" onclick="switchYT('al-jazeera',this)">AL JAZEERA</button>
+        <button class="yt-ch-btn" onclick="switchYT('bbc',this)">BBC NEWS</button>
+        <button class="yt-ch-btn" onclick="switchYT('reuters',this)">REUTERS</button>
       </div>
-      <div id="timeline-track"></div>
-    </div>
-    <div style="position:relative">
-      <div id="cmd-autocomplete"></div>
-    </div>
-    <div id="jarvis-input-row">
-      <input id="jarvis-input" type="text"
-        placeholder="QUERY // analyze threats · request briefing · assess situation..."
-        onkeydown="if(event.key==='Enter')sendMsg()">
-      <button id="jarvis-send" onclick="sendMsg()">SEND</button>
+      <div id="yt-embed-wrap">
+        <iframe id="yt-iframe"
+          src="https://www.youtube.com/embed/videoseries?list=UUuHzAD21-xOYpHbvZ-OGC9w&autoplay=0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen loading="lazy"></iframe>
+      </div>
     </div>
   </div>
 
@@ -7806,7 +7702,7 @@ function toggleJarvis() {
   document.getElementById('panel-bottom').classList.toggle('collapsed', jarvisCollapsed);
   const btn = document.getElementById('jarvis-toggle');
   btn.textContent = jarvisCollapsed ? '▲' : '▼';
-  btn.title = jarvisCollapsed ? 'Expand JARVIS' : 'Collapse JARVIS';
+  btn.title = jarvisCollapsed ? 'Expand News' : 'Collapse News';
 }
 
 // ─── BRIEF MODAL ──────────────────────────────────────────────────────────
@@ -7922,7 +7818,7 @@ function showKbdToast(msg) {
 function showKeyboardHelp() {
   const shortcuts = [
     ['B','Briefing'],['R','Refresh feeds'],['M','Toggle markers'],
-    ['J','Toggle JARVIS'],['L','Legend'],
+    ['J','Toggle News Panel'],['L','Legend'],
     ['H','Heatmap'],['C','Cluster'],['E','EEZ boundary'],
     ['T','Cycle map layers'],['G','Sector grid'],
     ['+/-','Zoom in/out'],['F','Fly to location'],
@@ -7940,38 +7836,27 @@ function showKeyboardHelp() {
   addJarvisMsg('jarvis', `<strong style="letter-spacing:2px">⌨ KEYBOARD SHORTCUTS</strong><br><br><div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin-top:4px">${rows}</div>`);
 }
 
-// ─── JARVIS AI ────────────────────────────────────────────────────────────
-function addJarvisMsg(role, html, thinking=false) {
-  const chat = document.getElementById('jarvis-chat');
-  const div  = document.createElement('div');
-  div.className = 'msg';
-  const isJ   = role === 'jarvis';
-  const avatar = isJ
-    ? '<div class="msg-avatar jarvis">J</div>'
-    : '<div class="msg-avatar user">C</div>';
-  div.innerHTML = `${avatar}<div class="msg-bubble ${role}${thinking?' thinking':''}">${html}</div>`;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
-
-  // ── Media parsing (no recursion — runs on final HTML directly) ──
-  if (isJ && !thinking) {
-    const bubble = div.querySelector('.msg-bubble');
-    if (bubble && typeof parseAndRenderMedia === 'function') {
-      const parsed = parseAndRenderMedia(bubble.innerHTML, div);
-      if (parsed !== bubble.innerHTML) bubble.innerHTML = parsed;
-    }
-  }
-
-  // ── ML knowledge extraction (async, no recursion) ──
-  if (isJ && !thinking && typeof mlDB !== 'undefined' && mlDB && html.length > 100) {
-    lastJarvisResponse = html.replace(/<[^>]+>/g,' ').trim();
-    if (typeof extractKnowledge === 'function') {
-      extractKnowledge(lastJarvisResponse, { crisis_type: null }).catch(() => {});
-    }
-  }
-
-  return div;
+// ─── YOUTUBE NEWS PANEL ───────────────────────────────────────────────────
+const YT_CHANNELS = {
+  'abs-cbn':   'UUuHzAD21-xOYpHbvZ-OGC9w',
+  'gma':       'UU8wRTmNtVarc9N7KHHF7V8w',
+  'cnn-ph':    'UUbhMGG0ZievPtK8mzLH5jhQ',
+  'one-news':  'UUstM8tb_fKjiMSC1WIcUB_w',
+  'al-jazeera':'UUNye-wNBqNL5ZzHSJj3l8Bg',
+  'bbc':       'UU16niRr50-MSBwiO3YDb3RA',
+  'reuters':   'UUaIQKSOlK4LaYbOcOJCI9DA',
+};
+function switchYT(key, btn) {
+  const pid = YT_CHANNELS[key];
+  if (!pid) return;
+  document.getElementById('yt-iframe').src =
+    'https://www.youtube.com/embed/videoseries?list=' + pid;
+  document.querySelectorAll('.yt-ch-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
 }
+
+// ─── JARVIS STUBS (called from many places — kept as no-ops) ─────────────
+function addJarvisMsg() { return null; }
 
 function buildSystemPrompt() {
   const now      = new Date().toLocaleString('en-US',{timeZone:'Asia/Manila'});
@@ -8169,86 +8054,10 @@ ${feedCtx}${mapCtx}`;
   return sysPrompt;
 }
 
-async function sendMsg() {
-  const input=document.getElementById('jarvis-input');
-  const btn=document.getElementById('jarvis-send');
-  const text=input.value.trim();
-  if (!text) return;
-  // Handle slash commands
-  document.getElementById('cmd-autocomplete')?.classList.remove('show');
-  if (text.startsWith('/')) {
-    addJarvisMsg('user', text);
-    input.value = '';
-    btn.disabled = false;
-    executeSlashCommand(text);
-    return;
-  }
-  if (!hasActiveKey()) {
-    addJarvisMsg('jarvis','// ACCESS DENIED — Set CONFIG.OPENROUTER_KEY (free at openrouter.ai), CONFIG.GEMINI_KEY, or CONFIG.CLAUDE_KEY to activate AI analysis.');
-    input.value='';
-    return;
-  }
-  input.value=''; btn.disabled=true;
-  addJarvisMsg('user',text);
-
-  // Detect direct media intents — handle without AI if purely media request
-  const intents = detectMediaIntent(text);
-  const isPureMedia = intents.length && /^(show|find|get|display|play|search)\s/i.test(text.trim()) && text.split(' ').length < 8;
-  if (isPureMedia) {
-    btn.disabled=false;
-    const mediaId = 'media-' + Date.now();
-    let mediaHtml = '';
-    intents.forEach(intent => {
-      if (intent.type === 'images') mediaHtml += `[IMAGES:${intent.query}]`;
-      if (intent.type === 'video')  mediaHtml += `[VIDEO:${intent.query}]`;
-    });
-    if (mediaHtml) { addJarvisMsg('jarvis', `Fetching: <em>${text}</em><br>${mediaHtml}`); return; }
-  }
-
-  chatHistory.push({role:'user',content:text});
-  const thinking=addJarvisMsg('jarvis','<div class="typing-dots"><span></span><span></span><span></span></div>',true);
-  try {
-    const reply = await callAI({ messages: chatHistory.slice(-10), system: buildSystemPrompt(), max_tokens: 2000 });
-    thinking.remove();
-
-    // ── Parse ML-LABEL tags before rendering ───────────────────────────────
-    const mlLabels = parseMLLabelTags(reply);
-    const displayReply = reply.replace(/ML-LABEL:[^\n]+/g, (match) => {
-      // Render as a teaching badge instead of raw text
-      const parts = match.match(/ML-LABEL:\s*(\w+)\s*\|\s*confidence:\s*(\w+)/i);
-      if (!parts) return match;
-      const [, crisis, conf] = parts;
-      const confColor = conf.toUpperCase()==='HIGH'?'var(--green-hi)':conf.toUpperCase()==='MEDIUM'?'var(--amber)':'var(--t3)';
-      return `<span class="ml-teach-badge" title="ML training label injected">◈ ML-LABEL: <strong style="color:${confColor}">${crisis}</strong> · ${conf.toUpperCase()}</span>`;
-    });
-
-    addJarvisMsg('jarvis', displayReply.split('\n').join('<br>'));
-    chatHistory.push({ role:'assistant', content: reply });
-
-    // Apply ML labels from JARVIS response
-    if (mlLabels.length) {
-      for (const { crisis, confidence } of mlLabels) {
-        await injectJarvisLabel(crisis, confidence);
-      }
-    }
-  } catch(e) { thinking.remove(); addJarvisMsg('jarvis',`<span style="color:var(--red)">⚠ Comms error: ${e.message}</span>`); }
-  btn.disabled=false;
-}
-
-async function analyzeEvent(f) {
-  if (!hasActiveKey()) return;
-  const text=`Analyze: [${f.severity.toUpperCase()}] ${f.source}: "${f.title}". ${f.body}. Location: ${f.loc}. Time: ${f.time}. Threat assessment, escalation likelihood, recommended actions.`;
-  chatHistory.push({role:'user',content:text});
-  const thinking=addJarvisMsg('jarvis','<div class="typing-dots"><span></span><span></span><span></span></div>',true);
-  try {
-    const reply = await callAI({ messages: chatHistory.slice(-10), system: buildSystemPrompt(), max_tokens: 2000 });
-    thinking.remove();
-    if (reply) { addJarvisMsg('jarvis', reply.split('\n').join('<br>')); chatHistory.push({ role:'assistant', content: reply }); }
-  } catch(e) { thinking.remove(); }
-}
-
-function clearChat() { chatHistory=[]; document.getElementById('jarvis-chat').innerHTML=''; }
-function toggleCtx(type,el) { if(type==='feed')ctxFeed=!ctxFeed; if(type==='map')ctxMap=!ctxMap; el.classList.toggle('active'); }
+async function sendMsg() {}
+async function analyzeEvent() {}
+function clearChat() {}
+function toggleCtx() {}
 
 // ─── RICH MEDIA ENGINE ────────────────────────────────────────────────────
 // Jarvis can render: charts, images, videos, tables
