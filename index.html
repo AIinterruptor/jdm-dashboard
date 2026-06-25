@@ -7921,29 +7921,46 @@ const YT_CHANNELS = {
 let ytVideoCache = {};
 let ytActiveFilter = 'all';
 
+const YT_PROXIES = [
+  url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+  url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+];
+
+async function fetchWithProxy(url) {
+  for (const mkUrl of YT_PROXIES) {
+    try {
+      const resp = await fetch(mkUrl(url), { signal: AbortSignal.timeout(8000) });
+      if (resp.ok) return await resp.text();
+    } catch(e) { /* try next */ }
+  }
+  return null;
+}
+
+function parseYTFeed(xml, ch, key) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  const entries = doc.querySelectorAll('entry');
+  const vids = [];
+  entries.forEach(e => {
+    const videoId = e.querySelector('videoId')?.textContent;
+    const title = e.querySelector('title')?.textContent || '';
+    const published = e.querySelector('published')?.textContent || '';
+    const thumb = videoId ? 'https://i.ytimg.com/vi/' + videoId + '/mqdefault.jpg' : '';
+    if (videoId) vids.push({ videoId, title, published, thumb, channel: ch.label, channelKey: key });
+  });
+  return vids;
+}
+
 async function fetchYTFeed(key) {
   const ch = YT_CHANNELS[key];
   if (!ch) return [];
   if (ytVideoCache[key] && Date.now() - ytVideoCache[key].ts < 300000) return ytVideoCache[key].vids;
-  try {
-    const proxy = 'https://api.allorigins.win/raw?url=';
-    const feedUrl = encodeURIComponent('https://www.youtube.com/feeds/videos.xml?channel_id=' + ch.id);
-    const resp = await fetch(proxy + feedUrl);
-    const xml = await resp.text();
-    const doc = new DOMParser().parseFromString(xml, 'text/xml');
-    const entries = doc.querySelectorAll('entry');
-    const vids = [];
-    entries.forEach(e => {
-      const videoId = e.querySelector('videoId')?.textContent;
-      const title = e.querySelector('title')?.textContent || '';
-      const published = e.querySelector('published')?.textContent || '';
-      const thumb = e.querySelector('group thumbnail')?.getAttribute('url')
-        || (videoId ? 'https://i.ytimg.com/vi/' + videoId + '/mqdefault.jpg' : '');
-      if (videoId) vids.push({ videoId, title, published, thumb, channel: ch.label, channelKey: key });
-    });
-    ytVideoCache[key] = { vids, ts: Date.now() };
-    return vids;
-  } catch(e) { return []; }
+  const feedUrl = 'https://www.youtube.com/feeds/videos.xml?channel_id=' + ch.id;
+  const xml = await fetchWithProxy(feedUrl);
+  if (!xml) return [];
+  const vids = parseYTFeed(xml, ch, key);
+  ytVideoCache[key] = { vids, ts: Date.now() };
+  return vids;
 }
 
 async function loadYTGrid(filter) {
