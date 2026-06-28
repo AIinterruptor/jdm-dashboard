@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>JDM · COMMAND CENTER</title>
+<meta name="description" content="JDM Command Center — Real-time Philippines intelligence dashboard aggregating GDELT, PAGASA, PHIVOLCS, news, social, and satellite feeds into a unified situational awareness platform.">
+<title>JDM · COMMAND CENTER v5.0</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <!-- Leaflet OpenStreetMap (no API key required) -->
@@ -43,11 +44,11 @@
   --green:       #3a8838;
   --green-hi:    #4aaa46;
 
-  /* Text hierarchy — improved contrast */
+  /* Text hierarchy — WCAG 4.5:1 contrast on #060605 */
   --t1:  #ddd5b4;
-  --t2:  rgba(210,195,150,0.60);
-  --t3:  rgba(190,172,128,0.35);
-  --t4:  rgba(170,152,108,0.18);
+  --t2:  rgba(210,195,150,0.75);
+  --t3:  rgba(200,182,138,0.55);
+  --t4:  rgba(180,162,118,0.30);
 
   /* Typography */
   --mono:  'IBM Plex Mono', 'Share Tech Mono', monospace;
@@ -65,6 +66,7 @@
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 
 /* ── NOISE TEXTURE ── */
 body::after {
@@ -2653,9 +2655,10 @@ window.gm_authFailure = function() {
 <!-- Google Maps removed — Leaflet handles all map rendering. Shim at L3256 provides compatibility. -->
 </head>
 <body>
+<h1 class="sr-only">JDM Command Center — Philippines Intelligence Dashboard</h1>
 
 <!-- ═══ MOBILE NAV BAR ═══ -->
-<div id="mobile-nav">
+<nav id="mobile-nav" aria-label="Mobile navigation">
   <button class="mob-nav-btn active" data-panel="panel-map" onclick="mobileNav(this,'panel-map')">
     <span class="nav-ico">🗺️</span><span class="nav-lbl">MAP</span>
   </button>
@@ -2669,13 +2672,13 @@ window.gm_authFailure = function() {
   <button class="mob-nav-btn" data-panel="panel-bottom" onclick="mobileNav(this,'panel-bottom')">
     <span class="nav-ico">📺</span><span class="nav-lbl">NEWS</span>
   </button>
-</div>
+</nav>
 
 <div class="scanlines"></div>
 <div id="class-banner" title="JDM Command Center v5.0 — Build 20260624">TOP SECRET // SENSITIVE COMPARTMENTED INFORMATION // JDM COMMAND CENTER</div>
 
 <!-- HEADER — Professional Command Bar -->
-<div id="header">
+<nav id="header" role="banner" aria-label="Command bar">
 
   <!-- Logo + Brand -->
   <div class="hdr-left">
@@ -2777,7 +2780,7 @@ window.gm_authFailure = function() {
     <button class="hdr-btn-primary" onclick="sendBriefing()">⚡ BRIEF</button>
   </div>
 
-</div>
+</nav>
 
 <!-- SUB-AREAS PANEL -->
 <div id="sub-areas-panel">
@@ -2790,12 +2793,12 @@ window.gm_authFailure = function() {
 </div>
 
 <!-- LAYOUT -->
-<div id="layout">
+<main id="layout" role="main">
 
   <!-- LEFT: INTEL FEEDS -->
-  <div class="panel" id="panel-left">
+  <div class="panel" id="panel-left" role="region" aria-label="Intel Feeds">
     <div class="panel-header">
-      <div class="panel-title">INTEL FEEDS</div>
+      <h2 class="panel-title">INTEL FEEDS</h2>
       <div style="display:flex;gap:5px;align-items:center">
         <span id="last-fetch">--</span>
         <span class="panel-tag" id="feed-count">0 ITEMS</span>
@@ -2826,7 +2829,7 @@ window.gm_authFailure = function() {
   </div>
 
   <!-- CENTER: MAP / VIDEO -->
-  <div class="panel" id="panel-map">
+  <div class="panel" id="panel-map" role="region" aria-label="Situational Map">
     <div id="map-container">
       <div id="gmap"></div>
       <div id="map-overlay">
@@ -2853,7 +2856,7 @@ window.gm_authFailure = function() {
       <!-- VIDEO OVERLAY (hidden by default) -->
       <div id="video-overlay" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:2000;">
         <video id="video-player" style="width:100%;height:100%;object-fit:contain;"></video>
-        <iframe id="youtube-player" style="display:none;width:100%;height:100%;" allowfullscreen></iframe>
+        <iframe id="youtube-player" title="YouTube video player" style="display:none;width:100%;height:100%;" allowfullscreen></iframe>
         
         <!-- Video Controls Bar -->
         <div id="video-controls-bar" style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.9));padding:20px 15px 10px;">
@@ -2995,17 +2998,17 @@ window.gm_authFailure = function() {
   </div>
 
   <!-- RIGHT: THREAT BOARD -->
-  <div class="panel" id="panel-right">
+  <div class="panel" id="panel-right" role="region" aria-label="Threat Board">
     <div class="panel-header">
-      <div class="panel-title">THREAT BOARD</div>
+      <h2 class="panel-title">THREAT BOARD</h2>
       <div style="display:flex;align-items:center;gap:5px">
         <span class="panel-tag" id="alert-count">0 ALERTS</span>
         <button onclick="switchRightTab('sentinel',document.querySelector('[onclick*=sentinel]'));renderEarlyWarningBoard()" style="background:rgba(204,34,51,0.08);border:1px solid rgba(204,34,51,0.3);color:var(--red);font-family:var(--mono);font-size:7px;padding:2px 7px;cursor:pointer;letter-spacing:1px" title="Open Early Warning board">⚡ WARN</button>
       </div>
     </div>
-    <div id="threat-meter-wrap">
+    <div id="threat-meter-wrap" title="Composite threat index — weighted by event severity × category, normalized to 100. Not a raw count.">
       <div class="threat-meter-label">
-        <span>THREAT LEVEL — <span id="loc-threat-name">NATIONAL</span></span>
+        <span>THREAT INDEX — <span id="loc-threat-name">NATIONAL</span></span>
         <span class="threat-score-val"><span id="threat-score">0</span>/100</span>
       </div>
       <div class="threat-bar-track"><div class="threat-bar-fill" id="threat-bar" style="width:0%"></div></div>
@@ -3101,9 +3104,9 @@ window.gm_authFailure = function() {
     </div>
 
   <!-- BOTTOM: YOUTUBE NEWS -->
-  <div class="panel" id="panel-bottom">
+  <div class="panel" id="panel-bottom" role="region" aria-label="YouTube News Feed">
     <div class="panel-header">
-      <div class="panel-title">YOUTUBE · NEWS FEED</div>
+      <h2 class="panel-title">YOUTUBE · NEWS FEED</h2>
       <div style="display:flex;align-items:center;gap:4px">
         <button class="jarvis-toggle-btn" id="jarvis-toggle" onclick="toggleJarvis()" title="Collapse">▼</button>
       </div>
@@ -3126,6 +3129,7 @@ window.gm_authFailure = function() {
         </div>
         <div id="yt-player-wrap">
           <iframe id="yt-iframe"
+            title="YouTube news player"
             src="about:blank"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowfullscreen></iframe>
@@ -3135,7 +3139,7 @@ window.gm_authFailure = function() {
     </div>
   </div>
 
-</div>
+</main>
 
 <!-- BRIEF MODAL -->
 <div id="brief-modal">
@@ -3829,6 +3833,7 @@ let allFeeds = [], activeTab = 'all', activeFilter = 'all';
 let chatHistory = [], ctxFeed = true, ctxMap = true;
 let refreshInterval, lastFetchTime = null;
 let sourceStatus = {};
+let sourceLastGood = {};
 
 // REGIONS dict for quick navigation (Iloilo-focused)
 const REGIONS = {
@@ -3879,7 +3884,11 @@ function guessCategory(txt) {
   if (/crime|police|pnp|arrest|drug|shabu|shoot|kill|murder|pdea|cidg|soco|bfp|afp|military|npa|rebel|terror|bombing|holdup|robbery|carnap|encounter|firefight|asg|biff|wps|south china sea/i.test(t)) return 'crime';
   return 'social';
 }
-function setSourceStatus(name, status) { sourceStatus[name] = status; renderSourceHealth(); }
+function setSourceStatus(name, status) {
+  sourceStatus[name] = status;
+  if (status === 'ok') sourceLastGood[name] = Date.now();
+  renderSourceHealth();
+}
 function notify(feed) {
   const c = feed.severity === 'critical' ? 'var(--red)' : 'var(--orange)';
   const el = document.createElement('div');
@@ -3904,11 +3913,18 @@ function renderSourceHealth() {
   if (!box) return;
   const entries = Object.entries(sourceStatus);
   if (!entries.length) return;
-  // Build source dots
+  // Build source dots with last-good timestamps for failed sources
   let html = entries.map(([name, status]) => {
     const dotCls = status==='ok'?'dot-ok':status==='fail'?'dot-fail':'dot-load';
     const label = SOURCE_NAMES[name] || name.replace(/RSS_/,'').substring(0,8);
-    return `<div class="src-health-dot" title="${name}: ${status}"><div class="dot ${dotCls}"></div>${label}</div>`;
+    let titleText = `${name}: ${status}`;
+    let lastGoodLabel = '';
+    if (status === 'fail' && sourceLastGood[name]) {
+      const ago = timeAgo(sourceLastGood[name]);
+      titleText += ` — last OK: ${ago}`;
+      lastGoodLabel = `<span style="color:var(--t3);font-size:6px;margin-left:2px">${ago}</span>`;
+    }
+    return `<div class="src-health-dot" title="${titleText}"><div class="dot ${dotCls}"></div>${label}${lastGoodLabel}</div>`;
   }).join('');
   // GDELT intelligence summary
   const gdeltFeeds = allFeeds.filter(f => f.id && f.id.startsWith('gdelt-'));
@@ -7710,17 +7726,19 @@ function updateMetrics(feeds) {
   if (!feeds) return;
   const crit  = feeds.filter(f=>f.severity==='critical').length;
   const high  = feeds.filter(f=>f.severity==='high').length;
-  const srcs  = new Set(feeds.map(f=>f.source)).size;
   const radio = feeds.filter(f=>f.tag==='radio').length;
   const social= feeds.filter(f=>f.tag==='social'||f.tag==='reddit').length;
+
+  const totalSources = Object.keys(sourceStatus).length;
+  const liveSources  = Object.values(sourceStatus).filter(s=>s==='ok').length;
 
   const set = (id, val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
   set('m-critical', crit);
   set('m-high',     high);
   set('m-total',    feeds.length);
-  set('m-sources',  srcs);
-  set('event-count',    'EVENTS: ' + feeds.length);
-  set('alert-count-badge', 'CRITICAL: ' + crit);
+  set('m-sources',  totalSources ? `${liveSources}/${totalSources}` : '—');
+  set('event-count',    feeds.length);
+  set('alert-count-badge', crit);
 
   // Update threat meter color
   const meter = document.getElementById('threat-bar');
@@ -7976,7 +7994,7 @@ async function loadYTGrid(filter) {
   grid.innerHTML = allVids.map(v => {
     const ago = timeAgo(v.published);
     return `<div class="yt-card" onclick="playYT('${v.videoId}',this)" data-vid="${v.videoId}">
-      <img class="yt-card-thumb" src="${v.thumb}" alt="" loading="lazy">
+      <img class="yt-card-thumb" src="${v.thumb}" alt="${escHtml(v.title)}" loading="lazy">
       <div class="yt-card-info">
         <div class="yt-card-title">${escHtml(v.title)}</div>
         <div class="yt-card-meta">${v.channel} · ${ago}</div>
@@ -9615,7 +9633,7 @@ function createPWAManifest() {
     "name": "JDM Intel Dashboard",
     "short_name": "JDM Intel",
     "description": "Philippines National Early Warning Intelligence Platform",
-    "start_url": "/",
+    "start_url": "./",
     "display": "standalone",
     "background_color": "#1a1a1a",
     "theme_color": "#c8a84b",
@@ -15546,13 +15564,13 @@ function buildCinStreamEmbed(stream, cellIdx) {
     const embedUrl = ytId
       ? `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&rel=0`
       : url.includes('embed') ? url + '&autoplay=1&mute=1' : url;
-    return `<iframe src="${escapeHtml(embedUrl)}" frameborder="0" allow="autoplay;encrypted-media" allowfullscreen
+    return `<iframe src="${escapeHtml(embedUrl)}" title="Camera feed" frameborder="0" allow="autoplay;encrypted-media" allowfullscreen
       style="width:100%;height:100%;border:none"
       onload="cinOnLoad(${cellIdx})" onerror="cinOnError(${cellIdx})"></iframe>`;
   }
 
   if (type === 'embed' || type === 'webrtc') {
-    return `<iframe src="${escapeHtml(url)}" frameborder="0" allow="autoplay;camera;microphone;encrypted-media"
+    return `<iframe src="${escapeHtml(url)}" title="Embedded feed" frameborder="0" allow="autoplay;camera;microphone;encrypted-media"
       allowfullscreen style="width:100%;height:100%;border:none"
       onload="cinOnLoad(${cellIdx})" onerror="cinOnError(${cellIdx})"></iframe>`;
   }
@@ -19284,7 +19302,7 @@ document.addEventListener('click', function resumeAudio() {
 <div id="loc-selector">
   <div id="loc-search-wrap">
     <span>◎</span>
-    <input id="loc-search" type="text" placeholder="Search city, province, region..." oninput="filterLocSearch(this.value)" autocomplete="off">
+    <input id="loc-search" type="text" aria-label="Search locations" placeholder="Search city, province, region..." oninput="filterLocSearch(this.value)" autocomplete="off">
     <button id="loc-close-btn" onclick="toggleLocSelector()">✕</button>
   </div>
   <div id="loc-list">
@@ -19559,7 +19577,7 @@ document.addEventListener('click', function resumeAudio() {
       <div id="osint-output"></div>
       <div class="osint-input-row">
         <span class="osint-input-prompt">root@sitdeck:~$</span>
-        <input id="osint-input" type="text" placeholder="type command or query... (help for list)"
+        <input id="osint-input" type="text" aria-label="OSINT command input" placeholder="type command or query... (help for list)"
           onkeydown="osintHandleKey(event)" autocomplete="off" spellcheck="false">
       </div>
     </div>
@@ -20174,7 +20192,7 @@ document.addEventListener('click', function resumeAudio() {
         <span id="lgu-hud-events">— EVENTS</span>
       </div>
       <div id="lgu-search-bar">
-        <input id="lgu-search-input" type="text" placeholder="Search location...">
+        <input id="lgu-search-input" type="text" aria-label="LGU location search" placeholder="Search location...">
         <button onclick="lguSearchInput()" title="Search">🔍</button>
       </div>
       <div id="lgu-map-actions">
@@ -21957,7 +21975,7 @@ if (_origUpdateMetrics) {
       </div>
       <div class="pnp-aor-label" id="pnp-aor-label">AOR: ILOILO CITY</div>
       <div id="pnp-search-bar">
-        <input id="pnp-search-input" type="text" placeholder="Search location...">
+        <input id="pnp-search-input" type="text" aria-label="PNP location search" placeholder="Search location...">
         <button onclick="pnpSearchInput()" title="Search">🔍</button>
       </div>
       <div id="pnp-map-toolbar">
