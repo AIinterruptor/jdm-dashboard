@@ -25370,7 +25370,7 @@ function copLog(msg) { console.log('[COP] ' + msg); }
 
 // ─── ANIMATED RADAR UNDERLAY ─────────────────────────────────────────────
 async function copInitRadar() {
-  if (!window.gmap) return;
+  if (!window.gmap || typeof window.gmap.addLayer !== 'function') return;
   try {
     const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json');
     const data = await resp.json();
@@ -25412,7 +25412,7 @@ function copAdvanceRadar() {
 
 function copClearRadar() {
   if (copRadarTimer) { clearInterval(copRadarTimer); copRadarTimer = null; }
-  copRadarLayers.forEach(l => { try { window.gmap.removeLayer(l); } catch(e){} });
+  copRadarLayers.forEach(l => { try { if (window.gmap && typeof window.gmap.removeLayer === 'function') window.gmap.removeLayer(l); } catch(e){} });
   copRadarLayers = [];
   copRadarFrames = [];
   copRadarIdx = 0;
@@ -25423,7 +25423,7 @@ setInterval(() => { if (copRadarLayers.length) copInitRadar(); }, 600000);
 
 // ─── AMBIENT SCAN PULSE ──────────────────────────────────────────────────
 function copAddScanPulse() {
-  if (copScanMarker || !window.gmap) return;
+  if (copScanMarker || !window.gmap || typeof window.gmap.addLayer !== 'function') return;
   const loc = window.ACTIVE_LOC || { lat: 10.7202, lng: 122.5621 };
   copScanMarker = L.marker([loc.lat, loc.lng], {
     icon: L.divIcon({
@@ -25435,8 +25435,8 @@ function copAddScanPulse() {
 }
 
 function copRemoveScanPulse() {
-  if (copScanMarker && window.gmap) {
-    try { window.gmap.removeLayer(copScanMarker); } catch(e){}
+  if (copScanMarker) {
+    try { if (window.gmap && typeof window.gmap.removeLayer === 'function') window.gmap.removeLayer(copScanMarker); } catch(e){}
     copScanMarker = null;
   }
 }
@@ -25538,7 +25538,8 @@ window.addEventMarkers = function(feeds) {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────
 function copInit() {
-  if (!window.gmap || copInitialized) return;
+  if (copInitialized) return;
+  if (!window.gmap || typeof window.gmap.addLayer !== 'function') return;
   copInitialized = true;
   copInitRadar();
   copAddScanPulse();
@@ -25547,13 +25548,13 @@ function copInit() {
 
 window.updateAutoCOP = updateAutoCOP;
 
-if (window.gmap) copInit();
-else {
-  const waitForMap = setInterval(() => {
-    if (window.gmap) { clearInterval(waitForMap); copInit(); }
-  }, 1000);
-  setTimeout(() => clearInterval(waitForMap), 30000);
-}
+const waitForMap = setInterval(() => {
+  if (window.gmap && typeof window.gmap.addLayer === 'function') {
+    clearInterval(waitForMap);
+    copInit();
+  }
+}, 1000);
+setTimeout(() => clearInterval(waitForMap), 30000);
 
 })();
 </script>
