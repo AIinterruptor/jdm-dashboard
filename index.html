@@ -3248,7 +3248,12 @@ const CONFIG = {
   // Free tier available at tavily.com — excellent for real-time news search
   TAVILY_KEY: '',
 
+  // ── Groq — get free key at console.groq.com ─────────────────────────
+  // Free: 30 RPM, 6000 TPM — blazing fast inference (Llama, Mixtral, Gemma)
+  GROQ_KEY: '',
+
   // ── Default AI Model ──────────────────────────────────────────────────
+  // Groq:   groq-llama-3.3-70b | groq-llama-3.1-8b | groq-mixtral-8x7b | groq-gemma2-9b
   // Gemini:  gemini-2.0-flash | gemini-1.5-flash | gemini-1.5-pro | gemini-2.5-pro-preview-03-25
   // Claude:  claude-haiku-4-5-20251001 | claude-sonnet-4-5-20251022 | claude-opus-4-5-20251101
   MODEL: 'nvidia/nemotron-3-super-120b-a12b:free', // Best free model on OpenRouter
@@ -3731,34 +3736,38 @@ function getGdeltTerms(loc) {
 let GEMINI_KEY      = CONFIG.GEMINI_KEY      || '';
 let CLAUDE_KEY      = CONFIG.CLAUDE_KEY      || '';
 let OPENROUTER_KEY  = CONFIG.OPENROUTER_KEY  || '';
+let GROQ_KEY        = CONFIG.GROQ_KEY        || '';
 let FIRMS_KEY       = CONFIG.FIRMS_KEY      || '';
 let ACTIVE_MODEL    = CONFIG.MODEL           || 'gemini-2.0-flash';
 
 // Determine which provider owns the active model
 function getProvider(model) {
   if (!model) return 'openrouter';
+  if (model.startsWith('groq-')) return 'groq';
   if (model.startsWith('gemini') || model.startsWith('models/gemini')) return 'gemini';
   if (model.startsWith('claude')) return 'claude';
-  if (model.startsWith('anthropic/')) return 'openrouter'; // anthropic/ prefix = via OpenRouter
+  if (model.startsWith('anthropic/')) return 'openrouter';
   if (model.startsWith('openrouter') || model.startsWith('ollama') || model.includes('/')) return 'openrouter';
-  return 'openrouter'; // default — OpenRouter has free models
+  return 'openrouter';
 }
 
 function getActiveKey() {
   const p = getProvider(ACTIVE_MODEL);
+  if (p === 'groq')       return GROQ_KEY;
   if (p === 'claude')     return CLAUDE_KEY;
   if (p === 'gemini')     return GEMINI_KEY;
   if (p === 'openrouter') return OPENROUTER_KEY;
-  return OPENROUTER_KEY || GEMINI_KEY || CLAUDE_KEY;
+  return OPENROUTER_KEY || GROQ_KEY || GEMINI_KEY || CLAUDE_KEY;
 }
 
-function hasActiveKey() { return !!(OPENROUTER_KEY || GEMINI_KEY || CLAUDE_KEY); }
+function hasActiveKey() { return !!(OPENROUTER_KEY || GROQ_KEY || GEMINI_KEY || CLAUDE_KEY); }
 
 // ── Unified AI call — routes to Gemini or Claude natively ────────────────
 async function callAI({ messages, system, max_tokens = 1500, model = null }) {
   const m        = model || ACTIVE_MODEL;
   const provider = getProvider(m);
-  if (provider === 'gemini')      return callGemini({ messages, system, max_tokens, model: m });
+  if (provider === 'groq')        return callGroq({ messages, system, max_tokens, model: m });
+  else if (provider === 'gemini') return callGemini({ messages, system, max_tokens, model: m });
   else if (provider === 'claude') return callClaude({ messages, system, max_tokens, model: m });
   else                            return callOpenRouter({ messages, system, max_tokens, model: m });
 }
@@ -3787,6 +3796,38 @@ async function callOpenRouter({ messages, system, max_tokens, model }) {
   if (data.error) throw new Error(data.error.message || 'OpenRouter error');
   const text = data.choices?.[0]?.message?.content || '';
   if (!text) throw new Error('OpenRouter returned empty response');
+  return text;
+}
+
+// ── Groq API (free, blazing fast) ─────────────────────────────────────────
+const GROQ_MODEL_MAP = {
+  'groq-llama-3.3-70b':  'llama-3.3-70b-versatile',
+  'groq-llama-3.1-8b':   'llama-3.1-8b-instant',
+  'groq-mixtral-8x7b':   'mixtral-8x7b-32768',
+  'groq-gemma2-9b':      'gemma2-9b-it',
+};
+async function callGroq({ messages, system, max_tokens, model }) {
+  if (!GROQ_KEY) throw new Error('No Groq API key — get free key at console.groq.com');
+  const groqModel = GROQ_MODEL_MAP[model] || 'llama-3.3-70b-versatile';
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer ' + GROQ_KEY,
+    },
+    body: JSON.stringify({
+      model: groqModel,
+      max_tokens,
+      messages: [
+        ...(system ? [{ role: 'system', content: system }] : []),
+        ...messages,
+      ],
+    }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Groq error');
+  const text = data.choices?.[0]?.message?.content || '';
+  if (!text) throw new Error('Groq returned empty response');
   return text;
 }
 
@@ -6413,7 +6454,7 @@ async function initSystem() {
   const proxyStatus = proxyOn
     ? '<span style="color:var(--green-hi)">● LOCAL PROXY ONLINE</span> (CORS bypass active · all sources enabled)'
     : '<span style="color:#555">○ Local proxy offline</span> (run jdm_proxy_server.py for better data coverage)';
-  addJarvisMsg('jarvis', `J.A.R.V.I.S. Philippines National Intelligence Platform online.<br>Coverage: <strong>All 17 Regions · 82 Provinces · Key Cities</strong>.<br>Sources: <strong>Google News · GDELT · Inquirer · GMA · Rappler · PhilStar · PNA · PAGASA · NDRRMC · ReliefWeb · Reddit · USGS · Weather · GDACS · BSP/FX · World Bank · OpenStreetMap · Crypto</strong><br>Early Warning: <strong>18 crisis types · 72h ML forecast · 8 precursor chains · Z-score anomaly detection</strong>.<br><br>${proxyStatus}<br><br>Select a location using the <strong>◉ LOCATION</strong> button or search by city/province/region. Press <strong>?</strong> for keyboard shortcuts. Press <strong>F</strong> for a 72-hour early warning forecast.<br>${hasActiveKey() ? 'AI analysis <strong style="color:var(--green-hi)">ONLINE</strong> via <strong>' + (OPENROUTER_KEY ? 'OpenRouter' : GEMINI_KEY ? 'Google Gemini' : 'Anthropic Claude') + '</strong> · Model: <strong>' + ACTIVE_MODEL.split('/').pop().replace(':free','').substring(0,24) + '</strong>. Awaiting orders, Commander.' : '⚠ Set CONFIG.OPENROUTER_KEY (free) or CONFIG.GEMINI_KEY / CLAUDE_KEY to activate AI analysis.'}<br><br><span style="color:var(--t3)">📱 <strong>PWA Ready</strong> — Works offline with cached data. Type /offline for status.</span>`);
+  addJarvisMsg('jarvis', `J.A.R.V.I.S. Philippines National Intelligence Platform online.<br>Coverage: <strong>All 17 Regions · 82 Provinces · Key Cities</strong>.<br>Sources: <strong>Google News · GDELT · Inquirer · GMA · Rappler · PhilStar · PNA · PAGASA · NDRRMC · ReliefWeb · Reddit · USGS · Weather · GDACS · BSP/FX · World Bank · OpenStreetMap · Crypto</strong><br>Early Warning: <strong>18 crisis types · 72h ML forecast · 8 precursor chains · Z-score anomaly detection</strong>.<br><br>${proxyStatus}<br><br>Select a location using the <strong>◉ LOCATION</strong> button or search by city/province/region. Press <strong>?</strong> for keyboard shortcuts. Press <strong>F</strong> for a 72-hour early warning forecast.<br>${hasActiveKey() ? 'AI analysis <strong style="color:var(--green-hi)">ONLINE</strong> via <strong>' + (OPENROUTER_KEY ? 'OpenRouter' : GEMINI_KEY ? 'Google Gemini' : 'Anthropic Claude') + '</strong> · Model: <strong>' + ACTIVE_MODEL.split('/').pop().replace(':free','').substring(0,24) + '</strong>. Awaiting orders, Commander.' : '⚠ Set CONFIG.GROQ_KEY (free) or CONFIG.OPENROUTER_KEY (free) or CONFIG.GEMINI_KEY / CLAUDE_KEY to activate AI analysis.'}<br><br><span style="color:var(--t3)">📱 <strong>PWA Ready</strong> — Works offline with cached data. Type /offline for status.</span>`);
   
   setTimeout(injectRadioPanel, 1000);
   setTimeout(() => loadYTGrid('all'), 2000);
@@ -6574,6 +6615,11 @@ const AVAILABLE_MODELS = [
   { id:'deepseek/deepseek-prover-v2:free',       label:'DeepSeek Prover V2',     provider:'openrouter', tier:'free', note:'Logic & reasoning specialist' },
   { id:'mistralai/mistral-nemo:free',            label:'Mistral Nemo 12B',       provider:'openrouter', tier:'free', note:'Balanced · Fast' },
   { id:'openrouter/auto',                        label:'OpenRouter Auto',         provider:'openrouter', tier:'free', note:'OpenRouter picks best free model' },
+  // ── Groq (requires CONFIG.GROQ_KEY — free at console.groq.com) ──
+  { id:'groq-llama-3.3-70b',  label:'Groq Llama 3.3 70B',  provider:'groq', tier:'free', note:'Fastest free LLM · 30 RPM' },
+  { id:'groq-llama-3.1-8b',   label:'Groq Llama 3.1 8B',   provider:'groq', tier:'free', note:'Ultra-fast · Instant response' },
+  { id:'groq-mixtral-8x7b',   label:'Groq Mixtral 8x7B',   provider:'groq', tier:'free', note:'32K context · Strong analysis' },
+  { id:'groq-gemma2-9b',      label:'Groq Gemma 2 9B',     provider:'groq', tier:'free', note:'Google quality · Fast' },
   // ── Google Gemini (requires CONFIG.GEMINI_KEY) ──
   { id:'gemini-2.0-flash',                  label:'Gemini 2.0 Flash',       provider:'gemini', tier:'free',  note:'Recommended · Fast · Multimodal' },
   { id:'gemini-1.5-flash',                  label:'Gemini 1.5 Flash',       provider:'gemini', tier:'free',  note:'Reliable · Very fast' },
@@ -11609,7 +11655,7 @@ async function validateCrisisSignals(crisisId) {
   const btn = document.getElementById(`ai-validate-btn-${crisisId}`);
   
   if (!hasActiveKey()) {
-    addJarvisMsg('jarvis', `<span style="color:var(--amber)">⚠ AI validation requires API key.</span> Set CONFIG.OPENROUTER_KEY or CONFIG.GEMINI_KEY.`);
+    addJarvisMsg('jarvis', `<span style="color:var(--amber)">⚠ AI validation requires API key.</span> Set CONFIG.GROQ_KEY (free) or CONFIG.OPENROUTER_KEY or CONFIG.GEMINI_KEY.`);
     return;
   }
   
@@ -19231,7 +19277,7 @@ async function runEarlyWarningBrief(topForecast) {
 // ── Full forecast command ─────────────────────────────────────────────────
 async function runEarlyWarningAnalysis() {
   if (!hasActiveKey()) {
-    addJarvisMsg('jarvis', '⚠ AI key required for forecast analysis. Set CONFIG.OPENROUTER_KEY.');
+    addJarvisMsg('jarvis', '⚠ AI key required for forecast analysis. Set CONFIG.GROQ_KEY (free) or CONFIG.OPENROUTER_KEY.');
     return;
   }
 
@@ -19418,6 +19464,11 @@ document.addEventListener('click', function resumeAudio() {
         <div class="model-option" data-model="deepseek/deepseek-prover-v2:free" onclick="switchModel('deepseek/deepseek-prover-v2:free')"><div><div class="m-name">DeepSeek Prover V2</div><div class="m-note">Logic & reasoning specialist</div></div><span class="m-badge free">FREE</span></div>
         <div class="model-option" data-model="mistralai/mistral-nemo:free" onclick="switchModel('mistralai/mistral-nemo:free')"><div><div class="m-name">Mistral Nemo 12B</div><div class="m-note">Balanced · Fast European model</div></div><span class="m-badge free">FREE</span></div>
         <div class="model-option" data-model="openrouter/auto" onclick="switchModel('openrouter/auto')"><div><div class="m-name">OpenRouter Auto</div><div class="m-note">Picks best free model automatically</div></div><span class="m-badge free">FREE</span></div>
+        <div class="model-tier-header">⚡ GROQ (free at console.groq.com — set CONFIG.GROQ_KEY)</div>
+        <div class="model-option" data-model="groq-llama-3.3-70b" onclick="switchModel('groq-llama-3.3-70b')"><div><div class="m-name">Groq Llama 3.3 70B</div><div class="m-note">Fastest free LLM · 30 RPM</div></div><span class="m-badge free">GROQ</span></div>
+        <div class="model-option" data-model="groq-llama-3.1-8b" onclick="switchModel('groq-llama-3.1-8b')"><div><div class="m-name">Groq Llama 3.1 8B</div><div class="m-note">Ultra-fast · Instant response</div></div><span class="m-badge free">GROQ</span></div>
+        <div class="model-option" data-model="groq-mixtral-8x7b" onclick="switchModel('groq-mixtral-8x7b')"><div><div class="m-name">Groq Mixtral 8x7B</div><div class="m-note">32K context · Strong analysis</div></div><span class="m-badge free">GROQ</span></div>
+        <div class="model-option" data-model="groq-gemma2-9b" onclick="switchModel('groq-gemma2-9b')"><div><div class="m-name">Groq Gemma 2 9B</div><div class="m-note">Google quality · Fast</div></div><span class="m-badge free">GROQ</span></div>
         <div class="model-tier-header">🔵 GOOGLE GEMINI (set CONFIG.GEMINI_KEY)</div>
         <div class="model-option" data-model="gemini-2.0-flash" onclick="switchModel('gemini-2.0-flash')"><div><div class="m-name">Gemini 2.0 Flash</div><div class="m-note">Recommended · Fast · Multimodal</div></div><span class="m-badge free">GEMINI</span></div>
         <div class="model-option" data-model="gemini-1.5-flash" onclick="switchModel('gemini-1.5-flash')"><div><div class="m-name">Gemini 1.5 Flash</div><div class="m-note">Reliable · Very fast</div></div><span class="m-badge free">GEMINI</span></div>
@@ -21272,7 +21323,7 @@ function sendLGUMsg() {
 
 async function lguRunJarvis(text) {
   if (!hasActiveKey()) {
-    lguAddMsg('j', '⚠ No AI key configured. Set CONFIG.OPENROUTER_KEY in jdm.config.js to activate JARVIS.');
+    lguAddMsg('j', '⚠ No AI key configured. Set CONFIG.GROQ_KEY (free) or CONFIG.OPENROUTER_KEY in jdm.config.js to activate JARVIS.');
     return;
   }
 
@@ -23979,7 +24030,7 @@ function hmSend() {
 }
 
 async function hmRunJarvis(text) {
-  if (!hasActiveKey()) { hmAddMsg('j','⚠ No AI key configured. Set CONFIG.OPENROUTER_KEY to activate JARVIS.'); return; }
+  if (!hasActiveKey()) { hmAddMsg('j','⚠ No AI key configured. Set CONFIG.GROQ_KEY (free) or CONFIG.OPENROUTER_KEY to activate JARVIS.'); return; }
   hmChatHistory.push({ role:'user', content: text });
   const thinking = hmAddMsg('j','<span style="opacity:0.4;animation:blink-dot 0.8s infinite">···</span>');
 
@@ -24599,7 +24650,7 @@ function bizSend(){
   inp.value='';bizMsg('u',text);bizRunJarvis(text);
 }
 async function bizRunJarvis(text){
-  if(!hasActiveKey()){bizMsg('j','⚠ No AI key. Set CONFIG.OPENROUTER_KEY.');return;}
+  if(!hasActiveKey()){bizMsg('j','⚠ No AI key. Set CONFIG.GROQ_KEY (free) or CONFIG.OPENROUTER_KEY.');return;}
   bizChatHist.push({role:'user',content:text});
   const thinking=bizMsg('j','<span style="opacity:0.4;animation:blink-dot 0.8s infinite">···</span>');
   const loc=(ACTIVE_LOC?.label||'Iloilo City').replace(/🇵🇭 /,'');
