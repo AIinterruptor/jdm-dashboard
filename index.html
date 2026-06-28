@@ -583,12 +583,39 @@ body {
 #map-legend {
   position:absolute; bottom:44px; left:10px; z-index:600;
   background:rgba(8,8,7,0.93); border:1px solid var(--border-hi);
-  padding:8px 10px; display:none; flex-direction:column; gap:5px;
-  pointer-events:all;
+  padding:8px 10px; display:flex; flex-direction:column; gap:5px;
+  pointer-events:all; border-radius:3px;
 }
-#map-legend.show { display:flex; }
 .legend-row { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:8px; color:var(--t2); letter-spacing:1px; }
 .legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+/* COP status indicator */
+#cop-status {
+  position:absolute; top:8px; right:8px; z-index:650;
+  font-family:var(--mono); font-size:9px; letter-spacing:1.5px;
+  padding:4px 10px; border-radius:2px;
+  background:rgba(8,8,7,0.88); border:1px solid var(--border);
+  color:var(--t3); pointer-events:none; transition:all 0.4s ease;
+}
+#cop-status.elevated { border-color:#b89a28; color:#b89a28; }
+#cop-status.high { border-color:#c85c1a; color:#c85c1a; }
+#cop-status.critical { border-color:#cc2233; color:#cc2233; text-shadow:0 0 8px #cc223366; }
+
+/* Ambient scan pulse */
+@keyframes cop-scan-pulse {
+  0%   { transform:translate(-50%,-50%) scale(0.3); opacity:0.4; border-width:2px; }
+  50%  { opacity:0.15; border-width:1px; }
+  100% { transform:translate(-50%,-50%) scale(1); opacity:0; border-width:0.5px; }
+}
+.cop-scan-ring {
+  position:absolute; width:200px; height:200px; border-radius:50%;
+  border:2px solid var(--amber-dim); pointer-events:none;
+  animation:cop-scan-pulse 4s ease-out infinite;
+}
+.cop-scan-ring.ring-2 { animation-delay:2s; }
+
+/* Animated radar fade */
+.radar-frame { transition:opacity 0.6s ease; }
 
 /* Region bar */
 #region-bar {
@@ -2977,11 +3004,18 @@ window.gm_authFailure = function() {
         <button class="map-ctrl-btn" onclick="toggleLegend()" id="legend-btn">LEGEND</button>
       </div>
       <div id="map-legend">
+        <div class="legend-row" style="color:var(--t3);margin-bottom:2px;font-size:7px">SEVERITY</div>
         <div class="legend-row"><div class="legend-dot" style="background:#cc2233"></div>CRITICAL</div>
         <div class="legend-row"><div class="legend-dot" style="background:#c85c1a"></div>HIGH</div>
         <div class="legend-row"><div class="legend-dot" style="background:#b89a28"></div>MEDIUM</div>
         <div class="legend-row"><div class="legend-dot" style="background:#c8a84b;opacity:0.5"></div>LOW</div>
+        <div class="legend-row" style="color:var(--t3);margin-top:4px;font-size:7px" id="cop-layers-label">COP LAYERS</div>
+        <div class="legend-row" id="cop-radar-ind"><div class="legend-dot" style="background:#4488ff;opacity:0.5"></div>RADAR</div>
+        <div class="legend-row" id="cop-crisis-ind" style="display:none"><div class="legend-dot" style="background:#c85c1a;opacity:0.5;border:1px solid #c85c1a"></div>CRISIS ZONES</div>
+        <div class="legend-row" id="cop-infra-ind" style="display:none"><div class="legend-dot" style="background:#44ff88;opacity:0.5"></div>INFRASTRUCTURE</div>
+        <div class="legend-row" id="cop-heat-ind" style="display:none"><div class="legend-dot" style="background:#cc2233;opacity:0.5"></div>HEATMAP</div>
       </div>
+      <div id="cop-status">COP: NORMAL</div>
     </div>
     <div id="ticker"><div id="ticker-inner"></div></div>
     <div id="region-bar">
@@ -8917,6 +8951,9 @@ function updateThreatMeter(feeds) {
       setTimeout(() => p.classList.remove('alert-flash-anim'), 2400);
     });
   }
+
+  // Auto-COP: update map layers based on threat level
+  if (typeof updateAutoCOP === 'function') updateAutoCOP(score);
 }
 
 // ─── 2. AUTONOMOUS MONITORING ─────────────────────────────────────────────
@@ -15412,6 +15449,13 @@ function clearAllLayers() {
   document.getElementById('heatmap-btn')?.textContent && (document.getElementById('heatmap-btn').textContent = '◈ HEATMAP');
   document.getElementById('crisis-btn')?.textContent  && (document.getElementById('crisis-btn').textContent  = '⚠ CRISIS ZONES');
   document.getElementById('infra-btn')?.textContent   && (document.getElementById('infra-btn').textContent   = '+ INFRASTRUCTURE');
+  // Reset COP legend indicators
+  ['cop-crisis-ind','cop-infra-ind','cop-heat-ind'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const copEl = document.getElementById('cop-status');
+  if (copEl) { copEl.textContent = 'COP: NORMAL'; copEl.className = ''; }
   addJarvisMsg('jarvis', 'All intelligence layers cleared.');
 }
 
@@ -25250,6 +25294,215 @@ function palantirInit() {
 
 if (document.readyState === 'complete') setTimeout(palantirInit, 2000);
 else window.addEventListener('load', () => setTimeout(palantirInit, 2000));
+
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTO-COP — Common Operating Picture (crisis-management auto-layer system)
+// ═══════════════════════════════════════════════════════════════════════════
+(function() {
+
+let copActiveLevel = 'NORMAL';
+let copRadarFrames = [];
+let copRadarLayers = [];
+let copRadarIdx = 0;
+let copRadarTimer = null;
+let copScanMarker = null;
+let copInitialized = false;
+
+const COP_CATEGORY_ICONS = {
+  disaster: '⚠', crime: '◉', health: '✚', politics: '⚑',
+  economy: '◆', social: '▣', military: '⊕', weather: '☁'
+};
+
+function copLog(msg) { console.log('[COP] ' + msg); }
+
+// ─── ANIMATED RADAR UNDERLAY ─────────────────────────────────────────────
+async function copInitRadar() {
+  if (!window.gmap) return;
+  try {
+    const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    const data = await resp.json();
+    if (!data.radar?.past?.length) return;
+
+    copClearRadar();
+    const frames = data.radar.past.slice(-6);
+    copRadarFrames = frames;
+
+    frames.forEach((frame, i) => {
+      const layer = L.tileLayer(
+        `https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/2/1_0.png`,
+        { attribution: '© RainViewer', maxZoom: 18, opacity: 0, zIndex: 50, className: 'radar-frame' }
+      );
+      layer.addTo(window.gmap);
+      copRadarLayers.push(layer);
+    });
+
+    if (copRadarLayers.length) {
+      copRadarLayers[0].setOpacity(0.20);
+      copRadarIdx = 0;
+    }
+
+    if (!copRadarTimer) {
+      copRadarTimer = setInterval(copAdvanceRadar, 1200);
+    }
+    copLog('Animated radar: ' + frames.length + ' frames loaded');
+  } catch(e) {
+    copLog('Radar init failed: ' + e.message);
+  }
+}
+
+function copAdvanceRadar() {
+  if (!copRadarLayers.length) return;
+  copRadarLayers[copRadarIdx].setOpacity(0);
+  copRadarIdx = (copRadarIdx + 1) % copRadarLayers.length;
+  copRadarLayers[copRadarIdx].setOpacity(0.22);
+}
+
+function copClearRadar() {
+  if (copRadarTimer) { clearInterval(copRadarTimer); copRadarTimer = null; }
+  copRadarLayers.forEach(l => { try { window.gmap.removeLayer(l); } catch(e){} });
+  copRadarLayers = [];
+  copRadarFrames = [];
+  copRadarIdx = 0;
+}
+
+// Refresh radar frames every 10 min
+setInterval(() => { if (copRadarLayers.length) copInitRadar(); }, 600000);
+
+// ─── AMBIENT SCAN PULSE ──────────────────────────────────────────────────
+function copAddScanPulse() {
+  if (copScanMarker || !window.gmap) return;
+  const loc = window.ACTIVE_LOC || { lat: 10.7202, lng: 122.5621 };
+  copScanMarker = L.marker([loc.lat, loc.lng], {
+    icon: L.divIcon({
+      html: '<div class="cop-scan-ring"></div><div class="cop-scan-ring ring-2"></div>',
+      className: '', iconSize: [200, 200], iconAnchor: [100, 100]
+    }),
+    interactive: false, zIndexOffset: -100
+  }).addTo(window.gmap);
+}
+
+function copRemoveScanPulse() {
+  if (copScanMarker && window.gmap) {
+    try { window.gmap.removeLayer(copScanMarker); } catch(e){}
+    copScanMarker = null;
+  }
+}
+
+function copUpdateScanPosition() {
+  if (!copScanMarker || !window.ACTIVE_LOC) return;
+  copScanMarker.setLatLng([window.ACTIVE_LOC.lat, window.ACTIVE_LOC.lng]);
+}
+
+// ─── COP LEVEL ENGINE ────────────────────────────────────────────────────
+function copScoreToLevel(score) {
+  if (score >= 75) return 'CRITICAL';
+  if (score >= 50) return 'HIGH';
+  if (score >= 30) return 'ELEVATED';
+  return 'NORMAL';
+}
+
+function updateAutoCOP(score) {
+  const newLevel = copScoreToLevel(score);
+  const statusEl = document.getElementById('cop-status');
+
+  if (statusEl) {
+    statusEl.textContent = 'COP: ' + newLevel;
+    statusEl.className = '';
+    if (newLevel === 'ELEVATED') statusEl.classList.add('elevated');
+    else if (newLevel === 'HIGH') statusEl.classList.add('high');
+    else if (newLevel === 'CRITICAL') statusEl.classList.add('critical');
+  }
+
+  if (newLevel === copActiveLevel) return;
+  copLog('Level change: ' + copActiveLevel + ' → ' + newLevel);
+  const prev = copActiveLevel;
+  copActiveLevel = newLevel;
+
+  // Layer activation based on level transitions
+  const crisisInd = document.getElementById('cop-crisis-ind');
+  const infraInd = document.getElementById('cop-infra-ind');
+  const heatInd = document.getElementById('cop-heat-ind');
+
+  if (newLevel === 'NORMAL') {
+    if (window.crisisZonesActive) toggleCrisisZones();
+    if (window.infraActive) toggleInfraLayer();
+    if (window.heatActive) toggleHeatmapLayer();
+    if (crisisInd) crisisInd.style.display = 'none';
+    if (infraInd) infraInd.style.display = 'none';
+    if (heatInd) heatInd.style.display = 'none';
+    copRemoveScanPulse();
+  }
+
+  if (newLevel === 'ELEVATED' || newLevel === 'HIGH' || newLevel === 'CRITICAL') {
+    if (!window.crisisZonesActive) toggleCrisisZones();
+    if (crisisInd) crisisInd.style.display = 'flex';
+    copAddScanPulse();
+  }
+
+  if (newLevel === 'HIGH' || newLevel === 'CRITICAL') {
+    if (!window.infraActive) toggleInfraLayer();
+    if (infraInd) infraInd.style.display = 'flex';
+  } else if (newLevel === 'ELEVATED') {
+    if (window.infraActive) toggleInfraLayer();
+    if (infraInd) infraInd.style.display = 'none';
+  }
+
+  if (newLevel === 'CRITICAL') {
+    if (!window.heatActive) toggleHeatmapLayer();
+    if (heatInd) heatInd.style.display = 'flex';
+  } else {
+    if (prev === 'CRITICAL' && window.heatActive) toggleHeatmapLayer();
+    if (heatInd) heatInd.style.display = 'none';
+  }
+}
+
+// ─── CATEGORY ICONS ON MARKERS ───────────────────────────────────────────
+// Patch addEventMarkers to inject category symbols on critical/high dots
+const _origAddEventMarkers = window.addEventMarkers;
+window.addEventMarkers = function(feeds) {
+  _origAddEventMarkers(feeds);
+  if (!window.gmap || !feeds) return;
+  setTimeout(() => {
+    document.querySelectorAll('.jdm-dot[data-sev="critical"],.jdm-dot[data-sev="high"]').forEach(dot => {
+      if (dot.dataset.copIcon) return;
+      const marker = window.markers?.find(m => {
+        const el = m.getElement?.();
+        return el && el.contains(dot);
+      });
+      if (!marker?._feed) return;
+      const icon = COP_CATEGORY_ICONS[marker._feed.category] || '●';
+      dot.dataset.copIcon = '1';
+      dot.style.display = 'flex';
+      dot.style.alignItems = 'center';
+      dot.style.justifyContent = 'center';
+      dot.style.fontSize = (marker._feed.severity === 'critical' ? 9 : 7) + 'px';
+      dot.style.color = 'rgba(255,255,255,0.85)';
+      dot.style.textShadow = '0 0 3px rgba(0,0,0,0.8)';
+      dot.textContent = icon;
+    });
+  }, 200);
+};
+
+// ─── INIT ─────────────────────────────────────────────────────────────────
+function copInit() {
+  if (!window.gmap || copInitialized) return;
+  copInitialized = true;
+  copInitRadar();
+  copAddScanPulse();
+  copLog('Auto-COP initialized — level: ' + copActiveLevel);
+}
+
+window.updateAutoCOP = updateAutoCOP;
+
+if (window.gmap) copInit();
+else {
+  const waitForMap = setInterval(() => {
+    if (window.gmap) { clearInterval(waitForMap); copInit(); }
+  }, 1000);
+  setTimeout(() => clearInterval(waitForMap), 30000);
+}
 
 })();
 </script>
