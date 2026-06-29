@@ -14127,23 +14127,125 @@ function closeOSINT() {
 // ── Boot sequence ─────────────────────────────────────────────────────────
 async function osintBoot() {
   const lines = [
-    { t:0,   cls:'dim',     txt:'Initializing OSINT Terminal v2.4.1...' },
-    { t:200, cls:'success', txt:'[OK] Memory subsystem online' },
-    { t:350, cls:'success', txt:`[OK] Feed corpus loaded — ${allFeeds.length} intelligence items` },
-    { t:500, cls:'success', txt:'[OK] SENTINEL signal database connected' },
-    { t:650, cls:'success', txt:`[OK] ML engine — ${modelTrained ? `ACTIVE (${(modelAccuracy*100).toFixed(0)}% accuracy)` : 'LEARNING MODE'}` },
-    { t:800, cls:'success', txt:'[OK] Jarvis AI analysis module ready' },
-    { t:900, cls:'dim',     txt:'─'.repeat(60) },
-    { t:1000,cls:'header',  txt:'JDM COMMAND CENTER — OSINT INTELLIGENCE TERMINAL' },
-    { t:1100,cls:'dim',     txt:`AOR: ${ACTIVE_LOC.label.replace(/🇵🇭 /,'')} | ${ACTIVE_LOC.region} | ${new Date().toLocaleString('en-PH')}` },
-    { t:1200,cls:'dim',     txt:'─'.repeat(60) },
-    { t:1300,cls:'info',    txt:'Type "help" for command list, or click tools on the left.' },
-    { t:1400,cls:'dim',     txt:'Ready.' },
+    { t:0,   cls:'dim',     txt:'Initializing OSINT Terminal v3.0.0...' },
+    { t:150, cls:'success', txt:'[OK] Memory subsystem online' },
+    { t:250, cls:'success', txt:`[OK] Feed corpus loaded — ${allFeeds.length} intelligence items` },
+    { t:350, cls:'success', txt:'[OK] SENTINEL signal database connected' },
+    { t:450, cls:'success', txt:`[OK] ML engine — ${modelTrained ? `ACTIVE (${(modelAccuracy*100).toFixed(0)}% accuracy)` : 'LEARNING MODE'}` },
+    { t:550, cls:'success', txt:'[OK] Jarvis AI analysis module ready' },
+    { t:600, cls:'dim',     txt:'─'.repeat(60) },
+    { t:650, cls:'header',  txt:'JDM COMMAND CENTER — OSINT INTELLIGENCE TERMINAL' },
+    { t:700, cls:'dim',     txt:`AOR: ${ACTIVE_LOC.label.replace(/🇵🇭 /,'')} | ${ACTIVE_LOC.region} | ${new Date().toLocaleString('en-PH')}` },
+    { t:750, cls:'dim',     txt:'─'.repeat(60) },
   ];
   for (const line of lines) {
     await new Promise(r => setTimeout(r, line.t));
     osintPrint(line.txt, line.cls);
   }
+  // Auto-SITREP: immediate situational awareness on open
+  await osintAutoSitrep();
+  osintPrint('Type "help" for command list, "sitrep" for updated brief.', 'info');
+  // Auto-populate entity panel silently
+  osintAutoExtractEntities();
+}
+
+// ── Auto-SITREP on boot ──────────────────────────────────────────────────
+async function osintAutoSitrep() {
+  const criticals = allFeeds.filter(f => f.severity === 'critical');
+  const highs     = allFeeds.filter(f => f.severity === 'high');
+  const total     = allFeeds.length;
+
+  // Threat index: weighted score
+  const threatIdx = Math.min(100, Math.round((criticals.length * 10 + highs.length * 3) / Math.max(total, 1) * 100));
+  const tiColor   = threatIdx >= 60 ? '#ff3333' : threatIdx >= 30 ? '#ffaa00' : '#00ff41';
+
+  osintPrint('&nbsp;');
+  osintPrint('SITUATION REPORT (AUTO)', 'header');
+  osintSep();
+  osintPrint(`  THREAT INDEX: <span style="color:${tiColor};font-weight:700">${threatIdx}/100</span>  |  CORPUS: <span style="color:#00ff41">${total}</span>  |  CRITICAL: <span style="color:#ff3333">${criticals.length}</span>  HIGH: <span style="color:#ffaa00">${highs.length}</span>`);
+  osintPrint('&nbsp;');
+
+  // Top 3 critical events
+  if (criticals.length) {
+    osintPrint('  <span style="color:#ff3333">CRITICAL EVENTS:</span>');
+    criticals.slice(0, 3).forEach(f => {
+      osintPrint(`    <span style="color:#ff3333">⚡</span> ${escapeHtml(f.title?.substring(0, 72))} <span style="color:#333">[${f.source} · ${f.time}]</span>`);
+    });
+    osintPrint('&nbsp;');
+  }
+
+  // Active SENTINEL crises above 50
+  const hotCrises = Object.values(SENTINEL_CRISES)
+    .map(c => ({ ...c, score: sentinelScores[c.id] || 0 }))
+    .filter(c => c.score >= 50)
+    .sort((a, b) => b.score - a.score);
+  if (hotCrises.length) {
+    osintPrint('  <span style="color:#ffaa00">ELEVATED SENTINEL ALERTS:</span>');
+    hotCrises.slice(0, 5).forEach(c => {
+      const col = c.score >= 75 ? '#ff3333' : '#ffaa00';
+      osintPrint(`    ${c.icon} <span style="color:${col}">${c.label}</span> — <span style="color:${col}">${c.score}/100</span>`);
+    });
+    osintPrint('&nbsp;');
+  }
+
+  // Top 5 keywords from feed
+  const kwFreq = {};
+  const stopwords = new Set(['about','after','again','along','also','another','around','because','been','before','between','both','could','does','during','each','even','every','first','from','have','here','into','just','know','last','less','like','make','many','more','most','much','must','need','never','news','next','only','other','over','people','said','same','should','since','some','still','such','than','that','their','them','then','there','these','they','this','those','through','time','under','until','very','want','were','when','where','which','while','will','with','would','your','today','yesterday','says','report','update','latest','breaking','watch','video','read','click','share','follow','subscribe','http','https','www','com','org','net','gov','photo','image','caption','posted','updated','published','source','press','release','statement','official']);
+  allFeeds.forEach(f => {
+    ((f.title || '') + ' ' + (f.body || '')).toLowerCase().split(/\W+/)
+      .filter(w => w.length > 4 && !stopwords.has(w))
+      .forEach(w => kwFreq[w] = (kwFreq[w] || 0) + 1);
+  });
+  const topKW = Object.entries(kwFreq).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  osintPrint(`  <span style="color:#aa88ff">TOP SIGNALS:</span> ${topKW.map(([w, c]) => `<span style="color:#aa88ff">${w}</span><span style="color:#333">(${c})</span>`).join(' · ')}`);
+
+  // Anomalies
+  const anomalies = detectAnomalies();
+  if (anomalies.length) {
+    osintPrint(`  <span style="color:#ff3333">ANOMALIES:</span> ${anomalies.slice(0, 3).map(a => `${a.label} z=${a.zScore.toFixed(1)}σ`).join(' · ')}`);
+  }
+  osintSep();
+}
+
+// ── Silent entity extraction for panel ───────────────────────────────────
+function osintAutoExtractEntities() {
+  const allText = allFeeds.map(f => f.title + ' ' + (f.body || '')).join(' ');
+  const words   = allText.split(/\s+/);
+  const persons = new Set(), orgs = new Set(), locs = new Set(), keywords = new Set();
+
+  const orgPatterns = /\b(AFP|PNP|NDRRMC|PAGASA|PHIVOLCS|DOH|DILG|DFA|BSP|COMELEC|NICA|PCG|BFP|PDEA|CIDG|NBI|OMB|DOJ|DPWH|NHA|DSWD|DA|DTI|DOE|DENR|DOT|LGU|DOLE|PhilHealth|SSS|GSIS|PAG-IBIG)\b/g;
+  const locPatterns = /\b(Manila|Cebu|Davao|Iloilo|Quezon|Makati|Pasig|Taguig|NCR|Luzon|Visayas|Mindanao|Palawan|Ilocos|Bicol|Cavite|Laguna|Batangas|Pampanga|Bulacan|Bohol|Leyte|Samar|Negros|Panay|Mindoro|Zamboanga|Cagayan|Isabela|Cotabato|Lanao|Basilan|Sulu|Tawi-Tawi|Agusan|Surigao|Bukidnon|Misamis|Iligan|Gensan|CDO|Tacloban|Bacolod|Roxas|Kalibo|Laoag|Vigan|Bataan|Olongapo|Clark|Angeles|Subic)\b/g;
+
+  const orgMatches = allText.match(orgPatterns) || [];
+  const locMatches = allText.match(locPatterns) || [];
+  orgMatches.forEach(m => orgs.add(m));
+  locMatches.forEach(m => locs.add(m));
+
+  // PH political figures + title-bigram NER instead of garbage capitalized-word heuristic
+  const phFigures = new Set(['Marcos','Duterte','Romualdez','Escudero','Belmonte','Lagman','Lacson','Gordon','Sotto','Cayetano','Robredo','Binay','Pacquiao','Villar','Poe','Angara','Zubiri','Gatchalian','Hontiveros','Risa','Bato','Dela Rosa','Go','Bong Go','Remulla','Tulfo','Diokno','Pangilinan','Bautista','Abalos','Año','Galvez','Teodoro','Centino','Danao','Acorda']);
+  const titlePat = /\b(?:President|Secretary|Senator|General|Chief|Director|Governor|Mayor|Rep\.|Congressman|Congresswoman|Amb\.|Justice|Commissioner|Chairman|Chairwoman)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/g;
+  let titleMatch;
+  while ((titleMatch = titlePat.exec(allText)) !== null) {
+    persons.add(titleMatch[1]);
+  }
+  words.forEach(w => { if (phFigures.has(w)) persons.add(w); });
+
+  // Top keywords
+  const wordFreq = {};
+  words.filter(w => w.length > 5 && !/^[A-Z]/.test(w)).forEach(w => {
+    wordFreq[w.toLowerCase()] = (wordFreq[w.toLowerCase()] || 0) + 1;
+  });
+  Object.entries(wordFreq).sort((a, b) => b[1] - a[1]).slice(0, 20).forEach(([w]) => keywords.add(w));
+
+  osintEntities = {
+    persons:       [...persons].slice(0, 15),
+    organizations: [...orgs].slice(0, 15),
+    locations:     [...locs].slice(0, 15),
+    keywords:      [...keywords].slice(0, 15),
+    dates:         [],
+  };
+  updateOsintIntelPanel();
+  document.getElementById('osint-entity-count').textContent = (persons.size + orgs.size + locs.size) + ' ENTITIES';
 }
 
 // ── Terminal output ────────────────────────────────────────────────────────
@@ -14216,6 +14318,7 @@ const OSINT_CMDS = {
   keywords:true, threat:true, predict:true, darkweb:true, export:true,
   sentinel_status:true, crisis_scan:true, ml_status:true,
   scan:true, query:true, whois:true, lookup:true, trace:true,
+  sitrep:true, report:true, sweep:true, brief:true,
 };
 
 function osintAutocomplete() {
@@ -14254,6 +14357,10 @@ async function osintExecute(raw) {
     case 'crisis_scan':     return osintRun('crisis_scan');
     case 'ml_status':       return osintRun('ml_status');
     case 'scan':       return osintRun('analyze', args || 'all feeds');
+    case 'sitrep':     return osintSitrep();
+    case 'report':     return osintSitrep();
+    case 'brief':      return osintSitrep();
+    case 'sweep':      return osintRun('darkweb', args);
     case 'query':      return osintAIQuery(args);
     case 'whois':      return osintWhois(args);
     case 'lookup':     return osintLookupEntity(args);
@@ -14281,7 +14388,8 @@ function osintHelp() {
     ['keywords',          'Top keyword frequency analysis'],
     ['threat [type]',     'Full threat profile for crisis type'],
     ['predict',           'AI predictive trajectory analysis'],
-    ['darkweb',           'Social media & deep signal sweep'],
+    ['sweep',             'Open source signal sweep (social/gov/news)'],
+    ['sitrep',            'Full structured situation report (SITREP)'],
     ['sentinel_status',   'SENTINEL early warning system status'],
     ['crisis_scan',       'Scan all 18 crisis types in real-time'],
     ['ml_status',         'ML engine training status & accuracy'],
@@ -14379,20 +14487,22 @@ async function osintExtractEntities() {
   const persons = new Set(), orgs = new Set(), locs = new Set(), keywords = new Set();
 
   // Known PH org patterns
-  const orgPatterns = /\b(AFP|PNP|NDRRMC|PAGASA|PHIVOLCS|DOH|DILG|DFA|BSP|COMELEC|NICA|PCG|BFP|PDEA|CIDG|NBI|OMB|DOJ|DPWH|NHA|DSWD|DA|DTI|DOE|DENR|DOT|LGU|DOLE|PhilHealth|SSS|GSIS|PAG-IBIG|Marcos|Duterte|Romualdez|Escudero|Belmonte|Lagman|Lacson|Gordon|Sotto|Cayetano|Robredo)\b/g;
-  const locPatterns = /\b(Manila|Cebu|Davao|Iloilo|Quezon|Makati|Pasig|Taguig|NCR|Luzon|Visayas|Mindanao|Palawan|Ilocos|Bicol|Cavite|Laguna|Batangas|Pampanga|Bulacan|Cebu|Bohol|Leyte|Samar|Negros|Panay|Mindoro|Samar|Zamboanga|Cagayan|Isabela|Cotabato|Lanao|Basilan|Sulu|Tawi-Tawi|Agusan|Surigao|Davao|Bukidnon|Misamis|Iligan|Gensan|CDO|Tacloban|Bacolod|Roxas|Kalibo|Laoag|Vigan|Bataan|Olongapo|Clark|Angeles|Subic)\b/g;
+  const orgPatterns = /\b(AFP|PNP|NDRRMC|PAGASA|PHIVOLCS|DOH|DILG|DFA|BSP|COMELEC|NICA|PCG|BFP|PDEA|CIDG|NBI|OMB|DOJ|DPWH|NHA|DSWD|DA|DTI|DOE|DENR|DOT|LGU|DOLE|PhilHealth|SSS|GSIS|PAG-IBIG)\b/g;
+  const locPatterns = /\b(Manila|Cebu|Davao|Iloilo|Quezon|Makati|Pasig|Taguig|NCR|Luzon|Visayas|Mindanao|Palawan|Ilocos|Bicol|Cavite|Laguna|Batangas|Pampanga|Bulacan|Bohol|Leyte|Samar|Negros|Panay|Mindoro|Zamboanga|Cagayan|Isabela|Cotabato|Lanao|Basilan|Sulu|Tawi-Tawi|Agusan|Surigao|Bukidnon|Misamis|Iligan|Gensan|CDO|Tacloban|Bacolod|Roxas|Kalibo|Laoag|Vigan|Bataan|Olongapo|Clark|Angeles|Subic)\b/g;
 
   const orgMatches = allText.match(orgPatterns) || [];
   const locMatches = allText.match(locPatterns) || [];
   orgMatches.forEach(m => orgs.add(m));
   locMatches.forEach(m => locs.add(m));
 
-  // High-freq capitalized words as persons/orgs
-  const capWords = {};
-  words.filter(w => /^[A-Z][a-z]{2,}$/.test(w) && !locMatches.includes(w)).forEach(w => {
-    capWords[w] = (capWords[w]||0) + 1;
-  });
-  Object.entries(capWords).filter(([,c]) => c >= 3).sort((a,b)=>b[1]-a[1]).slice(0,15).forEach(([w]) => persons.add(w));
+  // PH political figures + title-bigram NER
+  const phFigures = new Set(['Marcos','Duterte','Romualdez','Escudero','Belmonte','Lagman','Lacson','Gordon','Sotto','Cayetano','Robredo','Binay','Pacquiao','Villar','Poe','Angara','Zubiri','Gatchalian','Hontiveros','Risa','Bato','Dela Rosa','Go','Bong Go','Remulla','Tulfo','Diokno','Pangilinan','Bautista','Abalos','Año','Galvez','Teodoro','Centino','Danao','Acorda']);
+  const titlePat = /\b(?:President|Secretary|Senator|General|Chief|Director|Governor|Mayor|Rep\.|Congressman|Congresswoman|Amb\.|Justice|Commissioner|Chairman|Chairwoman)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/g;
+  let titleMatch;
+  while ((titleMatch = titlePat.exec(allText)) !== null) {
+    persons.add(titleMatch[1]);
+  }
+  words.forEach(w => { if (phFigures.has(w)) persons.add(w); });
 
   // Top keywords
   const wordFreq = {};
@@ -14502,11 +14612,26 @@ async function osintTimeline() {
 
   const buckets = { 'JUST NOW':[], '< 1H':[], '1-6H':[], '6-24H':[], 'OLDER':[] };
   allFeeds.forEach(f => {
-    const t = f.time || '';
-    if (t.includes('just') || t.includes('live')) buckets['JUST NOW'].push(f);
-    else if (t.includes('m ago') && parseInt(t) < 60)  buckets['< 1H'].push(f);
-    else if (t.includes('h ago') && parseInt(t) <= 6)   buckets['1-6H'].push(f);
-    else if (t.includes('h ago') || t.includes('1d'))   buckets['6-24H'].push(f);
+    // Use raw timestamp if available, fall back to parsing time string
+    let ageMin = Infinity;
+    if (f.timestamp) {
+      ageMin = (Date.now() - f.timestamp) / 60000;
+    } else {
+      const t = f.time || '';
+      const numMatch = t.match(/^(\d+)(m|h|d)\s*ago$/i);
+      if (t.includes('just') || t === 'live' || t === 'recent') { ageMin = 0; }
+      else if (numMatch) {
+        const n = parseInt(numMatch[1]);
+        const u = numMatch[2].toLowerCase();
+        if (u === 'm') ageMin = n;
+        else if (u === 'h') ageMin = n * 60;
+        else if (u === 'd') ageMin = n * 1440;
+      }
+    }
+    if (ageMin <= 2) buckets['JUST NOW'].push(f);
+    else if (ageMin < 60)   buckets['< 1H'].push(f);
+    else if (ageMin < 360)  buckets['1-6H'].push(f);
+    else if (ageMin < 1440) buckets['6-24H'].push(f);
     else buckets['OLDER'].push(f);
   });
 
@@ -14956,7 +15081,108 @@ Provide: strategic significance, current threat environment, key infrastructure,
   }
 }
 
-// ─── 17. EXPORT ───────────────────────────────────────────────────────────
+// ─── 17. SITREP — STRUCTURED SITUATION REPORT ────────────────────────────
+async function osintSitrep() {
+  osintCmd('sitrep --full --structured');
+  osintPrint('[*] Compiling situation report...', 'info');
+  await osintDelay(300);
+
+  const now       = new Date();
+  const criticals = allFeeds.filter(f => f.severity === 'critical');
+  const highs     = allFeeds.filter(f => f.severity === 'high');
+  const threatIdx = Math.min(100, Math.round((criticals.length * 10 + highs.length * 3) / Math.max(allFeeds.length, 1) * 100));
+
+  osintSep();
+  osintPrint('SITUATION REPORT (SITREP)', 'header');
+  osintPrint(`DTG: ${now.toUTCString()} | AOR: ${ACTIVE_LOC.label.replace(/🇵🇭 /,'')}`, 'dim');
+  osintSep();
+
+  // 1. SITUATION
+  osintPrint('&nbsp;');
+  osintPrint('  <span style="color:#00aaff;font-weight:700">1. SITUATION</span>');
+  const tiColor = threatIdx >= 60 ? '#ff3333' : threatIdx >= 30 ? '#ffaa00' : '#00ff41';
+  osintPrint(`     Threat Index: <span style="color:${tiColor};font-weight:700">${threatIdx}/100</span>`);
+  osintPrint(`     Corpus: ${allFeeds.length} items | Sources: ${Object.keys(sourceStatus).length} | Active: ${Object.values(sourceStatus).filter(s => s === 'ok').length}`);
+
+  // Category breakdown
+  const catCount = {};
+  allFeeds.forEach(f => catCount[f.category] = (catCount[f.category] || 0) + 1);
+  const catStr = Object.entries(catCount).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c}:${n}`).join(' · ');
+  osintPrint(`     Sectors: ${catStr}`);
+
+  // 2. KEY EVENTS
+  osintPrint('&nbsp;');
+  osintPrint('  <span style="color:#00aaff;font-weight:700">2. KEY EVENTS</span>');
+  const keyEvents = [...criticals, ...highs].slice(0, 6);
+  if (keyEvents.length) {
+    keyEvents.forEach(f => {
+      const col = f.severity === 'critical' ? '#ff3333' : '#ffaa00';
+      osintPrint(`     <span style="color:${col}">[${f.severity.toUpperCase()}]</span> ${escapeHtml(f.title?.substring(0, 65))} <span style="color:#333">[${f.source}]</span>`);
+    });
+  } else {
+    osintPrint('     No critical or high-severity events at this time.', 'dim');
+  }
+
+  // 3. THREAT ASSESSMENT
+  osintPrint('&nbsp;');
+  osintPrint('  <span style="color:#00aaff;font-weight:700">3. THREAT ASSESSMENT</span>');
+  const hotCrises = Object.values(SENTINEL_CRISES)
+    .map(c => ({ ...c, score: sentinelScores[c.id] || 0 }))
+    .filter(c => c.score >= 25)
+    .sort((a, b) => b.score - a.score);
+  if (hotCrises.length) {
+    hotCrises.slice(0, 5).forEach(c => {
+      const col = c.score >= 75 ? '#ff3333' : c.score >= 50 ? '#ffaa00' : '#ffff00';
+      const bar = '█'.repeat(Math.round(c.score / 5));
+      osintPrint(`     ${c.icon} <span style="color:${col}">${c.label.substring(0, 22).padEnd(22)}</span> <span style="color:${col}">${bar} ${c.score}</span>`);
+    });
+  } else {
+    osintPrint('     All SENTINEL crisis indicators below threshold.', 'dim');
+  }
+
+  // 4. ANOMALIES
+  const anomalies = detectAnomalies();
+  if (anomalies.length) {
+    osintPrint('&nbsp;');
+    osintPrint('  <span style="color:#00aaff;font-weight:700">4. STATISTICAL ANOMALIES</span>');
+    anomalies.slice(0, 5).forEach(a =>
+      osintPrint(`     <span style="color:#ff3333">[${a.direction}]</span> ${escapeHtml(a.label)} — z=${a.zScore.toFixed(1)}σ`)
+    );
+  }
+
+  // 5. CORROBORATED INTEL
+  osintPrint('&nbsp;');
+  osintPrint('  <span style="color:#00aaff;font-weight:700">5. CORROBORATED INTELLIGENCE</span>');
+  const correlated = correlateFeed(allFeeds).filter(f => f.correlations >= 2);
+  if (correlated.length) {
+    correlated.slice(0, 4).forEach(f =>
+      osintPrint(`     <span style="color:#00ff41">[${f.correlations}×SRC]</span> ${escapeHtml(f.title?.substring(0, 60))}`)
+    );
+  } else {
+    osintPrint('     No multi-source corroborated events.', 'dim');
+  }
+
+  // AI-generated recommendations if key available
+  if (hasActiveKey()) {
+    osintPrint('&nbsp;');
+    osintPrint('  <span style="color:#00aaff;font-weight:700">6. AI ASSESSMENT & RECOMMENDATIONS</span>');
+    osintPrint('     [*] Querying Jarvis...', 'info');
+    const reply = await osintAICall(`SITREP SYNTHESIS for ${ACTIVE_LOC.label.replace(/🇵🇭 /,'')}:
+Threat Index: ${threatIdx}/100
+Critical events (${criticals.length}): ${criticals.slice(0, 3).map(f => f.title).join(' | ')}
+High events (${highs.length}): ${highs.slice(0, 3).map(f => f.title).join(' | ')}
+Active crises: ${hotCrises.slice(0, 3).map(c => `${c.label}(${c.score})`).join(', ')}
+Anomalies: ${anomalies.slice(0, 3).map(a => `${a.label}(z=${a.zScore.toFixed(1)})`).join(', ')}
+
+Provide exactly: (A) ONE-LINE BOTTOM LINE UP FRONT, (B) 3 RECOMMENDED ACTIONS ordered by priority, (C) INTELLIGENCE GAPS — what data would change this assessment. Be terse, direct, actionable.`);
+    reply.split('\n').filter(l => l.trim()).forEach(l => osintPrint(`     ${escapeHtml(l)}`, l.match(/^[A-Z(]/) ? 'success' : ''));
+  }
+
+  osintSep();
+  osintPrint(`  SITREP END — ${now.toLocaleString('en-PH')}`, 'dim');
+}
+
+// ─── 18. EXPORT ───────────────────────────────────────────────────────────
 async function osintExportReport() {
   osintCmd('export --format txt --full-report');
   const lines = [...document.getElementById('osint-output').querySelectorAll('.osint-out,.osint-line')]
@@ -15001,11 +15227,31 @@ function updateOsintIntelPanel() {
     ...osintEntities.locations.map(v => ({ type:'location', label:'LOCATION', val:v, cls:'ent-location' })),
     ...osintEntities.keywords.map(v => ({ type:'keyword', label:'KEYWORD', val:v, cls:'ent-keyword' })),
   ];
-  body.innerHTML = all.map(e => `
+  // SENTINEL watch section at top of panel
+  const hotCrises = Object.values(SENTINEL_CRISES)
+    .map(c => ({ ...c, score: sentinelScores[c.id] || 0 }))
+    .filter(c => c.score >= 25)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  let sentinelHtml = '';
+  if (hotCrises.length) {
+    sentinelHtml = `<div style="margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #0a2a0a">
+      <div style="color:#ffaa00;font-size:9px;font-weight:700;margin-bottom:4px">SENTINEL WATCH</div>
+      ${hotCrises.map(c => {
+        const col = c.score >= 75 ? '#ff3333' : c.score >= 50 ? '#ffaa00' : '#ffff00';
+        return `<div style="font-size:8px;margin:2px 0;cursor:pointer" onclick="osintExecute('threat ${c.id}')">
+          ${c.icon} <span style="color:${col}">${c.label.substring(0, 20)}</span> <span style="color:${col};float:right">${c.score}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  body.innerHTML = sentinelHtml + (all.map(e => `
     <div class="osint-entity ${e.cls}" onclick="osintExecute('lookup ${e.val}')">
       <div class="oe-type">${e.label}</div>
       <div class="oe-val">${escapeHtml(e.val)}</div>
-    </div>`).join('') || '<div style="color:#222;font-size:9px;padding:8px 0">No entities extracted yet</div>';
+    </div>`).join('') || '<div style="color:#222;font-size:9px;padding:8px 0">No entities extracted yet</div>');
 }
 
 // ─── UTILS ────────────────────────────────────────────────────────────────
@@ -19784,7 +20030,8 @@ document.addEventListener('click', function resumeAudio() {
         <div class="osint-section-hdr">DEEP INTEL</div>
         <div class="osint-tool-btn" onclick="osintRun('threat')"><span class="otb-icon">⚠</span>Threat Profile<span class="otb-key">F10</span></div>
         <div class="osint-tool-btn" onclick="osintRun('predict')"><span class="otb-icon">◉</span>Predictive Model<span class="otb-key">F11</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('darkweb')"><span class="otb-icon">🕵</span>Signal Sweep<span class="otb-key">F12</span></div>
+        <div class="osint-tool-btn" onclick="osintRun('darkweb')"><span class="otb-icon">📡</span>SIGINT Sweep<span class="otb-key">F12</span></div>
+        <div class="osint-tool-btn" onclick="osintSitrep()"><span class="otb-icon">📋</span>SITREP</div>
         <div class="osint-tool-btn" onclick="osintRun('export')"><span class="otb-icon">↓</span>Export Report</div>
       </div>
       <div class="osint-section">
