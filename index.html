@@ -5588,7 +5588,7 @@ async function fetchGDACS() {
       }
       return [];
     }
-    const r2 = r; // rename for clarity below
+    if (!r || typeof r.text !== 'function') throw new Error('Invalid response');
     const txt = await r.text();
     const xml = new DOMParser().parseFromString(txt,'text/xml');
     return [...xml.querySelectorAll('item')]
@@ -15067,6 +15067,7 @@ function addMapIntelControls() {
 // ─── 1. HEATMAP — event density visualization ─────────────────────────────
 function toggleHeatmapLayer() {
   if (!gmap) return;
+  if (typeof L.heatLayer !== 'function') { console.warn('[HEATMAP] leaflet.heat not loaded yet'); return; }
   heatActive = !heatActive;
   const btn = document.getElementById('heatmap-btn');
 
@@ -16385,6 +16386,7 @@ async function fetchSocialFeeds() {
   const rssFeeds = await Promise.allSettled(socialRss.map(async f => {
     try {
       const r   = await fetchWithProxy(f.url, {});
+      if (!r || typeof r.text !== 'function') throw new Error('Invalid response');
       const txt = await r.text();
       if (txt.startsWith('<!DOCTYPE') || txt.startsWith('<html')) throw new Error('HTML');
       const xml   = new DOMParser().parseFromString(txt, 'text/xml');
