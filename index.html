@@ -93,11 +93,6 @@ body {
   );
 }
 
-/* ═══ CLASSIFICATION BANNER — hidden ═══ */
-#class-banner {
-  display: none;
-}
-
 /* ═══ HEADER — Professional Command Bar ═══ */
 #header {
   position: fixed;
@@ -310,8 +305,8 @@ body {
   display: grid;
   grid-template-columns: var(--left) 1fr var(--right);
   grid-template-rows: 1fr var(--btm);
-  height: calc(100vh - var(--hdr));
-  margin-top: var(--hdr);
+  height: calc(100vh - var(--hdr) - 20px);
+  margin-top: calc(var(--hdr) + 20px);
   gap: 1px;
   background: var(--border);
   transition: grid-template-rows 0.3s ease;
@@ -601,6 +596,31 @@ body {
 #cop-status.high { border-color:#c85c1a; color:#c85c1a; }
 #cop-status.critical { border-color:#cc2233; color:#cc2233; text-shadow:0 0 8px #cc223366; }
 
+/* DEFCON readiness strip */
+#readiness-strip {
+  position:fixed; top:var(--hdr); left:0; right:0; height:20px; z-index:9998;
+  display:flex; align-items:stretch; background:var(--void);
+  border-bottom:1px solid var(--border);
+}
+.readiness-seg {
+  flex:1; display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:7px; letter-spacing:2px;
+  color:var(--t4); border-right:1px solid var(--border);
+  transition:all 0.5s ease; position:relative;
+}
+.readiness-seg:last-child { border-right:none; }
+.readiness-seg.lit { color:#fff; text-shadow:0 0 6px currentColor; }
+.readiness-seg.lit::after {
+  content:''; position:absolute; bottom:0; left:0; right:0; height:2px;
+  background:currentColor; box-shadow:0 0 8px currentColor;
+}
+.readiness-seg[data-level="1"].lit { background:rgba(58,136,56,0.15); color:#4aaa46; }
+.readiness-seg[data-level="2"].lit { background:rgba(184,152,40,0.12); color:#b89a28; }
+.readiness-seg[data-level="3"].lit { background:rgba(200,92,26,0.12); color:#c85c1a; }
+.readiness-seg[data-level="4"].lit { background:rgba(200,32,48,0.15); color:#cc2233; }
+.readiness-seg[data-level="5"].lit { background:rgba(200,32,48,0.25); color:#ff2244; animation:readiness-flash 1.2s ease-in-out infinite; }
+@keyframes readiness-flash { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
 /* Ambient scan pulse */
 @keyframes cop-scan-pulse {
   0%   { transform:translate(-50%,-50%) scale(0.3); opacity:0.4; border-width:2px; }
@@ -637,20 +657,31 @@ body {
 
 /* Ticker */
 #ticker {
-  height:22px; min-height:22px;
-  background:rgba(0,0,0,0.4);
+  height:26px; min-height:26px;
+  background:rgba(0,0,0,0.5);
   border-top:1px solid var(--border);
   overflow:hidden; display:flex; align-items:center; flex-shrink:0;
+  position:relative;
 }
+#ticker::before {
+  content:'LIVE'; position:absolute; left:0; top:0; bottom:0; z-index:2;
+  display:flex; align-items:center; padding:0 8px;
+  font-family:var(--mono); font-size:7px; letter-spacing:2px; color:var(--red);
+  background:linear-gradient(90deg, rgba(0,0,0,0.9) 70%, transparent);
+}
+#ticker::before { animation:ticker-live-pulse 2s ease-in-out infinite; }
+@keyframes ticker-live-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 #ticker-inner {
   display:flex; animation:ticker-scroll 80s linear infinite;
   gap:60px; white-space:nowrap; align-items:center;
+  padding-left:40px;
 }
 @keyframes ticker-scroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
 .ticker-item { font-family:var(--mono); font-size:8px; color:var(--t3); letter-spacing:0.5px; }
 .ticker-item .tsep { color:var(--border-hi); margin:0 8px; }
-.ticker-critical { color:var(--red-dim); }
+.ticker-critical { color:var(--red-dim); font-weight:600; }
 .ticker-warning  { color:var(--orange); }
+.ticker-item .ticker-time { color:var(--amber-dim); margin-right:4px; font-size:7px; }
 
 /* Radar */
 #map-radar {
@@ -721,11 +752,26 @@ body {
 .alert-item:hover { background:var(--amber-glow); }
 
 .alert-sev {
-  width:2px; flex-shrink:0; align-self:stretch; margin-top:2px;
+  width:3px; flex-shrink:0; align-self:stretch; margin-top:2px; border-radius:1px;
 }
-.as-critical { background:var(--red); }
+.as-critical { background:var(--red); box-shadow:0 0 4px var(--red); }
 .as-warning  { background:var(--orange); }
 .as-info     { background:var(--amber-dim); }
+
+.alert-priority {
+  font-family:var(--mono); font-size:7px; font-weight:700;
+  padding:1px 4px; border-radius:2px; flex-shrink:0; margin-top:2px;
+  letter-spacing:0.5px; line-height:1.4;
+}
+.ap-1 { background:rgba(200,32,48,0.2); color:#cc2233; border:1px solid rgba(200,32,48,0.4); }
+.ap-2 { background:rgba(200,92,26,0.15); color:#c85c1a; border:1px solid rgba(200,92,26,0.3); }
+.ap-3 { background:rgba(200,168,75,0.1); color:var(--t3); border:1px solid var(--border); }
+
+.alert-dedup {
+  font-family:var(--mono); font-size:7px; color:var(--t3);
+  background:var(--surface-2); border:1px solid var(--border);
+  padding:0 4px; border-radius:8px; margin-left:auto; flex-shrink:0;
+}
 
 .alert-icon {
   width:18px; height:18px; flex-shrink:0;
@@ -2297,11 +2343,13 @@ body {
   }
 
   /* ── RESET LAYOUT TO SINGLE COLUMN ── */
+  #readiness-strip { height:16px; }
+  #readiness-strip .readiness-seg { font-size:6px; letter-spacing:1px; }
   #layout {
     display: flex !important;
     flex-direction: column;
-    height: calc(100vh - var(--hdr) - 54px) !important;
-    margin-top: var(--hdr);
+    height: calc(100vh - var(--hdr) - 16px - 54px) !important;
+    margin-top: calc(var(--hdr) + 16px);
     gap: 0;
     overflow: hidden;
   }
@@ -2702,7 +2750,6 @@ window.gm_authFailure = function() {
 </nav>
 
 <div class="scanlines"></div>
-<div id="class-banner" title="JDM Command Center v5.0 — Build 20260624">TOP SECRET // SENSITIVE COMPARTMENTED INFORMATION // JDM COMMAND CENTER</div>
 
 <!-- HEADER — Professional Command Bar -->
 <nav id="header" role="banner" aria-label="Command bar">
@@ -2809,6 +2856,15 @@ window.gm_authFailure = function() {
 
 </nav>
 
+<!-- DEFCON READINESS STRIP -->
+<div id="readiness-strip">
+  <div class="readiness-seg lit" data-level="1" id="rs-1">NORMAL</div>
+  <div class="readiness-seg" data-level="2" id="rs-2">ELEVATED</div>
+  <div class="readiness-seg" data-level="3" id="rs-3">HIGH</div>
+  <div class="readiness-seg" data-level="4" id="rs-4">CRITICAL</div>
+  <div class="readiness-seg" data-level="5" id="rs-5">MAXIMUM</div>
+</div>
+
 <!-- SUB-AREAS PANEL -->
 <div id="sub-areas-panel">
   <div class="sub-areas-header">
@@ -2850,7 +2906,6 @@ window.gm_authFailure = function() {
       <div class="feed-tab" onclick="switchTab('health',this)">HEALTH</div>
       <div class="feed-tab" onclick="switchTab('social',this)">💬 SOCIAL</div>
       <div class="feed-tab" onclick="switchTab('radio',this)">📻 RADIO</div>
-      <div class="feed-tab" onclick="switchTab('social',this)">SOCIAL</div>
     </div>
     <div id="feed-list"></div>
   </div>
@@ -3014,6 +3069,12 @@ window.gm_authFailure = function() {
         <div class="legend-row" id="cop-crisis-ind" style="display:none"><div class="legend-dot" style="background:#c85c1a;opacity:0.5;border:1px solid #c85c1a"></div>CRISIS ZONES</div>
         <div class="legend-row" id="cop-infra-ind" style="display:none"><div class="legend-dot" style="background:#44ff88;opacity:0.5"></div>INFRASTRUCTURE</div>
         <div class="legend-row" id="cop-heat-ind" style="display:none"><div class="legend-dot" style="background:#cc2233;opacity:0.5"></div>HEATMAP</div>
+        <div class="legend-row" style="color:var(--t3);margin-top:4px;font-size:7px">ICS SYMBOLOGY</div>
+        <div class="legend-row"><span style="font-size:9px;width:8px;text-align:center">🏥</span>MEDICAL</div>
+        <div class="legend-row"><span style="font-size:9px;width:8px;text-align:center">🚓</span>LAW ENFRC</div>
+        <div class="legend-row"><span style="font-size:9px;width:8px;text-align:center">🚒</span>FIRE/RESCUE</div>
+        <div class="legend-row"><span style="font-size:9px;width:8px;text-align:center">⛺</span>EVAC CENTER</div>
+        <div class="legend-row"><span style="font-size:9px;width:8px;text-align:center">🎖</span>MILITARY</div>
       </div>
       <div id="cop-status">COP: NORMAL</div>
     </div>
@@ -7754,22 +7815,47 @@ function refreshFeeds() { refreshAllFeeds(); }
 function rebuildAlerts(feeds) {
   const list = document.getElementById('alert-list');
   list.innerHTML = '';
-  const top = feeds.filter(f=>f.severity==='critical'||f.severity==='high').slice(0,12);
-  if (!top.length) {
-    list.innerHTML = `<div style="padding:16px 14px;color:var(--text-muted);font-family:var(--font-mono);font-size:10px;text-align:center">NO ACTIVE ALERTS</div>`;
+  const top = feeds.filter(f=>f.severity==='critical'||f.severity==='high');
+
+  // Dedup: cluster events with similar titles (>60% word overlap)
+  const clusters = [];
+  const used = new Set();
+  top.forEach((f, i) => {
+    if (used.has(i)) return;
+    const words = new Set((f.title||'').toLowerCase().split(/\s+/).filter(w=>w.length>3));
+    const group = [f];
+    top.forEach((g, j) => {
+      if (j <= i || used.has(j)) return;
+      const gWords = (g.title||'').toLowerCase().split(/\s+/).filter(w=>w.length>3);
+      const overlap = gWords.filter(w=>words.has(w)).length;
+      if (overlap >= Math.max(words.size * 0.5, 2)) { group.push(g); used.add(j); }
+    });
+    used.add(i);
+    clusters.push({ lead: f, count: group.length, sources: [...new Set(group.map(g=>g.source))] });
+  });
+
+  if (!clusters.length) {
+    list.innerHTML = `<div style="padding:16px 14px;color:var(--t3);font-family:var(--mono);font-size:10px;text-align:center;letter-spacing:1px">◎ NO ACTIVE ALERTS</div>`;
     document.getElementById('alert-count').textContent = '0 ALERTS';
     return;
   }
-  top.forEach(f => {
+
+  clusters.slice(0, 15).forEach((c, idx) => {
+    const f = c.lead;
     const div = document.createElement('div');
     div.className = 'alert-item';
     div.onclick = () => { if (f.lat && f.lng) smoothFlyTo(f.lat, f.lng, 14); };
-    const icon = f.category==='disaster'?'⚠':f.category==='economy'?'◆':f.category==='crime'?'◉':'⚑';
+    const icon = f.category==='disaster'?'⚠':f.category==='crime'?'◉':f.category==='health'?'✚':f.category==='politics'?'⚑':'◆';
     const type = f.severity==='critical'?'critical':'warning';
-    div.innerHTML = `<div class="alert-sev as-${type}"></div><div class="alert-icon">${icon}</div><div class="alert-body"><div class="a-title">${f.title.substring(0,70)}</div><div class="a-meta">${f.source} · ${f.loc||'PH'} · ${f.time}</div></div>`;
+    const pri = f.severity==='critical' ? 'P1' : idx < 5 ? 'P2' : 'P3';
+    const priClass = f.severity==='critical' ? 'ap-1' : idx < 5 ? 'ap-2' : 'ap-3';
+    const dedup = c.count > 1 ? `<span class="alert-dedup">×${c.count}</span>` : '';
+    const srcList = c.sources.length > 1 ? c.sources.slice(0,3).join(', ') : f.source;
+    div.innerHTML = `<div class="alert-sev as-${type}"></div><span class="alert-priority ${priClass}">${pri}</span><div class="alert-icon">${icon}</div><div class="alert-body"><div class="a-title">${f.title.substring(0,70)}</div><div class="a-meta">${srcList} · ${f.loc||'PH'} · ${f.time}</div></div>${dedup}`;
     list.appendChild(div);
   });
-  document.getElementById('alert-count').textContent = top.length+' ALERTS';
+  const totalAlerts = clusters.reduce((s,c)=>s+c.count, 0);
+  document.getElementById('alert-count').textContent = totalAlerts+' ALERTS';
 }
 
 // ─── TRENDS ───────────────────────────────────────────────────────────────
@@ -7802,6 +7888,25 @@ function rebuildTrends(feeds) {
 }
 
 // ─── METRICS ──────────────────────────────────────────────────────────────
+let metricHistory = { critical:[], high:[], total:[], sources:[] };
+const METRIC_HISTORY_MAX = 20;
+
+function miniSparkSVG(data, color, w=48, h=14) {
+  if (!data.length) return '';
+  const max = Math.max(...data, 1);
+  const pts = data.map((v, i) => `${(i/(data.length-1))*w},${h - (v/max)*(h-2)}`).join(' ');
+  return `<svg width="${w}" height="${h}" style="display:block;margin-top:2px;opacity:0.7"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1" stroke-linejoin="round"/></svg>`;
+}
+
+function trendArrow(data) {
+  if (data.length < 2) return '';
+  const prev = data[data.length - 2];
+  const curr = data[data.length - 1];
+  if (curr > prev) return '<span style="color:var(--red);font-size:9px;margin-left:3px">▲</span>';
+  if (curr < prev) return '<span style="color:var(--green-hi);font-size:9px;margin-left:3px">▼</span>';
+  return '<span style="color:var(--t4);font-size:9px;margin-left:3px">—</span>';
+}
+
 function updateMetrics(feeds) {
   if (!feeds) return;
   const crit  = feeds.filter(f=>f.severity==='critical').length;
@@ -7812,11 +7917,32 @@ function updateMetrics(feeds) {
   const totalSources = Object.keys(sourceStatus).length;
   const liveSources  = Object.values(sourceStatus).filter(s=>s==='ok').length;
 
+  // Track history
+  metricHistory.critical.push(crit); if (metricHistory.critical.length > METRIC_HISTORY_MAX) metricHistory.critical.shift();
+  metricHistory.high.push(high); if (metricHistory.high.length > METRIC_HISTORY_MAX) metricHistory.high.shift();
+  metricHistory.total.push(feeds.length); if (metricHistory.total.length > METRIC_HISTORY_MAX) metricHistory.total.shift();
+  metricHistory.sources.push(liveSources); if (metricHistory.sources.length > METRIC_HISTORY_MAX) metricHistory.sources.shift();
+
+  // Update cells with sparklines + trend arrows
+  const setWithSpark = (id, val, histKey, color) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const spark = miniSparkSVG(metricHistory[histKey], color);
+    const arrow = trendArrow(metricHistory[histKey]);
+    el.innerHTML = val + arrow + spark;
+  };
+
+  setWithSpark('m-critical', crit, 'critical', '#cc2233');
+  setWithSpark('m-high', high, 'high', '#c85c1a');
+  setWithSpark('m-total', feeds.length, 'total', '#c8a84b');
+
+  const srcEl = document.getElementById('m-sources');
+  if (srcEl) {
+    const srcSpark = miniSparkSVG(metricHistory.sources, '#4aaa46');
+    srcEl.innerHTML = (totalSources ? `${liveSources}/${totalSources}` : '—') + srcSpark;
+  }
+
   const set = (id, val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
-  set('m-critical', crit);
-  set('m-high',     high);
-  set('m-total',    feeds.length);
-  set('m-sources',  totalSources ? `${liveSources}/${totalSources}` : '—');
   set('event-count',    feeds.length);
   set('alert-count-badge', crit);
 
@@ -7834,27 +7960,27 @@ function buildTicker(feeds) {
   const inner = document.getElementById('ticker-inner');
   if (!inner) return;
 
-  // Smart ticker: critical first, then high, then mix in other categories
-  const crits  = feeds.filter(f=>f.severity==='critical').slice(0,6);
-  const highs  = feeds.filter(f=>f.severity==='high').slice(0,4);
-  const dis    = feeds.filter(f=>f.category==='disaster'&&f.severity!=='critical'&&f.severity!=='high').slice(0,2);
+  const crits  = feeds.filter(f=>f.severity==='critical').slice(0,8);
+  const highs  = feeds.filter(f=>f.severity==='high').slice(0,6);
+  const dis    = feeds.filter(f=>f.category==='disaster'&&f.severity!=='critical'&&f.severity!=='high').slice(0,3);
   const eco    = feeds.filter(f=>f.category==='economy').slice(0,2);
-  const radio  = feeds.filter(f=>f.tag==='radio').slice(0,2);
-
-  const items  = [...crits, ...highs, ...dis, ...eco, ...radio];
+  const items  = [...crits, ...highs, ...dis, ...eco];
 
   if (!items.length) {
-    inner.innerHTML = '<span class="ticker-item">◆ CONNECTING TO INTELLIGENCE FEEDS...</span>';
+    inner.innerHTML = '<span class="ticker-item">◆ SCANNING INTELLIGENCE FEEDS...</span>';
     return;
   }
 
-  const now = new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',hour12:false});
-  const timeStamp = `<span class="ticker-item" style="color:var(--amber-dim)">◆ ${now} PHT ◆ JDM COMMAND CENTER LIVE</span>`;
+  const ph = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Manila'}));
+  const dtg = `${String(ph.getDate()).padStart(2,'0')}${String(ph.getHours()).padStart(2,'0')}${String(ph.getMinutes()).padStart(2,'0')}H`;
+  const header = `<span class="ticker-item" style="color:var(--amber)">◆ DTG ${dtg} PHT ◆ THREAT INDEX: ${window.threatScoreCurrent || 0}/100 ◆</span>`;
 
-  inner.innerHTML = timeStamp + [...items, ...items].map(f => {
-    const icon  = f.tag==='radio'?'📻':f.severity==='critical'?'🚨':f.severity==='high'?'⚠':'◆';
+  inner.innerHTML = header + [...items, ...items].map(f => {
+    const icon  = f.severity==='critical'?'🔴':f.severity==='high'?'🟠':'◆';
     const col   = f.severity==='critical'?'ticker-critical':f.severity==='high'?'ticker-warning':'';
-    return `<span class="ticker-item ${col}">${icon} [${(f.category||'').toUpperCase()}] ${f.source}: ${(f.title||'').substring(0,80)}</span>`;
+    const cat   = (f.category||'').toUpperCase().substring(0,8);
+    const time  = f.time ? `<span class="ticker-time">${f.time}</span>` : '';
+    return `<span class="ticker-item ${col}">${icon} ${time}[${cat}] ${f.source}: ${(f.title||'').substring(0,75)}</span>`;
   }).join('');
 }
 
@@ -25466,6 +25592,14 @@ function updateAutoCOP(score) {
     else if (newLevel === 'CRITICAL') statusEl.classList.add('critical');
   }
 
+  // Update DEFCON readiness strip
+  const levelMap = { 'NORMAL':1, 'ELEVATED':2, 'HIGH':3, 'CRITICAL':4 };
+  const litUpTo = score >= 90 ? 5 : levelMap[newLevel] || 1;
+  for (let i = 1; i <= 5; i++) {
+    const seg = document.getElementById('rs-' + i);
+    if (seg) seg.classList.toggle('lit', i <= litUpTo);
+  }
+
   if (newLevel === copActiveLevel) return;
   copLog('Level change: ' + copActiveLevel + ' → ' + newLevel);
   const prev = copActiveLevel;
@@ -25484,6 +25618,9 @@ function updateAutoCOP(score) {
     if (infraInd) infraInd.style.display = 'none';
     if (heatInd) heatInd.style.display = 'none';
     copRemoveScanPulse();
+    // Deactivate Palantir arcs if they were auto-enabled
+    if (typeof palantirToggleArcs === 'function' && document.getElementById('palantir-arcs-btn')?.classList.contains('active')) window.palantirToggleArcs();
+    if (typeof palantirTogglePulse === 'function' && document.getElementById('palantir-pulse-btn')?.classList.contains('active')) window.palantirTogglePulse();
   }
 
   if (newLevel === 'ELEVATED' || newLevel === 'HIGH' || newLevel === 'CRITICAL') {
@@ -25495,6 +25632,9 @@ function updateAutoCOP(score) {
   if (newLevel === 'HIGH' || newLevel === 'CRITICAL') {
     if (!window.infraActive) toggleInfraLayer();
     if (infraInd) infraInd.style.display = 'flex';
+    // Auto-enable Palantir arcs + pulse at HIGH+
+    if (typeof palantirToggleArcs === 'function' && !document.getElementById('palantir-arcs-btn')?.classList.contains('active')) window.palantirToggleArcs();
+    if (typeof palantirTogglePulse === 'function' && !document.getElementById('palantir-pulse-btn')?.classList.contains('active')) window.palantirTogglePulse();
   } else if (newLevel === 'ELEVATED') {
     if (window.infraActive) toggleInfraLayer();
     if (infraInd) infraInd.style.display = 'none';
