@@ -10630,7 +10630,7 @@ function runAdvancedPipeline(feeds) {
           if (modelTrained && window.tf) {
             const preds = await predictCrisisProbabilities(correlated);
             if (preds?.length) {
-              preds.filter(p => p.topCrisis.prob > 0.4).slice(0, 3).forEach(p => {
+              preds.filter(p => p.topCrisis.prob > 0.55).slice(0, 3).forEach(p => {
                 const el = document.getElementById(`feed-item-${p.feed.id}`);
                 if (el && !el.querySelector('.ml-pred-badge')) {
                   const badge = document.createElement('span');
@@ -12976,9 +12976,13 @@ async function learnFromFeed(feeds) {
   const now = Date.now();
   const newEvents = [];
 
+  // Sort by severity so critical/high events are always processed
+  const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  const sorted = [...feeds].sort((a, b) => (sevOrder[a.severity] ?? 3) - (sevOrder[b.severity] ?? 3));
+
   // Pre-compute ML predictions if model is trained
-  const mlPredictions = modelTrained && crisisModel && window.tf 
-    ? await predictCrisisProbabilities(feeds.slice(0, 50))
+  const mlPredictions = modelTrained && crisisModel && window.tf
+    ? await predictCrisisProbabilities(sorted.slice(0, 20))
     : null;
   const mlPredMap = new Map((mlPredictions || []).map(p => [p.feed.id, p]));
 
@@ -12991,7 +12995,7 @@ async function learnFromFeed(feeds) {
     'economy': ['financial_crisis', 'fuel_energy', 'food_security', 'economic_shock'],
   };
 
-  for (const feed of feeds.slice(0, 50)) {
+  for (const feed of sorted.slice(0, 200)) {
     const features  = extractFeatures(feed);
     
     // Use ML model if trained, otherwise fall back to category-based classification
@@ -13052,6 +13056,24 @@ async function learnFromFeed(feeds) {
 
   totalEventsLearned += newEvents.length;
   await updatePatternDB(newEvents);
+
+  // Data pruning — cap at 5000 events, keep confirmed + most recent
+  const totalEvents = await dbCount('events');
+  if (totalEvents > 5000) {
+    const allEvts = await dbGetAll('events');
+    allEvts.sort((a, b) => {
+      if (a.confirmed && !b.confirmed) return -1;
+      if (!a.confirmed && b.confirmed) return 1;
+      if (a.jarvis_confirmed && !b.jarvis_confirmed) return -1;
+      if (!a.jarvis_confirmed && b.jarvis_confirmed) return 1;
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+    const toRemove = allEvts.slice(5000);
+    const tx = mlDB.transaction(['events'], 'readwrite');
+    const store = tx.objectStore('events');
+    toRemove.forEach(e => store.delete(e.id));
+  }
+
   updateMLStatus();
 }
 
@@ -13059,6 +13081,7 @@ async function learnFromFeed(feeds) {
 async function updatePatternDB(events) {
   if (!mlDB || !events.length) return;
 
+  const updates = new Map();
   for (const event of events) {
     const words = ((event.title||'') + ' ' + (event.body||''))
       .toLowerCase().split(/\W+/).filter(w => w.length > 4);
@@ -13066,17 +13089,34 @@ async function updatePatternDB(events) {
     if (!crisis) continue;
 
     for (const word of words.slice(0, 20)) {
-      const key  = `${word}::${crisis}`;
-      const existing = await dbGet('patterns', key).catch(() => null);
-      const updated  = {
-        key, word, crisis_type: crisis,
-        score:     (existing?.score || 0) + 1,
-        frequency: (existing?.frequency || 0) + 1,
-        last_seen: Date.now(),
-      };
-      await dbPut('patterns', updated).catch(() => {});
+      const key = `${word}::${crisis}`;
+      const prev = updates.get(key);
+      if (prev) {
+        prev.score++; prev.frequency++; prev.last_seen = Date.now();
+      } else {
+        updates.set(key, { key, word, crisis_type: crisis, score: 1, frequency: 1, last_seen: Date.now() });
+      }
     }
   }
+
+  // Batch write in a single transaction
+  return new Promise((resolve) => {
+    const tx = mlDB.transaction(['patterns'], 'readwrite');
+    const store = tx.objectStore('patterns');
+    for (const [key, update] of updates) {
+      const getReq = store.get(key);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        if (existing) {
+          update.score += existing.score;
+          update.frequency += existing.frequency;
+        }
+        store.put(update);
+      };
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
 }
 
 // ─── TRAINING ENGINE ──────────────────────────────────────────────────────
@@ -13091,8 +13131,15 @@ async function trainCrisisModel() {
   const allEvents = await dbGetAll('events');
   const labeled   = allEvents.filter(e => e.confirmed || e.crisis_labels?.some(v => v > 0.3));
 
-  if (labeled.length < 10) {
-    updateMLStatus('Need 10+ labeled events to train. Collecting data...');
+  if (labeled.length < 20) {
+    updateMLStatus(`Need 20+ labeled events to train (have ${labeled.length}). Collecting data...`);
+    return;
+  }
+
+  // Require at least 3 distinct crisis types to avoid softmax collapse
+  const distinctTypes = new Set(labeled.map(e => e.crisis_type).filter(Boolean));
+  if (distinctTypes.size < 3) {
+    updateMLStatus(`Need 3+ crisis types to train (have ${distinctTypes.size}). Diversifying data...`);
     return;
   }
 
@@ -13118,63 +13165,100 @@ async function trainCrisisModel() {
       return vec.map(v => v/sum);
     }), [labeled.length, CRISIS_COUNT]);
 
-    // Head B: 24-hour escalation targets
+    // Escalation targets derived from SENTINEL scores + severity + recency
     const ysB = tf.tensor2d(labeled.map(e => {
-      const targets = new Array(CRISIS_COUNT).fill(0.3);
-      const labels = e.crisis_labels || [];
-      const idx = CRISIS_IDS.indexOf(e.crisis_type);
-      if (idx >= 0 && e.monthsAgo !== undefined) {
-        const recency = Math.max(0.1, 1 - (e.monthsAgo / 12));
-        targets[idx] = Math.min(1.0, recency * 0.9);
-      }
-      labels.forEach((v, i) => { if (v > 0.5) targets[i] = Math.min(1.0, v); });
-      return targets;
+      const ss = e.sentinel_scores || {};
+      const sev = e.severity === 'critical' ? 1.0 : e.severity === 'high' ? 0.75 : e.severity === 'medium' ? 0.5 : 0.25;
+      const ageHrs = (Date.now() - (e.timestamp || Date.now())) / 3600000;
+      const recency = Math.max(0.1, 1 - Math.min(ageHrs / 168, 1));
+      return CRISIS_IDS.map(id => {
+        const base = Math.min(1.0, (ss[id] || 0) / 100);
+        return Math.min(1.0, base * 0.9 * recency + sev * 0.1);
+      });
     }), [labeled.length, CRISIS_COUNT]);
 
-    // Head C: 48-hour escalation targets
     const ysC = tf.tensor2d(labeled.map(e => {
-      const targets = new Array(CRISIS_COUNT).fill(0.25);
-      const labels = e.crisis_labels || [];
-      const idx = CRISIS_IDS.indexOf(e.crisis_type);
-      if (idx >= 0 && e.monthsAgo !== undefined) {
-        const recency = Math.max(0.1, 1 - (e.monthsAgo / 12));
-        targets[idx] = Math.min(1.0, recency * 0.75);
-      }
-      labels.forEach((v, i) => { if (v > 0.5) targets[i] = Math.min(1.0, v * 0.8); });
-      return targets;
+      const ss = e.sentinel_scores || {};
+      const sev = e.severity === 'critical' ? 1.0 : e.severity === 'high' ? 0.75 : e.severity === 'medium' ? 0.5 : 0.25;
+      const ageHrs = (Date.now() - (e.timestamp || Date.now())) / 3600000;
+      const recency = Math.max(0.1, 1 - Math.min(ageHrs / 168, 1));
+      return CRISIS_IDS.map(id => {
+        const base = Math.min(1.0, (ss[id] || 0) / 100);
+        return Math.min(1.0, base * 0.75 * recency + sev * 0.08);
+      });
     }), [labeled.length, CRISIS_COUNT]);
 
-    // Head D: 72-hour escalation targets
     const ysD = tf.tensor2d(labeled.map(e => {
-      const targets = new Array(CRISIS_COUNT).fill(0.2);
-      const labels = e.crisis_labels || [];
-      const idx = CRISIS_IDS.indexOf(e.crisis_type);
-      if (idx >= 0 && e.monthsAgo !== undefined) {
-        const recency = Math.max(0.1, 1 - (e.monthsAgo / 12));
-        targets[idx] = Math.min(1.0, recency * 0.6);
-      }
-      labels.forEach((v, i) => { if (v > 0.5) targets[i] = Math.min(1.0, v * 0.6); });
-      return targets;
+      const ss = e.sentinel_scores || {};
+      const sev = e.severity === 'critical' ? 1.0 : e.severity === 'high' ? 0.75 : e.severity === 'medium' ? 0.5 : 0.25;
+      const ageHrs = (Date.now() - (e.timestamp || Date.now())) / 3600000;
+      const recency = Math.max(0.1, 1 - Math.min(ageHrs / 168, 1));
+      return CRISIS_IDS.map(id => {
+        const base = Math.min(1.0, (ss[id] || 0) / 100);
+        return Math.min(1.0, base * 0.6 * recency + sev * 0.05);
+      });
     }), [labeled.length, CRISIS_COUNT]);
 
     if (!crisisModel) crisisModel = buildCrisisModel();
 
+    // Dynamic batch size: scale with dataset
+    const batchSize = Math.min(Math.max(8, Math.floor(labeled.length / 4)), 32);
+
+    // Compute class weights (inverse frequency) for Head A
+    const classCounts = new Array(CRISIS_COUNT).fill(0);
+    labeled.forEach(e => {
+      const idx = CRISIS_IDS.indexOf(e.crisis_type);
+      if (idx >= 0) classCounts[idx]++;
+    });
+    const totalLabeled = classCounts.reduce((a, b) => a + b, 0) || 1;
+    const classWeights = {};
+    classCounts.forEach((c, i) => {
+      classWeights[i] = c > 0 ? Math.min(10, totalLabeled / (CRISIS_COUNT * c)) : 1;
+    });
+
+    // Early stopping state
+    let bestValLoss = Infinity;
+    let patience = 5;
+    let patienceCounter = 0;
+    let bestWeights = null;
+
     await crisisModel.fit(xs, { crisis_classification: ysA, escalation_24h: ysB, escalation_48h: ysC, escalation_72h: ysD }, {
-      epochs: 20,
-      batchSize: Math.min(4, labeled.length),
-      validationSplit: 0.3,
+      epochs: 50,
+      batchSize,
+      validationSplit: 0.2,
       shuffle: true,
+      classWeight: { crisis_classification: classWeights },
       callbacks: {
-        onEpochEnd: (epoch, logs) => {
+        onEpochEnd: async (epoch, logs) => {
           modelAccuracy = logs.val_crisis_classification_acc || logs.crisis_classification_acc || logs.val_acc || 0;
           const mse24 = logs.val_escalation_24h_loss || 0;
           const mse48 = logs.val_escalation_48h_loss || 0;
           const mse72 = logs.val_escalation_72h_loss || 0;
           escalationMSE = (mse24 + mse48 + mse72) / 3;
-          updateMLStatus(`Epoch ${epoch+1}/20 · acc: ${(modelAccuracy*100).toFixed(1)}% · MSE: ${escalationMSE.toFixed(4)}`);
+          const valLoss = logs.val_loss || logs.loss || Infinity;
+
+          if (valLoss < bestValLoss - 0.001) {
+            bestValLoss = valLoss;
+            patienceCounter = 0;
+            bestWeights = crisisModel.getWeights().map(w => w.clone());
+          } else {
+            patienceCounter++;
+          }
+
+          updateMLStatus(`Epoch ${epoch+1}/50 · acc: ${(modelAccuracy*100).toFixed(1)}% · MSE: ${escalationMSE.toFixed(4)}${patienceCounter > 0 ? ` · patience ${patience - patienceCounter}` : ''}`);
+
+          if (patienceCounter >= patience) {
+            crisisModel.stopTraining = true;
+          }
         }
       }
     });
+
+    // Restore best weights if early stopping triggered
+    if (bestWeights) {
+      crisisModel.setWeights(bestWeights);
+      bestWeights.forEach(w => w.dispose());
+    }
 
     xs.dispose(); ysA.dispose(); ysB.dispose(); ysC.dispose(); ysD.dispose();
     trainingSamples = labeled.length;
@@ -13301,7 +13385,7 @@ async function predictWithMCConfidence(feed, numSamples = MC_DROPOUT_SAMPLES) {
     const outputs = crisisModel.predict(tensor, { training: true });
     const probData = await outputs[0].data();
     allPredictions.push(Array.from(probData));
-    tensor.dispose(); outputs[0].dispose(); outputs[1].dispose();
+    tensor.dispose(); outputs.forEach(o => o.dispose());
   }
 
   // Compute statistics: mean, std, confidence intervals
@@ -13335,6 +13419,24 @@ async function predictWithMCConfidence(feed, numSamples = MC_DROPOUT_SAMPLES) {
     samples: numSamples,
     timestamp: Date.now(),
   };
+}
+
+// ─── SINGLE-CRISIS PREDICTION — Used by mlEnhancedScore ─────────────────
+async function predictCrisisScore(crisisId, matchedSignals) {
+  if (!modelTrained || !crisisModel || !window.tf) return null;
+  const idx = CRISIS_IDS.indexOf(crisisId);
+  if (idx < 0) return null;
+
+  const syntheticFeed = {
+    title: matchedSignals.map(s => s.keyword || s.signal || '').join(' '),
+    body: '', source: 'sentinel', severity: 'medium', category: 'general',
+  };
+  const features = extractFeatures(syntheticFeed);
+  const tensor = tf.tensor2d([Array.from(features)], [1, FEATURE_DIM]);
+  const outputs = crisisModel.predict(tensor);
+  const probData = await outputs[0].data();
+  tensor.dispose(); outputs.forEach(o => o.dispose());
+  return probData[idx];
 }
 
 // ─── HISTORICAL PATTERN MATCHING — Cosine Similarity Search ────────────────
@@ -13830,7 +13932,7 @@ async function initMLEngine() {
       if (modelLoaded) {
         updateMLStatus(`Model loaded — ${trainingSamples} samples · ${(modelAccuracy*100).toFixed(1)}% accuracy`);
       } else {
-        updateMLStatus('Collecting training data — will auto-train after 10+ events');
+        updateMLStatus('Collecting training data — will auto-train after 20+ events');
       }
     }
 
@@ -13848,11 +13950,9 @@ async function initMLEngine() {
       // Auto-train periodically
       const eventCount = await dbCount('events');
       const hoursSinceTrain = (Date.now() - lastTrainTime) / 3600000;
-      if (eventCount >= 10 && !modelTrained) {
-        // Auto-train when enough data collected
+      if (eventCount >= 20 && !modelTrained) {
         await trainCrisisModel();
       } else if (eventCount >= 50 && hoursSinceTrain > 0.5) {
-        // Retrain every 30 min once we have substantial data
         await trainCrisisModel();
       }
     }, 5 * 60000); // every 5 minutes
@@ -13864,7 +13964,7 @@ async function initMLEngine() {
         await updateBaselines();
         updateMLStatus();
         const eventCount = await dbCount('events');
-        if (eventCount >= 10 && !modelTrained && tfLoaded) {
+        if (eventCount >= 20 && !modelTrained && tfLoaded) {
           setTimeout(trainCrisisModel, 3000);
         }
       }
@@ -13874,7 +13974,7 @@ async function initMLEngine() {
       `<strong style="color:var(--green-hi)">◈ ML ENGINE ONLINE</strong><br>` +
       `IndexedDB memory active · TensorFlow.js ${tfLoaded ? 'loaded' : 'loading'}<br>` +
       `${trainingSamples > 0 ? `Resuming from <strong>${trainingSamples}</strong> training samples · <strong>${(modelAccuracy*100).toFixed(0)}%</strong> accuracy` : 'Starting fresh — collecting training data from live feeds'}<br>` +
-      `Engine will <strong>auto-train</strong> after 10 events and improve with every analysis.`
+      `Engine will <strong>auto-train</strong> after 20 events (3+ crisis types) and improve with every analysis.`
     );
   } catch(e) {
     console.warn('ML Engine init failed:', e.message);
@@ -13927,7 +14027,7 @@ async function renderMLDashboard() {
           <button onclick="clearMLData()" class="ml-btn ml-btn-danger">✕ RESET</button>
         </div>
         <div id="ml-status-text" style="font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:6px">
-          ${modelTrained ? `Last trained: ${stats.lastTrained} on ${stats.trainingSamples} samples` : 'Collecting data — auto-training after 10 events'}
+          ${modelTrained ? `Last trained: ${stats.lastTrained} on ${stats.trainingSamples} samples` : 'Collecting data — auto-training after 20 events (3+ crisis types)'}
         </div>
       </div>
 
@@ -13998,6 +14098,33 @@ async function renderMLDashboard() {
         })()}
       </div>
 
+      <!-- Per-class metrics -->
+      <div class="ml-card">
+        <div class="ml-card-title">PER-CLASS DISTRIBUTION</div>
+        ${(() => {
+          const crisisDistMap = {};
+          recentEvents.forEach(e => {
+            if (e.crisis_type) crisisDistMap[e.crisis_type] = (crisisDistMap[e.crisis_type] || 0) + 1;
+          });
+          const allEvents2 = Object.entries(crisisDistMap).sort((a,b) => b[1]-a[1]);
+          const maxCount = allEvents2[0]?.[1] || 1;
+          if (!allEvents2.length) return '<div style="color:var(--t3);font-size:9px;padding:8px 0">No classified events yet</div>';
+          return allEvents2.slice(0,10).map(([crisis, count]) => {
+            const pct = Math.round(count / recentEvents.length * 100);
+            const barWidth = Math.round(count / maxCount * 100);
+            const icon = SENTINEL_CRISES[crisis]?.icon || '◈';
+            return `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:9px">
+              <span style="min-width:14px">${icon}</span>
+              <span style="color:var(--t2);min-width:100px">${(crisis||'').replace(/_/g,' ').substring(0,16)}</span>
+              <div style="flex:1;background:rgba(200,168,75,0.08);height:8px;border-radius:2px;overflow:hidden">
+                <div style="width:${barWidth}%;height:100%;background:${count>3?'var(--green-hi)':'var(--amber)'};border-radius:2px"></div>
+              </div>
+              <span style="color:var(--t3);min-width:40px;text-align:right">${count} (${pct}%)</span>
+            </div>`;
+          }).join('');
+        })()}
+      </div>
+
       <!-- Top learned patterns -->
       <div class="ml-card">
         <div class="ml-card-title">TOP LEARNED PATTERNS</div>
@@ -14044,7 +14171,7 @@ async function exportMLData() {
   const patterns  = await dbGetAll('patterns');
   const feedback  = await dbGetAll('feedback');
   const knowledge = await dbGetAll('knowledge');
-  const modelData = await dbGet('model','crisis_classifier').catch(() => null);
+  const modelData = await dbGet('model','crisis_classifier_quad_head').catch(() => null);
 
   const exportObj = {
     version: '1.0', exported: new Date().toISOString(),
@@ -14356,6 +14483,7 @@ async function osintExecute(raw) {
     case 'sentinel_status': return osintRun('sentinel_status');
     case 'crisis_scan':     return osintRun('crisis_scan');
     case 'ml_status':       return osintRun('ml_status');
+    case 'ml':              return osintMLPredict(args);
     case 'scan':       return osintRun('analyze', args || 'all feeds');
     case 'sitrep':     return osintSitrep();
     case 'report':     return osintSitrep();
@@ -14392,6 +14520,7 @@ function osintHelp() {
     ['sitrep',            'Full structured situation report (SITREP)'],
     ['sentinel_status',   'SENTINEL early warning system status'],
     ['crisis_scan',       'Scan all 18 crisis types in real-time'],
+    ['ml [topic]',        'ML neural net prediction with MC confidence intervals'],
     ['ml_status',         'ML engine training status & accuracy'],
     ['query [question]',  'Direct Jarvis AI query'],
     ['whois [name/org]',  'Intelligence lookup on named entity'],
@@ -15012,7 +15141,28 @@ async function osintMLStatus() {
   osintPrint(`  ACCURACY:  <span style="color:#00ff41">${modelTrained?(modelAccuracy*100).toFixed(1)+'%':'—'}</span>`);
   osintPrint(`  FEEDBACK:  <span style="color:#00ff41">${stats.feedback||0}</span> user confirmations`);
   osintPrint(`  TF.JS:     <span style="color:${tfLoaded?'#00ff41':'#555'}">${tfLoaded?'LOADED':'NOT LOADED'}</span>`);
+  osintPrint(`  ESC MSE:   <span style="color:#00ff41">${escalationMSE ? escalationMSE.toFixed(4) : '—'}</span> (24h/48h/72h avg)`);
+  osintPrint(`  FEATURES:  <span style="color:#00ff41">${FEATURE_DIM}-dim</span> vector · ${CRISIS_COUNT} crisis types`);
+  osintPrint(`  MC DROPOUT: <span style="color:#00ff41">${MC_DROPOUT_SAMPLES} samples</span> per inference`);
   osintBlank();
+
+  // Per-class distribution
+  const allEvts = await dbGetAll('events').catch(() => []);
+  const crisisDist = {};
+  allEvts.filter(e => e.crisis_type).forEach(e => crisisDist[e.crisis_type] = (crisisDist[e.crisis_type] || 0) + 1);
+  const topClasses = Object.entries(crisisDist).sort((a,b) => b[1]-a[1]).slice(0, 6);
+  if (topClasses.length) {
+    osintPrint('  <span style="color:#00aaff">CLASS DISTRIBUTION:</span>');
+    topClasses.forEach(([c, n]) => {
+      const bar = '▓'.repeat(Math.min(15, Math.round(n / (allEvts.length / 15))));
+      osintPrint(`    ${SENTINEL_CRISES[c]?.icon || '◈'} ${c.replace(/_/g,' ').substring(0,18).padEnd(18)} ${bar} ${n}`);
+    });
+    const confirmed = allEvts.filter(e => e.confirmed).length;
+    const jarvis = allEvts.filter(e => e.jarvis_confirmed).length;
+    osintPrint(`    <span style="color:#555">Confirmed: ${confirmed} · JARVIS-labeled: ${jarvis} · Distinct types: ${Object.keys(crisisDist).length}/${CRISIS_COUNT}</span>`);
+  }
+  osintBlank();
+
   const anomalies = detectAnomalies();
   if (anomalies.length) {
     osintPrint(`  ANOMALIES: <span style="color:#ff3333">${anomalies.length} statistical deviations detected</span>`);
@@ -15021,6 +15171,120 @@ async function osintMLStatus() {
     );
   } else {
     osintPrint('  ANOMALIES: <span style="color:#00ff41">None — all baselines nominal</span>');
+  }
+}
+
+// ─── ML PREDICT — Neural net inference with MC Dropout confidence ────────
+async function osintMLPredict(topic) {
+  osintCmd(`ml predict ${topic || '--all'}`);
+
+  if (!modelTrained || !crisisModel || !window.tf) {
+    osintPrint('[!] ML model not trained yet. Collecting data...', 'error');
+    const stats = await getMLStats().catch(() => null);
+    if (stats) osintPrint(`  Events: ${stats.events} · Need 20+ labeled across 3+ crisis types`, 'dim');
+    return;
+  }
+
+  osintPrint('[*] Running ML neural network inference...', 'info');
+  await osintDelay(200);
+
+  // Filter feeds by topic if provided
+  let targetFeeds = allFeeds;
+  if (topic) {
+    const t = topic.toLowerCase();
+    targetFeeds = allFeeds.filter(f =>
+      (f.title || '').toLowerCase().includes(t) ||
+      (f.body || '').toLowerCase().includes(t) ||
+      (f.category || '').toLowerCase().includes(t) ||
+      (f.crisis_type || '').toLowerCase().includes(t)
+    );
+    if (!targetFeeds.length) {
+      osintPrint(`[!] No feeds matching "${topic}" — running on all feeds`, 'dim');
+      targetFeeds = allFeeds;
+    } else {
+      osintPrint(`[+] Filtered to ${targetFeeds.length} feeds matching "${escapeHtml(topic)}"`, 'success');
+    }
+  }
+
+  // Run batch inference
+  const preds = await predictCrisisProbabilities(targetFeeds.slice(0, 20));
+
+  osintSep();
+  osintPrint('ML NEURAL NETWORK CRISIS ASSESSMENT', 'header');
+  osintSep();
+
+  if (!preds || !preds.length) {
+    osintPrint('  No crisis signals detected above threshold', 'dim');
+    return;
+  }
+
+  // Aggregate crisis probabilities across all feeds
+  const crisisAgg = {};
+  preds.forEach(p => {
+    p.allProbs.forEach(cp => {
+      if (!crisisAgg[cp.crisis] || cp.prob > crisisAgg[cp.crisis].prob) {
+        crisisAgg[cp.crisis] = { ...cp, feedTitle: p.feed.title };
+      }
+    });
+  });
+
+  const ranked = Object.values(crisisAgg).sort((a, b) => b.prob - a.prob).slice(0, 8);
+
+  osintPrint(`  <span style="color:#00aaff">MODEL:</span> Quad-head TF.js · ${trainingSamples} samples · ${(modelAccuracy * 100).toFixed(1)}% accuracy`);
+  osintPrint(`  <span style="color:#00aaff">FEEDS:</span> ${preds.length} analyzed · ${ranked.length} crisis types detected`);
+  osintBlank();
+
+  // Per-crisis output with bar visualization
+  ranked.forEach(c => {
+    const pct = Math.round(c.prob * 100);
+    const bar = '█'.repeat(Math.round(pct / 5));
+    const col = pct >= 70 ? '#ff3333' : pct >= 45 ? '#ffaa00' : pct >= 25 ? '#ffff00' : '#555';
+    const icon = SENTINEL_CRISES[c.crisis]?.icon || '◈';
+    osintPrint(`  ${icon} <span style="color:#666;min-width:180px;display:inline-block">${(SENTINEL_CRISES[c.crisis]?.label || c.crisis).substring(0, 22).padEnd(22)}</span><span style="color:${col}">${bar.padEnd(20)} ${String(pct).padStart(3)}%</span>`);
+  });
+
+  // MC Dropout confidence for top result
+  osintBlank();
+  const topFeed = preds[0]?.feed;
+  if (topFeed) {
+    osintPrint('[*] Running MC Dropout uncertainty estimation (50 samples)...', 'info');
+    await osintDelay(300);
+    const mcResult = await predictWithMCConfidence(topFeed);
+    if (mcResult && mcResult.top) {
+      osintSep();
+      osintPrint('MC DROPOUT CONFIDENCE ANALYSIS', 'header');
+      osintSep();
+      osintPrint(`  <span style="color:#00aaff">FEED:</span> ${escapeHtml((topFeed.title || '').substring(0, 60))}`);
+      osintPrint(`  <span style="color:#00aaff">SAMPLES:</span> ${mcResult.samples} forward passes with active dropout`);
+      osintBlank();
+
+      mcResult.all.filter(r => r.mean > 0.05).slice(0, 6).forEach(r => {
+        const confCol = r.confidenceLevel === 'HIGH' ? '#00ff41' : r.confidenceLevel === 'MODERATE' ? '#ffaa00' : '#ff3333';
+        const icon = SENTINEL_CRISES[r.crisis]?.icon || '◈';
+        osintPrint(`  ${icon} <span style="color:#666">${(SENTINEL_CRISES[r.crisis]?.label || r.crisis).substring(0, 20).padEnd(20)}</span> <span style="color:${confCol}">${r.formattedScore}</span> [${r.confidenceLevel}]`);
+      });
+    }
+  }
+
+  // Temporal forecast
+  const temporalData = preds.filter(p => p.temporal?.length > 0);
+  if (temporalData.length) {
+    osintBlank();
+    osintSep();
+    osintPrint('TEMPORAL ESCALATION FORECAST', 'header');
+    osintSep();
+    const topTemporal = temporalData[0].temporal.sort((a, b) => b.forecast24h - a.forecast24h).slice(0, 5);
+    osintPrint('  <span style="color:#666">CRISIS TYPE              24h      48h      72h</span>');
+    topTemporal.forEach(t => {
+      const icon = SENTINEL_CRISES[t.crisis]?.icon || '◈';
+      const f24 = `${Math.round(t.forecast24h * 100)}%`.padStart(5);
+      const f48 = `${Math.round(t.forecast48h * 100)}%`.padStart(5);
+      const f72 = `${Math.round(t.forecast72h * 100)}%`.padStart(5);
+      const col24 = t.forecast24h > 0.5 ? '#ff3333' : t.forecast24h > 0.3 ? '#ffaa00' : '#555';
+      const col48 = t.forecast48h > 0.5 ? '#ff3333' : t.forecast48h > 0.3 ? '#ffaa00' : '#555';
+      const col72 = t.forecast72h > 0.5 ? '#ff3333' : t.forecast72h > 0.3 ? '#ffaa00' : '#555';
+      osintPrint(`  ${icon} ${(SENTINEL_CRISES[t.crisis]?.label || t.crisis).substring(0, 22).padEnd(22)} <span style="color:${col24}">${f24}</span>    <span style="color:${col48}">${f48}</span>    <span style="color:${col72}">${f72}</span>`);
+    });
   }
 }
 
