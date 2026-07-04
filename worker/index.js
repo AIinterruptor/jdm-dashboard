@@ -36,8 +36,8 @@ export default {
     try {
       if (path === '/health') {
         return json({
-          status: 'ok', service: 'jdm-proxy', version: '2.0.0',
-          endpoints: ['/health', '/proxy', '/proxy-rss', '/api/firms', '/api/currents', '/api/tavily', '/api/frankfurter'],
+          status: 'ok', service: 'jdm-proxy', version: '2.1.0',
+          endpoints: ['/health', '/proxy', '/proxy-rss', '/api/firms', '/api/tavily', '/api/frankfurter'],
         }, 200, request, env);
       }
 
@@ -53,14 +53,8 @@ export default {
         return proxyResponse(await r.text(), r.headers.get('Content-Type') || 'text/csv', request, env);
       }
 
-      if (path === '/api/currents') {
-        const key = env.CURRENTS_KEY;
-        if (!key) return json({ error: 'CURRENTS_KEY not configured' }, 503, request, env);
-        const q = url.searchParams.get('q') || 'Philippines';
-        const apiUrl = `https://api.currentsapi.services/v1/search?keywords=${encodeURIComponent(q)}&language=en&apiKey=${key}`;
-        const r = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
-        return proxyResponse(await r.text(), 'application/json', request, env);
-      }
+      // NOTE: /api/currents (Currents API) was retired 2026-07-04 — no key will be
+      // provisioned. News search is served by /api/tavily instead.
 
       if (path === '/api/tavily') {
         const key = env.TAVILY_KEY;

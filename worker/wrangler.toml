@@ -7,5 +7,4 @@ ALLOWED_ORIGIN = "https://aiinterruptor.github.io"
 
 # API keys are set via `wrangler secret put <NAME>`:
 #   wrangler secret put FIRMS_KEY
-#   wrangler secret put CURRENTS_KEY
 #   wrangler secret put TAVILY_KEY
