@@ -25410,6 +25410,7 @@ document.addEventListener('keydown',e=>{
 .p-arc-crit { stroke:var(--red); stroke-width:1.5; }
 .p-arc-high { stroke:var(--orange); stroke-width:1; }
 .p-arc-med  { stroke:var(--amber); stroke-width:0.8; opacity:0.4; }
+.p-arc-dimmed { opacity:0.12 !important; }
 @keyframes arc-dash { to { stroke-dashoffset:0; } }
 .p-arc-animated { stroke-dasharray:8 4; stroke-dashoffset:120; animation:arc-dash 3s linear infinite; }
 
@@ -25549,9 +25550,7 @@ function invalidatePalantirCache() {
   if (networkActive) { computeNetwork(); drawNetwork(); }
 }
 
-// TEMP STUBS — replaced by Task 2 (arcs) and Task 3 (network)
-function computeArcs() { console.log('[PALANTIR v2] computeArcs stub called'); }
-function drawArcs() { console.log('[PALANTIR v2] drawArcs stub called'); }
+// TEMP STUBS — replaced by Task 3 (network)
 function computeNetwork() { console.log('[PALANTIR v2] computeNetwork stub called'); }
 function drawNetwork() { console.log('[PALANTIR v2] drawNetwork stub called'); }
 
@@ -25725,20 +25724,20 @@ function createArcLayer() {
   mapEl.parentElement.appendChild(arcLayer);
 }
 
-function renderArcs() {
+function computeArcs() {
+  const feeds = getActivePalantirFeeds();
+  cachedArcConnections = feeds.length < 2 ? [] : scoreRelatedness(feeds);
+}
+
+function drawArcs() {
   if (!window.gmap || !arcsActive) return;
   const svg = document.getElementById('palantir-arc-svg');
   if (!svg) return;
   svg.innerHTML = '';
+  if (!cachedArcConnections) computeArcs();
+  if (!cachedArcConnections.length) return;
 
-  const feeds = (window.allFeeds || []).filter(f => f.lat && f.lng);
-  if (feeds.length < 2) return;
-
-  const mapEl = document.getElementById('gmap');
-  const rect = mapEl.getBoundingClientRect();
-  const connections = findRelatedEvents(feeds);
-
-  connections.forEach(({ from, to, strength }) => {
+  cachedArcConnections.forEach(({ from, to, strength }) => {
     const fromPt = gmap.latLngToContainerPoint(L.latLng(from.lat, from.lng));
     const toPt = gmap.latLngToContainerPoint(L.latLng(to.lat, to.lng));
     if (!fromPt || !toPt) return;
@@ -25754,15 +25753,17 @@ function renderArcs() {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', `M${fromPt.x},${fromPt.y} Q${cx},${cy} ${toPt.x},${toPt.y}`);
     const sevClass = strength >= 0.7 ? 'p-arc-crit' : strength >= 0.4 ? 'p-arc-high' : 'p-arc-med';
-    path.setAttribute('class', `p-arc ${sevClass} p-arc-animated`);
+    const dimClass = (from._dimmed && to._dimmed) ? ' p-arc-dimmed' : '';
+    path.setAttribute('class', `p-arc ${sevClass} p-arc-animated${dimClass}`);
     svg.appendChild(path);
   });
 }
 
-function findRelatedEvents(feeds) {
+function scoreRelatedness(feeds) {
   const connections = [];
   const maxConns = 40;
   const processed = new Set();
+  const now = Date.now();
 
   for (let i = 0; i < feeds.length && connections.length < maxConns; i++) {
     for (let j = i + 1; j < feeds.length && connections.length < maxConns; j++) {
@@ -25778,14 +25779,18 @@ function findRelatedEvents(feeds) {
 
       const titleA = (a.title || '').toLowerCase();
       const titleB = (b.title || '').toLowerCase();
-      const wordsA = new Set(titleA.split(/\s+/).filter(w => w.length > 4));
-      const wordsB = new Set(titleB.split(/\s+/).filter(w => w.length > 4));
+      const wordsA = new Set(titleA.split(/\s+/).filter(w => w.length > 4 && !STOPWORDS.has(w)).map(stem));
+      const wordsB = new Set(titleB.split(/\s+/).filter(w => w.length > 4 && !STOPWORDS.has(w)).map(stem));
       const shared = [...wordsA].filter(w => wordsB.has(w)).length;
       strength += Math.min(0.4, shared * 0.15);
 
+      const tsA = a.timestamp || a._ts || now;
+      const tsB = b.timestamp || b._ts || now;
+      const hoursApart = Math.abs(tsA - tsB) / 3600000;
+      strength += 0.25 * Math.max(0, 1 - hoursApart / 48);
+
       const dist = Math.sqrt(Math.pow(a.lat - b.lat, 2) + Math.pow(a.lng - b.lng, 2));
-      if (dist < 0.05) strength += 0.2;
-      else if (dist < 0.2) strength += 0.1;
+      strength += 0.3 * Math.exp(-dist / 0.1);
 
       if (strength >= 0.35) {
         connections.push({ from: a, to: b, strength: Math.min(1, strength) });
@@ -25963,18 +25968,23 @@ window.palantirToggleTimeline = function() {
   }
 };
 
+function savePalantirState() {}
+
 window.palantirToggleArcs = function() {
   arcsActive = !arcsActive;
   const btn = document.getElementById('palantir-arcs-btn');
   if (arcsActive) {
     createArcLayer();
-    renderArcs();
+    computeArcs();
+    drawArcs();
     if (btn) { btn.classList.add('active'); btn.textContent = '⌁ ARCS ON'; }
-    if (typeof addJarvisMsg === 'function') addJarvisMsg('jarvis', '⌁ <strong>PALANTIR Arc Links</strong> active. Animated arcs show connections between related events based on category, proximity, severity, and keyword overlap.');
+    if (typeof addJarvisMsg === 'function') addJarvisMsg('jarvis', '⌁ <strong>PALANTIR Arc Links</strong> active. Animated arcs show connections between related events based on category, proximity, severity, timing, and keyword overlap.');
   } else {
     if (arcLayer) { arcLayer.remove(); arcLayer = null; }
+    cachedArcConnections = null;
     if (btn) { btn.classList.remove('active'); btn.textContent = '⌁ ARC LINKS'; }
   }
+  savePalantirState();
 };
 
 window.palantirTogglePulse = function() {
@@ -26022,7 +26032,8 @@ window.palantirTimelineSpeed = palantirTimelineSpeedFn;
 
 // ─── MAP MOVE/ZOOM REFRESH ─────────────────────────────────────────────
 function onMapUpdate() {
-  invalidatePalantirCache();
+  if (arcsActive) requestAnimationFrame(drawArcs);
+  if (networkActive) requestAnimationFrame(drawNetwork);
 }
 
 // ─── INIT ───────────────────────────────────────────────────────────────
