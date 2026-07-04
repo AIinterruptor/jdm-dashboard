@@ -50,7 +50,7 @@
   /* Text hierarchy — WCAG 4.5:1 contrast on #060605 */
   --t1:  #ddd5b4;
   --t2:  rgba(210,195,150,0.75);
-  --t3:  rgba(200,182,138,0.55);
+  --t3:  rgba(200,182,138,0.70); /* a11y: 0.55 was ~3.6:1 on #060605 - 0.70 gives 5.28:1 (WCAG AA) */
   --t4:  rgba(180,162,118,0.30);
 
   /* Typography */
@@ -2593,6 +2593,26 @@ body {
 #mobile-nav {
   display: none;
 }
+
+/* ═══ A11Y: heading reset — semantic headings keep their original div styling ═══ */
+.a11y-h { margin: 0; font: inherit; letter-spacing: inherit; color: inherit; }
+
+/* ═══ A11Y: visible keyboard focus for role="button" controls ═══ */
+[role="button"]:focus-visible, .feed-item:focus-visible, .alert-item:focus-visible {
+  outline: 2px solid var(--amber-hi, #e8cc78);
+  outline-offset: -2px;
+}
+
+/* ═══ A11Y: REDUCED MOTION — disable scanlines, radar sweep, pulses, tickers ═══ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .scanlines, #map-radar { display: none !important; }
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
@@ -2799,13 +2819,13 @@ window.gm_authFailure = function() {
     </div>
 
     <!-- SENTINEL status -->
-    <div class="hdr-sentinel-cell" onclick="openSentinelCommandCenter()" title="Open SENTINEL Command Center">
+    <div class="hdr-sentinel-cell" role="button" tabindex="0" onclick="openSentinelCommandCenter()" title="Open SENTINEL Command Center">
       <div class="hdr-sent-dot" id="hdr-sentinel-dot"></div>
       <div class="hdr-sent-text" id="sentinel-status-bar">SENTINEL: INITIALIZING</div>
     </div>
 
     <!-- ML status -->
-    <div class="hdr-ml-cell" onclick="openMLDashboard()" title="ML Intelligence Engine">
+    <div class="hdr-ml-cell" role="button" tabindex="0" onclick="openMLDashboard()" title="ML Intelligence Engine">
       <div class="hdr-ml-dot"></div>
       <div class="hdr-ml-text" id="ml-status-badge">ML LOADING</div>
     </div>
@@ -2893,24 +2913,24 @@ window.gm_authFailure = function() {
     </div>
     <div id="source-health"></div>
     <div id="source-filters">
-      <div class="src-filter sf-all on" onclick="filterFeeds('all')">ALL</div>
-      <div class="src-filter sf-gov on" onclick="filterFeeds('gov')">GOV</div>
-      <div class="src-filter sf-news on" onclick="filterFeeds('news')">NEWS</div>
-      <div class="src-filter sf-social on" onclick="filterFeeds('social')">SOCIAL</div>
-      <div class="src-filter sf-civic on" onclick="filterFeeds('civic')">CIVIC</div>
+      <div class="src-filter sf-all on" role="button" tabindex="0" onclick="filterFeeds('all')">ALL</div>
+      <div class="src-filter sf-gov on" role="button" tabindex="0" onclick="filterFeeds('gov')">GOV</div>
+      <div class="src-filter sf-news on" role="button" tabindex="0" onclick="filterFeeds('news')">NEWS</div>
+      <div class="src-filter sf-social on" role="button" tabindex="0" onclick="filterFeeds('social')">SOCIAL</div>
+      <div class="src-filter sf-civic on" role="button" tabindex="0" onclick="filterFeeds('civic')">CIVIC</div>
     </div>
     <div id="feed-tabs">
-      <div class="feed-tab active" onclick="switchTab('all',this)">ALL</div>
-      <div class="feed-tab" onclick="switchTab('breaking',this)">⚡ BREAKING</div>
-      <div class="feed-tab" onclick="switchTab('politics',this)">POLITICS</div>
-      <div class="feed-tab" onclick="switchTab('disaster',this)">DISASTER</div>
-      <div class="feed-tab" onclick="switchTab('economy',this)">ECONOMY</div>
-      <div class="feed-tab" onclick="switchTab('crime',this)">CRIME/SEC</div>
-      <div class="feed-tab" onclick="switchTab('health',this)">HEALTH</div>
-      <div class="feed-tab" onclick="switchTab('social',this)">💬 SOCIAL</div>
-      <div class="feed-tab" onclick="switchTab('radio',this)">📻 RADIO</div>
+      <div class="feed-tab active" role="button" tabindex="0" onclick="switchTab('all',this)">ALL</div>
+      <div class="feed-tab" role="button" tabindex="0" onclick="switchTab('breaking',this)">⚡ BREAKING</div>
+      <div class="feed-tab" role="button" tabindex="0" onclick="switchTab('politics',this)">POLITICS</div>
+      <div class="feed-tab" role="button" tabindex="0" onclick="switchTab('disaster',this)">DISASTER</div>
+      <div class="feed-tab" role="button" tabindex="0" onclick="switchTab('economy',this)">ECONOMY</div>
+      <div class="feed-tab" role="button" tabindex="0" onclick="switchTab('crime',this)">CRIME/SEC</div>
+      <div class="feed-tab" role="button" tabindex="0" onclick="switchTab('health',this)">HEALTH</div>
+      <div class="feed-tab" role="button" tabindex="0" onclick="switchTab('social',this)">💬 SOCIAL</div>
+      <div class="feed-tab" role="button" tabindex="0" onclick="switchTab('radio',this)">📻 RADIO</div>
     </div>
-    <div id="feed-list"></div>
+    <div id="feed-list" role="log" aria-live="polite" aria-label="Live intel feed"></div>
   </div>
 
   <!-- CENTER: MAP / VIDEO -->
@@ -3083,15 +3103,15 @@ window.gm_authFailure = function() {
     </div>
     <div id="ticker"><div id="ticker-inner"></div></div>
     <div id="region-bar">
-      <div class="region-btn active" onclick="focusRegion('iloilo')">◎ ILOILO CITY</div>
-      <div class="region-btn" onclick="focusRegion('iloilo-city-hall')">CITY HALL</div>
-      <div class="region-btn" onclick="focusRegion('iloilo-cbd')">CBD / DIVERSION</div>
-      <div class="region-btn" onclick="focusRegion('iloilo-province')">ILOILO PROVINCE</div>
-      <div class="region-btn" onclick="focusRegion('north-iloilo')">NORTH ILOILO</div>
-      <div class="region-btn" onclick="focusRegion('south-iloilo')">SOUTH ILOILO</div>
-      <div class="region-btn" onclick="focusRegion('guimaras')">GUIMARAS</div>
-      <div class="region-btn" onclick="focusRegion('western-visayas')">W. VISAYAS</div>
-      <div class="region-btn" onclick="focusRegion('panay')">PANAY</div>
+      <div class="region-btn active" role="button" tabindex="0" onclick="focusRegion('iloilo')">◎ ILOILO CITY</div>
+      <div class="region-btn" role="button" tabindex="0" onclick="focusRegion('iloilo-city-hall')">CITY HALL</div>
+      <div class="region-btn" role="button" tabindex="0" onclick="focusRegion('iloilo-cbd')">CBD / DIVERSION</div>
+      <div class="region-btn" role="button" tabindex="0" onclick="focusRegion('iloilo-province')">ILOILO PROVINCE</div>
+      <div class="region-btn" role="button" tabindex="0" onclick="focusRegion('north-iloilo')">NORTH ILOILO</div>
+      <div class="region-btn" role="button" tabindex="0" onclick="focusRegion('south-iloilo')">SOUTH ILOILO</div>
+      <div class="region-btn" role="button" tabindex="0" onclick="focusRegion('guimaras')">GUIMARAS</div>
+      <div class="region-btn" role="button" tabindex="0" onclick="focusRegion('western-visayas')">W. VISAYAS</div>
+      <div class="region-btn" role="button" tabindex="0" onclick="focusRegion('panay')">PANAY</div>
     </div>
   </div>
 
@@ -3135,15 +3155,15 @@ window.gm_authFailure = function() {
       </div>
     </div>
     <div id="right-tabs">
-      <div class="right-tab active" onclick="switchRightTab('alerts',this)">ALERTS</div>
-      <div class="right-tab" onclick="switchRightTab('trends',this)">TRENDS</div>
-      <div class="right-tab" onclick="switchRightTab('matrix',this)">MATRIX</div>
-      <div class="right-tab" onclick="switchRightTab('log',this)">LOG</div>
-      <div class="right-tab" onclick="switchRightTab('sentinel',this)" style="color:var(--red)" title="Early Warning & 72h Forecast">⚡ WARNING</div>
+      <div class="right-tab active" role="button" tabindex="0" onclick="switchRightTab('alerts',this)">ALERTS</div>
+      <div class="right-tab" role="button" tabindex="0" onclick="switchRightTab('trends',this)">TRENDS</div>
+      <div class="right-tab" role="button" tabindex="0" onclick="switchRightTab('matrix',this)">MATRIX</div>
+      <div class="right-tab" role="button" tabindex="0" onclick="switchRightTab('log',this)">LOG</div>
+      <div class="right-tab" role="button" tabindex="0" onclick="switchRightTab('sentinel',this)" style="color:var(--red)" title="Early Warning & 72h Forecast">⚡ WARNING</div>
     </div>
     <div class="right-pane active" id="pane-alerts">
       <div class="section-label">▸ ACTIVE ALERTS</div>
-      <div class="alert-list" id="alert-list"></div>
+      <div class="alert-list" id="alert-list" role="log" aria-live="polite" aria-label="Active alerts"></div>
     </div>
     <div class="right-pane" id="pane-trends">
       <div class="section-label">▸ SIGNAL TRENDS</div>
@@ -3158,7 +3178,7 @@ window.gm_authFailure = function() {
         ▸ INCIDENT LOG
         <button onclick="exportLog()" style="background:none;border:1px solid var(--border);color:var(--t3);font-family:var(--mono);font-size:7px;padding:2px 6px;cursor:pointer;letter-spacing:1px">↓ CSV</button>
       </div>
-      <div class="alert-list" id="incident-log-list"></div>
+      <div class="alert-list" id="incident-log-list" role="log" aria-live="polite" aria-label="Incident log"></div>
     </div>
         <div class="right-pane" id="pane-sentinel">
           <!-- EARLY WARNING BOARD -->
@@ -3169,9 +3189,9 @@ window.gm_authFailure = function() {
               display:flex;align-items:center;gap:0;flex-shrink:0;
               border-bottom:1px solid var(--border);background:var(--dark-ops)">
               <div id="ew-h-now"  class="ew-horizon active">NOW</div>
-              <div id="ew-h-24"   class="ew-horizon" onclick="ewSetHorizon('24h',this)">24H</div>
-              <div id="ew-h-48"   class="ew-horizon" onclick="ewSetHorizon('48h',this)">48H</div>
-              <div id="ew-h-72"   class="ew-horizon" onclick="ewSetHorizon('72h',this)">72H</div>
+              <div id="ew-h-24"   class="ew-horizon" role="button" tabindex="0" onclick="ewSetHorizon('24h',this)">24H</div>
+              <div id="ew-h-48"   class="ew-horizon" role="button" tabindex="0" onclick="ewSetHorizon('48h',this)">48H</div>
+              <div id="ew-h-72"   class="ew-horizon" role="button" tabindex="0" onclick="ewSetHorizon('72h',this)">72H</div>
               <div style="flex:1"></div>
               <button onclick="runEarlyWarningAnalysis()" style="
                 background:none;border:none;border-left:1px solid var(--border);
@@ -3240,10 +3260,10 @@ window.gm_authFailure = function() {
 </main>
 
 <!-- BRIEF MODAL -->
-<div id="brief-modal">
+<div id="brief-modal" role="dialog" aria-modal="true" aria-labelledby="brief-title">
   <div id="brief-box">
     <div id="brief-header">
-      <div id="brief-title">▮ JARVIS INTELLIGENCE BRIEFING // JDM OPERATIONS</div>
+      <h2 id="brief-title" class="a11y-h">▮ JARVIS INTELLIGENCE BRIEFING // JDM OPERATIONS</h2>
       <button id="brief-close" onclick="closeBrief()">✕</button>
     </div>
     <div id="brief-content"></div>
@@ -3705,7 +3725,7 @@ function toggleSubAreas() {
     list.innerHTML = '<div class="sub-areas-empty">No sub-areas available for this location</div>';
   } else {
     list.innerHTML = subAreas.map(loc => `
-      <div class="sub-area-option" onclick="switchLocation('${loc.key}')" data-key="${loc.key}">
+      <div class="sub-area-option" role="button" tabindex="0" onclick="switchLocation('${loc.key}')" data-key="${loc.key}">
         <span class="sub-area-icon">📍</span>
         <span class="sub-area-name">${loc.label.replace(/🇵🇭 /,'')}</span>
         <span class="sub-area-region">${loc.region}</span>
@@ -7773,6 +7793,8 @@ function renderFeeds(feeds) {
     const div = document.createElement('div');
     div.className = `feed-item${item.severity==='critical'?' feed-critical':item.severity==='high'?' feed-high':''}`;
     div.id = `feed-item-${item.id}`;
+    div.setAttribute('role', 'button');   // a11y: keyboard-activatable via global Enter/Space handler
+    div.tabIndex = 0;
 
     const isRadio    = item.tag === 'radio';
     const isSocial   = item.tag === 'social' || item.tag === 'reddit';
@@ -7847,6 +7869,8 @@ function rebuildAlerts(feeds) {
     const f = c.lead;
     const div = document.createElement('div');
     div.className = 'alert-item';
+    div.setAttribute('role', 'button');   // a11y: keyboard-activatable via global Enter/Space handler
+    div.tabIndex = 0;
     div.onclick = () => { if (f.lat && f.lng) smoothFlyTo(f.lat, f.lng, 14); };
     const icon = f.category==='disaster'?'⚠':f.category==='crime'?'◉':f.category==='health'?'✚':f.category==='politics'?'⚑':'◆';
     const type = f.severity==='critical'?'critical':'warning';
@@ -7880,6 +7904,7 @@ function rebuildTrends(feeds) {
       document.getElementById('feed-list').innerHTML='';
       filtered.forEach(item=>{
         const div=document.createElement('div'); div.className='feed-item';
+        div.setAttribute('role','button'); div.tabIndex=0; // a11y
         div.onclick=()=>{if(item.lat&&item.lng)gmap.panTo([item.lat,item.lng]);gmap.setZoom(12);addJarvisMsg('user',`Analyze: ${item.title}`);analyzeEvent(item);};
         div.innerHTML=`<div class="sev-bar sev-${item.severity}"></div><div class="feed-meta"><span class="feed-src-tag tag-${item.tag}">${item.source}</span><span class="feed-time">${item.time}</span></div><div class="feed-title">${item.title}</div><div class="feed-body">${item.body}</div>`;
         document.getElementById('feed-list').appendChild(div);
@@ -20042,54 +20067,54 @@ document.addEventListener('click', function resumeAudio() {
   </div>
   <div id="loc-list">
         <div class="loc-region-header">NATIONAL</div>
-        <div class="loc-option" onclick="switchLocation('national')" data-key="national"><span class="loc-name">🇵🇭 Philippines (National)</span><span class="loc-reg">NATIONAL</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('national')" data-key="national"><span class="loc-name">🇵🇭 Philippines (National)</span><span class="loc-reg">NATIONAL</span></div>
         <div class="loc-region-header">NCR</div>
-        <div class="loc-option" onclick="switchLocation('metro-manila')" data-key="metro-manila"><span class="loc-name">Metro Manila / NCR</span><span class="loc-reg">NCR</span></div>
-        <div class="loc-option" onclick="switchLocation('manila')" data-key="manila"><span class="loc-name">City of Manila</span><span class="loc-reg">NCR</span></div>
-        <div class="loc-option" onclick="switchLocation('quezon-city')" data-key="quezon-city"><span class="loc-name">Quezon City</span><span class="loc-reg">NCR</span></div>
-        <div class="loc-option" onclick="switchLocation('makati')" data-key="makati"><span class="loc-name">Makati City</span><span class="loc-reg">NCR</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('metro-manila')" data-key="metro-manila"><span class="loc-name">Metro Manila / NCR</span><span class="loc-reg">NCR</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('manila')" data-key="manila"><span class="loc-name">City of Manila</span><span class="loc-reg">NCR</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('quezon-city')" data-key="quezon-city"><span class="loc-name">Quezon City</span><span class="loc-reg">NCR</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('makati')" data-key="makati"><span class="loc-name">Makati City</span><span class="loc-reg">NCR</span></div>
         <div class="loc-region-header">LUZON — NORTH</div>
-        <div class="loc-option" onclick="switchLocation('ilocos')" data-key="ilocos"><span class="loc-name">Ilocos Region (Region I)</span><span class="loc-reg">LUZON — NORTH</span></div>
-        <div class="loc-option" onclick="switchLocation('vigan')" data-key="vigan"><span class="loc-name">Vigan City</span><span class="loc-reg">LUZON — NORTH</span></div>
-        <div class="loc-option" onclick="switchLocation('cagayan')" data-key="cagayan"><span class="loc-name">Cagayan Valley (Region II)</span><span class="loc-reg">LUZON — NORTH</span></div>
-        <div class="loc-option" onclick="switchLocation('central-luzon')" data-key="central-luzon"><span class="loc-name">Central Luzon (Region III)</span><span class="loc-reg">LUZON — NORTH</span></div>
-        <div class="loc-option" onclick="switchLocation('clark')" data-key="clark"><span class="loc-name">Clark / Angeles City</span><span class="loc-reg">LUZON — NORTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('ilocos')" data-key="ilocos"><span class="loc-name">Ilocos Region (Region I)</span><span class="loc-reg">LUZON — NORTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('vigan')" data-key="vigan"><span class="loc-name">Vigan City</span><span class="loc-reg">LUZON — NORTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('cagayan')" data-key="cagayan"><span class="loc-name">Cagayan Valley (Region II)</span><span class="loc-reg">LUZON — NORTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('central-luzon')" data-key="central-luzon"><span class="loc-name">Central Luzon (Region III)</span><span class="loc-reg">LUZON — NORTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('clark')" data-key="clark"><span class="loc-name">Clark / Angeles City</span><span class="loc-reg">LUZON — NORTH</span></div>
         <div class="loc-region-header">LUZON — SOUTH</div>
-        <div class="loc-option" onclick="switchLocation('calabarzon')" data-key="calabarzon"><span class="loc-name">CALABARZON (Region IV-A)</span><span class="loc-reg">LUZON — SOUTH</span></div>
-        <div class="loc-option" onclick="switchLocation('mimaropa')" data-key="mimaropa"><span class="loc-name">MIMAROPA (Region IV-B)</span><span class="loc-reg">LUZON — SOUTH</span></div>
-        <div class="loc-option" onclick="switchLocation('palawan')" data-key="palawan"><span class="loc-name">Palawan / Puerto Princesa</span><span class="loc-reg">LUZON — SOUTH</span></div>
-        <div class="loc-option" onclick="switchLocation('bicol')" data-key="bicol"><span class="loc-name">Bicol Region (Region V)</span><span class="loc-reg">LUZON — SOUTH</span></div>
-        <div class="loc-option" onclick="switchLocation('legazpi')" data-key="legazpi"><span class="loc-name">Legazpi City / Albay</span><span class="loc-reg">LUZON — SOUTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('calabarzon')" data-key="calabarzon"><span class="loc-name">CALABARZON (Region IV-A)</span><span class="loc-reg">LUZON — SOUTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('mimaropa')" data-key="mimaropa"><span class="loc-name">MIMAROPA (Region IV-B)</span><span class="loc-reg">LUZON — SOUTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('palawan')" data-key="palawan"><span class="loc-name">Palawan / Puerto Princesa</span><span class="loc-reg">LUZON — SOUTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('bicol')" data-key="bicol"><span class="loc-name">Bicol Region (Region V)</span><span class="loc-reg">LUZON — SOUTH</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('legazpi')" data-key="legazpi"><span class="loc-name">Legazpi City / Albay</span><span class="loc-reg">LUZON — SOUTH</span></div>
         <div class="loc-region-header">WESTERN VISAYAS</div>
-        <div class="loc-option" onclick="switchLocation('western-visayas')" data-key="western-visayas"><span class="loc-name">Western Visayas (Region VI)</span><span class="loc-reg">WESTERN VISAYAS</span></div>
-        <div class="loc-option" onclick="switchLocation('iloilo')" data-key="iloilo"><span class="loc-name">Iloilo City</span><span class="loc-reg">WESTERN VISAYAS</span></div>
-        <div class="loc-option" onclick="switchLocation('bacolod')" data-key="bacolod"><span class="loc-name">Bacolod City</span><span class="loc-reg">WESTERN VISAYAS</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('western-visayas')" data-key="western-visayas"><span class="loc-name">Western Visayas (Region VI)</span><span class="loc-reg">WESTERN VISAYAS</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('iloilo')" data-key="iloilo"><span class="loc-name">Iloilo City</span><span class="loc-reg">WESTERN VISAYAS</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('bacolod')" data-key="bacolod"><span class="loc-name">Bacolod City</span><span class="loc-reg">WESTERN VISAYAS</span></div>
         <div class="loc-region-header">CENTRAL VISAYAS</div>
-        <div class="loc-option" onclick="switchLocation('central-visayas')" data-key="central-visayas"><span class="loc-name">Central Visayas (Region VII)</span><span class="loc-reg">CENTRAL VISAYAS</span></div>
-        <div class="loc-option" onclick="switchLocation('cebu')" data-key="cebu"><span class="loc-name">Cebu City</span><span class="loc-reg">CENTRAL VISAYAS</span></div>
-        <div class="loc-option" onclick="switchLocation('bohol')" data-key="bohol"><span class="loc-name">Bohol / Tagbilaran</span><span class="loc-reg">CENTRAL VISAYAS</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('central-visayas')" data-key="central-visayas"><span class="loc-name">Central Visayas (Region VII)</span><span class="loc-reg">CENTRAL VISAYAS</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('cebu')" data-key="cebu"><span class="loc-name">Cebu City</span><span class="loc-reg">CENTRAL VISAYAS</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('bohol')" data-key="bohol"><span class="loc-name">Bohol / Tagbilaran</span><span class="loc-reg">CENTRAL VISAYAS</span></div>
         <div class="loc-region-header">EASTERN VISAYAS</div>
-        <div class="loc-option" onclick="switchLocation('eastern-visayas')" data-key="eastern-visayas"><span class="loc-name">Eastern Visayas (Region VIII)</span><span class="loc-reg">EASTERN VISAYAS</span></div>
-        <div class="loc-option" onclick="switchLocation('tacloban')" data-key="tacloban"><span class="loc-name">Tacloban City</span><span class="loc-reg">EASTERN VISAYAS</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('eastern-visayas')" data-key="eastern-visayas"><span class="loc-name">Eastern Visayas (Region VIII)</span><span class="loc-reg">EASTERN VISAYAS</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('tacloban')" data-key="tacloban"><span class="loc-name">Tacloban City</span><span class="loc-reg">EASTERN VISAYAS</span></div>
         <div class="loc-region-header">ZAMBOANGA</div>
-        <div class="loc-option" onclick="switchLocation('zamboanga')" data-key="zamboanga"><span class="loc-name">Zamboanga Peninsula (Region IX)</span><span class="loc-reg">ZAMBOANGA</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('zamboanga')" data-key="zamboanga"><span class="loc-name">Zamboanga Peninsula (Region IX)</span><span class="loc-reg">ZAMBOANGA</span></div>
         <div class="loc-region-header">N. MINDANAO</div>
-        <div class="loc-option" onclick="switchLocation('northern-mindanao')" data-key="northern-mindanao"><span class="loc-name">Northern Mindanao (Region X)</span><span class="loc-reg">N. MINDANAO</span></div>
-        <div class="loc-option" onclick="switchLocation('cdo')" data-key="cdo"><span class="loc-name">Cagayan de Oro City</span><span class="loc-reg">N. MINDANAO</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('northern-mindanao')" data-key="northern-mindanao"><span class="loc-name">Northern Mindanao (Region X)</span><span class="loc-reg">N. MINDANAO</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('cdo')" data-key="cdo"><span class="loc-name">Cagayan de Oro City</span><span class="loc-reg">N. MINDANAO</span></div>
         <div class="loc-region-header">DAVAO</div>
-        <div class="loc-option" onclick="switchLocation('davao-region')" data-key="davao-region"><span class="loc-name">Davao Region (Region XI)</span><span class="loc-reg">DAVAO</span></div>
-        <div class="loc-option" onclick="switchLocation('davao')" data-key="davao"><span class="loc-name">Davao City</span><span class="loc-reg">DAVAO</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('davao-region')" data-key="davao-region"><span class="loc-name">Davao Region (Region XI)</span><span class="loc-reg">DAVAO</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('davao')" data-key="davao"><span class="loc-name">Davao City</span><span class="loc-reg">DAVAO</span></div>
         <div class="loc-region-header">SOCCSKSARGEN</div>
-        <div class="loc-option" onclick="switchLocation('soccsksargen')" data-key="soccsksargen"><span class="loc-name">SOCCSKSARGEN (Region XII)</span><span class="loc-reg">SOCCSKSARGEN</span></div>
-        <div class="loc-option" onclick="switchLocation('gensan')" data-key="gensan"><span class="loc-name">General Santos City</span><span class="loc-reg">SOCCSKSARGEN</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('soccsksargen')" data-key="soccsksargen"><span class="loc-name">SOCCSKSARGEN (Region XII)</span><span class="loc-reg">SOCCSKSARGEN</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('gensan')" data-key="gensan"><span class="loc-name">General Santos City</span><span class="loc-reg">SOCCSKSARGEN</span></div>
         <div class="loc-region-header">CARAGA</div>
-        <div class="loc-option" onclick="switchLocation('caraga')" data-key="caraga"><span class="loc-name">Caraga (Region XIII)</span><span class="loc-reg">CARAGA</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('caraga')" data-key="caraga"><span class="loc-name">Caraga (Region XIII)</span><span class="loc-reg">CARAGA</span></div>
         <div class="loc-region-header">BARMM</div>
-        <div class="loc-option" onclick="switchLocation('barmm')" data-key="barmm"><span class="loc-name">BARMM (Bangsamoro)</span><span class="loc-reg">BARMM</span></div>
-        <div class="loc-option" onclick="switchLocation('marawi')" data-key="marawi"><span class="loc-name">Marawi City</span><span class="loc-reg">BARMM</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('barmm')" data-key="barmm"><span class="loc-name">BARMM (Bangsamoro)</span><span class="loc-reg">BARMM</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('marawi')" data-key="marawi"><span class="loc-name">Marawi City</span><span class="loc-reg">BARMM</span></div>
         <div class="loc-region-header">CAR</div>
-        <div class="loc-option" onclick="switchLocation('car')" data-key="car"><span class="loc-name">CAR — Cordillera</span><span class="loc-reg">CAR</span></div>
-        <div class="loc-option" onclick="switchLocation('baguio')" data-key="baguio"><span class="loc-name">Baguio City</span><span class="loc-reg">CAR</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('car')" data-key="car"><span class="loc-name">CAR — Cordillera</span><span class="loc-reg">CAR</span></div>
+        <div class="loc-option" role="button" tabindex="0" onclick="switchLocation('baguio')" data-key="baguio"><span class="loc-name">Baguio City</span><span class="loc-reg">CAR</span></div>
   </div>
 </div>
 
@@ -20102,40 +20127,40 @@ document.addEventListener('click', function resumeAudio() {
   </div>
   <div id="model-list">
         <div class="model-tier-header">🟢 OPENROUTER FREE (set CONFIG.OPENROUTER_KEY — free at openrouter.ai)</div>
-        <div class="model-option active" data-model="nvidia/nemotron-3-super-120b-a12b:free" onclick="switchModel('nvidia/nemotron-3-super-120b-a12b:free')"><div><div class="m-name">Nvidia Nemotron 3 120B</div><div class="m-note">Best overall free · ~1s latency</div></div><span class="m-badge free">FREE</span></div>
-        <div class="model-option" data-model="meta-llama/llama-3.3-70b-instruct:free" onclick="switchModel('meta-llama/llama-3.3-70b-instruct:free')"><div><div class="m-name">Llama 3.3 70B</div><div class="m-note">Very popular · Strong reasoning</div></div><span class="m-badge free">FREE</span></div>
-        <div class="model-option" data-model="google/gemma-3-12b-it:free" onclick="switchModel('google/gemma-3-12b-it:free')"><div><div class="m-name">Google Gemma 3 12B</div><div class="m-note">Google quality · Fast</div></div><span class="m-badge free">FREE</span></div>
-        <div class="model-option" data-model="qwen/qwen3-32b:free" onclick="switchModel('qwen/qwen3-32b:free')"><div><div class="m-name">Qwen 3 32B</div><div class="m-note">Strong coding & analysis</div></div><span class="m-badge free">FREE</span></div>
-        <div class="model-option" data-model="deepseek/deepseek-prover-v2:free" onclick="switchModel('deepseek/deepseek-prover-v2:free')"><div><div class="m-name">DeepSeek Prover V2</div><div class="m-note">Logic & reasoning specialist</div></div><span class="m-badge free">FREE</span></div>
-        <div class="model-option" data-model="mistralai/mistral-nemo:free" onclick="switchModel('mistralai/mistral-nemo:free')"><div><div class="m-name">Mistral Nemo 12B</div><div class="m-note">Balanced · Fast European model</div></div><span class="m-badge free">FREE</span></div>
-        <div class="model-option" data-model="openrouter/auto" onclick="switchModel('openrouter/auto')"><div><div class="m-name">OpenRouter Auto</div><div class="m-note">Picks best free model automatically</div></div><span class="m-badge free">FREE</span></div>
+        <div class="model-option active" data-model="nvidia/nemotron-3-super-120b-a12b:free" role="button" tabindex="0" onclick="switchModel('nvidia/nemotron-3-super-120b-a12b:free')"><div><div class="m-name">Nvidia Nemotron 3 120B</div><div class="m-note">Best overall free · ~1s latency</div></div><span class="m-badge free">FREE</span></div>
+        <div class="model-option" data-model="meta-llama/llama-3.3-70b-instruct:free" role="button" tabindex="0" onclick="switchModel('meta-llama/llama-3.3-70b-instruct:free')"><div><div class="m-name">Llama 3.3 70B</div><div class="m-note">Very popular · Strong reasoning</div></div><span class="m-badge free">FREE</span></div>
+        <div class="model-option" data-model="google/gemma-3-12b-it:free" role="button" tabindex="0" onclick="switchModel('google/gemma-3-12b-it:free')"><div><div class="m-name">Google Gemma 3 12B</div><div class="m-note">Google quality · Fast</div></div><span class="m-badge free">FREE</span></div>
+        <div class="model-option" data-model="qwen/qwen3-32b:free" role="button" tabindex="0" onclick="switchModel('qwen/qwen3-32b:free')"><div><div class="m-name">Qwen 3 32B</div><div class="m-note">Strong coding & analysis</div></div><span class="m-badge free">FREE</span></div>
+        <div class="model-option" data-model="deepseek/deepseek-prover-v2:free" role="button" tabindex="0" onclick="switchModel('deepseek/deepseek-prover-v2:free')"><div><div class="m-name">DeepSeek Prover V2</div><div class="m-note">Logic & reasoning specialist</div></div><span class="m-badge free">FREE</span></div>
+        <div class="model-option" data-model="mistralai/mistral-nemo:free" role="button" tabindex="0" onclick="switchModel('mistralai/mistral-nemo:free')"><div><div class="m-name">Mistral Nemo 12B</div><div class="m-note">Balanced · Fast European model</div></div><span class="m-badge free">FREE</span></div>
+        <div class="model-option" data-model="openrouter/auto" role="button" tabindex="0" onclick="switchModel('openrouter/auto')"><div><div class="m-name">OpenRouter Auto</div><div class="m-note">Picks best free model automatically</div></div><span class="m-badge free">FREE</span></div>
         <div class="model-tier-header">⚡ GROQ (free at console.groq.com — set CONFIG.GROQ_KEY)</div>
-        <div class="model-option" data-model="groq-llama-3.3-70b" onclick="switchModel('groq-llama-3.3-70b')"><div><div class="m-name">Groq Llama 3.3 70B</div><div class="m-note">Fastest free LLM · 30 RPM</div></div><span class="m-badge free">GROQ</span></div>
-        <div class="model-option" data-model="groq-llama-3.1-8b" onclick="switchModel('groq-llama-3.1-8b')"><div><div class="m-name">Groq Llama 3.1 8B</div><div class="m-note">Ultra-fast · Instant response</div></div><span class="m-badge free">GROQ</span></div>
-        <div class="model-option" data-model="groq-mixtral-8x7b" onclick="switchModel('groq-mixtral-8x7b')"><div><div class="m-name">Groq Mixtral 8x7B</div><div class="m-note">32K context · Strong analysis</div></div><span class="m-badge free">GROQ</span></div>
-        <div class="model-option" data-model="groq-gemma2-9b" onclick="switchModel('groq-gemma2-9b')"><div><div class="m-name">Groq Gemma 2 9B</div><div class="m-note">Google quality · Fast</div></div><span class="m-badge free">GROQ</span></div>
+        <div class="model-option" data-model="groq-llama-3.3-70b" role="button" tabindex="0" onclick="switchModel('groq-llama-3.3-70b')"><div><div class="m-name">Groq Llama 3.3 70B</div><div class="m-note">Fastest free LLM · 30 RPM</div></div><span class="m-badge free">GROQ</span></div>
+        <div class="model-option" data-model="groq-llama-3.1-8b" role="button" tabindex="0" onclick="switchModel('groq-llama-3.1-8b')"><div><div class="m-name">Groq Llama 3.1 8B</div><div class="m-note">Ultra-fast · Instant response</div></div><span class="m-badge free">GROQ</span></div>
+        <div class="model-option" data-model="groq-mixtral-8x7b" role="button" tabindex="0" onclick="switchModel('groq-mixtral-8x7b')"><div><div class="m-name">Groq Mixtral 8x7B</div><div class="m-note">32K context · Strong analysis</div></div><span class="m-badge free">GROQ</span></div>
+        <div class="model-option" data-model="groq-gemma2-9b" role="button" tabindex="0" onclick="switchModel('groq-gemma2-9b')"><div><div class="m-name">Groq Gemma 2 9B</div><div class="m-note">Google quality · Fast</div></div><span class="m-badge free">GROQ</span></div>
         <div class="model-tier-header">🔵 GOOGLE GEMINI (set CONFIG.GEMINI_KEY)</div>
-        <div class="model-option" data-model="gemini-2.0-flash" onclick="switchModel('gemini-2.0-flash')"><div><div class="m-name">Gemini 2.0 Flash</div><div class="m-note">Recommended · Fast · Multimodal</div></div><span class="m-badge free">GEMINI</span></div>
-        <div class="model-option" data-model="gemini-1.5-flash" onclick="switchModel('gemini-1.5-flash')"><div><div class="m-name">Gemini 1.5 Flash</div><div class="m-note">Reliable · Very fast</div></div><span class="m-badge free">GEMINI</span></div>
-        <div class="model-option" data-model="gemini-1.5-pro" onclick="switchModel('gemini-1.5-pro')"><div><div class="m-name">Gemini 1.5 Pro</div><div class="m-note">Deep reasoning · 1M context</div></div><span class="m-badge paid">GEMINI</span></div>
-        <div class="model-option" data-model="gemini-2.5-pro-preview-03-25" onclick="switchModel('gemini-2.5-pro-preview-03-25')"><div><div class="m-name">Gemini 2.5 Pro Preview</div><div class="m-note">Most capable Google model</div></div><span class="m-badge paid">GEMINI</span></div>
+        <div class="model-option" data-model="gemini-2.0-flash" role="button" tabindex="0" onclick="switchModel('gemini-2.0-flash')"><div><div class="m-name">Gemini 2.0 Flash</div><div class="m-note">Recommended · Fast · Multimodal</div></div><span class="m-badge free">GEMINI</span></div>
+        <div class="model-option" data-model="gemini-1.5-flash" role="button" tabindex="0" onclick="switchModel('gemini-1.5-flash')"><div><div class="m-name">Gemini 1.5 Flash</div><div class="m-note">Reliable · Very fast</div></div><span class="m-badge free">GEMINI</span></div>
+        <div class="model-option" data-model="gemini-1.5-pro" role="button" tabindex="0" onclick="switchModel('gemini-1.5-pro')"><div><div class="m-name">Gemini 1.5 Pro</div><div class="m-note">Deep reasoning · 1M context</div></div><span class="m-badge paid">GEMINI</span></div>
+        <div class="model-option" data-model="gemini-2.5-pro-preview-03-25" role="button" tabindex="0" onclick="switchModel('gemini-2.5-pro-preview-03-25')"><div><div class="m-name">Gemini 2.5 Pro Preview</div><div class="m-note">Most capable Google model</div></div><span class="m-badge paid">GEMINI</span></div>
         <div class="model-tier-header">🟠 ANTHROPIC CLAUDE (set CONFIG.CLAUDE_KEY)</div>
-        <div class="model-option" data-model="claude-haiku-4-5-20251001" onclick="switchModel('claude-haiku-4-5-20251001')"><div><div class="m-name">Claude Haiku 4.5</div><div class="m-note">Fastest Claude · Best value</div></div><span class="m-badge paid">CLAUDE</span></div>
-        <div class="model-option" data-model="claude-sonnet-4-5-20251022" onclick="switchModel('claude-sonnet-4-5-20251022')"><div><div class="m-name">Claude Sonnet 4.5</div><div class="m-note">Balanced power + speed</div></div><span class="m-badge paid">CLAUDE</span></div>
-        <div class="model-option" data-model="claude-opus-4-5-20251101" onclick="switchModel('claude-opus-4-5-20251101')"><div><div class="m-name">Claude Opus 4.5</div><div class="m-note">Most powerful · Best analysis</div></div><span class="m-badge paid">CLAUDE</span></div>
+        <div class="model-option" data-model="claude-haiku-4-5-20251001" role="button" tabindex="0" onclick="switchModel('claude-haiku-4-5-20251001')"><div><div class="m-name">Claude Haiku 4.5</div><div class="m-note">Fastest Claude · Best value</div></div><span class="m-badge paid">CLAUDE</span></div>
+        <div class="model-option" data-model="claude-sonnet-4-5-20251022" role="button" tabindex="0" onclick="switchModel('claude-sonnet-4-5-20251022')"><div><div class="m-name">Claude Sonnet 4.5</div><div class="m-note">Balanced power + speed</div></div><span class="m-badge paid">CLAUDE</span></div>
+        <div class="model-option" data-model="claude-opus-4-5-20251101" role="button" tabindex="0" onclick="switchModel('claude-opus-4-5-20251101')"><div><div class="m-name">Claude Opus 4.5</div><div class="m-note">Most powerful · Best analysis</div></div><span class="m-badge paid">CLAUDE</span></div>
         <div class="model-tier-header">⚡ OPENROUTER PAID</div>
-        <div class="model-option" data-model="anthropic/claude-sonnet-4-6" onclick="switchModel('anthropic/claude-sonnet-4-6')"><div><div class="m-name">Claude Sonnet 4.6 (OR)</div><div class="m-note">Latest Claude via OpenRouter</div></div><span class="m-badge paid">PAID</span></div>
-        <div class="model-option" data-model="claude-sonnet-4-6" onclick="switchModel('claude-sonnet-4-6')"><div><div class="m-name">Claude Sonnet 4.6</div><div class="m-note">Current Claude · Direct API</div></div><span class="m-badge paid">CLAUDE</span></div>
-        <div class="model-option" data-model="openai/gpt-4o-mini" onclick="switchModel('openai/gpt-4o-mini')"><div><div class="m-name">GPT-4o Mini</div><div class="m-note">Fast · Cheap · OpenAI</div></div><span class="m-badge paid">PAID</span></div>
-        <div class="model-option" data-model="openai/gpt-4o" onclick="switchModel('openai/gpt-4o')"><div><div class="m-name">GPT-4o</div><div class="m-note">Most capable OpenAI model</div></div><span class="m-badge paid">PAID</span></div>
+        <div class="model-option" data-model="anthropic/claude-sonnet-4-6" role="button" tabindex="0" onclick="switchModel('anthropic/claude-sonnet-4-6')"><div><div class="m-name">Claude Sonnet 4.6 (OR)</div><div class="m-note">Latest Claude via OpenRouter</div></div><span class="m-badge paid">PAID</span></div>
+        <div class="model-option" data-model="claude-sonnet-4-6" role="button" tabindex="0" onclick="switchModel('claude-sonnet-4-6')"><div><div class="m-name">Claude Sonnet 4.6</div><div class="m-note">Current Claude · Direct API</div></div><span class="m-badge paid">CLAUDE</span></div>
+        <div class="model-option" data-model="openai/gpt-4o-mini" role="button" tabindex="0" onclick="switchModel('openai/gpt-4o-mini')"><div><div class="m-name">GPT-4o Mini</div><div class="m-note">Fast · Cheap · OpenAI</div></div><span class="m-badge paid">PAID</span></div>
+        <div class="model-option" data-model="openai/gpt-4o" role="button" tabindex="0" onclick="switchModel('openai/gpt-4o')"><div><div class="m-name">GPT-4o</div><div class="m-note">Most capable OpenAI model</div></div><span class="m-badge paid">PAID</span></div>
   </div>
 </div>
 
 
 <!-- ANALYTICS MODAL -->
-<div id="analytics-modal">
+<div id="analytics-modal" role="dialog" aria-modal="true" aria-labelledby="analytics-title">
   <div id="analytics-header">
-    <div id="analytics-title">◈ INTELLIGENCE ANALYTICS DASHBOARD</div>
+    <h2 id="analytics-title" class="a11y-h">◈ INTELLIGENCE ANALYTICS DASHBOARD</h2>
     <button id="analytics-close" onclick="document.getElementById('analytics-modal').classList.remove('show')">✕</button>
   </div>
   <div id="analytics-grid">
@@ -20174,10 +20199,10 @@ document.addEventListener('click', function resumeAudio() {
   </div>
 </div>
 <!-- THREAT MATRIX MODAL -->
-<div id="threat-matrix-modal">
+<div id="threat-matrix-modal" role="dialog" aria-modal="true" aria-labelledby="matrix-title">
   <div id="matrix-box">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <div id="matrix-title">◈ THREAT MATRIX // LIKELIHOOD × IMPACT</div>
+      <h2 id="matrix-title" class="a11y-h">◈ THREAT MATRIX // LIKELIHOOD × IMPACT</h2>
       <button class="matrix-close" onclick="document.getElementById('threat-matrix-modal').classList.remove('show')">✕</button>
     </div>
     <div id="matrix-grid"></div>
@@ -20199,18 +20224,18 @@ document.addEventListener('click', function resumeAudio() {
 
 
 <!-- SENTINEL COMMAND CENTER MODAL -->
-<div id="sentinel-cc-modal">
+<div id="sentinel-cc-modal" role="dialog" aria-modal="true" aria-labelledby="scc-title">
   <div id="scc-header">
     <div>
-      <div id="scc-title">🛡 SENTINEL — PHILIPPINES NATIONAL EARLY WARNING SYSTEM</div>
+      <h2 id="scc-title" class="a11y-h">🛡 SENTINEL — PHILIPPINES NATIONAL EARLY WARNING SYSTEM</h2>
       <div id="scc-stats" style="margin-top:4px"></div>
     </div>
     <button id="scc-close" onclick="document.getElementById('sentinel-cc-modal').classList.remove('show')">✕</button>
   </div>
   <div id="scc-tabs">
-    <div class="scc-tab active" onclick="switchSCCTab('overview',this)">OVERVIEW</div>
-    <div class="scc-tab" onclick="switchSCCTab('correlation',this)">CROSS-CRISIS</div>
-    <div class="scc-tab" onclick="switchSCCTab('prediction',this)">PREDICTIONS</div>
+    <div class="scc-tab active" role="button" tabindex="0" onclick="switchSCCTab('overview',this)">OVERVIEW</div>
+    <div class="scc-tab" role="button" tabindex="0" onclick="switchSCCTab('correlation',this)">CROSS-CRISIS</div>
+    <div class="scc-tab" role="button" tabindex="0" onclick="switchSCCTab('prediction',this)">PREDICTIONS</div>
   </div>
   <div id="scc-body">
     <div class="scc-pane active" id="scc-pane-overview"><div id="scc-grid"></div></div>
@@ -20227,9 +20252,9 @@ document.addEventListener('click', function resumeAudio() {
 
 
 <!-- ML ENGINE DASHBOARD MODAL -->
-<div id="ml-modal">
+<div id="ml-modal" role="dialog" aria-modal="true" aria-labelledby="ml-modal-title">
   <div id="ml-modal-header">
-    <div id="ml-modal-title">🧠 ML INTELLIGENCE ENGINE — LEARNING & PATTERN ANALYSIS</div>
+    <h2 id="ml-modal-title" class="a11y-h">🧠 ML INTELLIGENCE ENGINE — LEARNING & PATTERN ANALYSIS</h2>
     <button id="ml-modal-close" onclick="document.getElementById('ml-modal').classList.remove('show')">✕</button>
   </div>
   <div id="ml-dashboard-content">
@@ -20245,22 +20270,22 @@ document.addEventListener('click', function resumeAudio() {
     <div class="ml-teach-section">
       <div class="ml-teach-section-title">◈ QUICK LABEL — tap to label recent events</div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('typhoon',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as typhoon'))">typhoon</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('flooding',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as flooding'))">flooding</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('earthquake_tsunami',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as earthquake_tsunami'))">earthquake_tsunami</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('volcanic',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as volcanic'))">volcanic</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('armed_conflict',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as armed_conflict'))">armed_conflict</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('terrorism',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as terrorism'))">terrorism</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('civil_unrest',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as civil_unrest'))">civil_unrest</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('disease_outbreak',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as disease_outbreak'))">disease_outbreak</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('financial_crisis',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as financial_crisis'))">financial_crisis</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('fuel_energy',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as fuel_energy'))">fuel_energy</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('food_security',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as food_security'))">food_security</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('political_crisis',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as political_crisis'))">political_crisis</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('maritime',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as maritime'))">maritime</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('cyber_attack',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as cyber_attack'))">cyber_attack</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('infrastructure',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as infrastructure'))">infrastructure</span>
-        <span class="ml-crisis-pill" onclick="injectJarvisLabel('environmental',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as environmental'))">environmental</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('typhoon',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as typhoon'))">typhoon</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('flooding',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as flooding'))">flooding</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('earthquake_tsunami',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as earthquake_tsunami'))">earthquake_tsunami</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('volcanic',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as volcanic'))">volcanic</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('armed_conflict',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as armed_conflict'))">armed_conflict</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('terrorism',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as terrorism'))">terrorism</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('civil_unrest',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as civil_unrest'))">civil_unrest</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('disease_outbreak',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as disease_outbreak'))">disease_outbreak</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('financial_crisis',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as financial_crisis'))">financial_crisis</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('fuel_energy',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as fuel_energy'))">fuel_energy</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('food_security',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as food_security'))">food_security</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('political_crisis',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as political_crisis'))">political_crisis</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('maritime',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as maritime'))">maritime</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('cyber_attack',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as cyber_attack'))">cyber_attack</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('infrastructure',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as infrastructure'))">infrastructure</span>
+        <span class="ml-crisis-pill" role="button" tabindex="0" onclick="injectJarvisLabel('environmental',0.85,false).then(n=>mlTeachLog('Quick-labeled '+n+' events as environmental'))">environmental</span>
       </div>
     </div>
   </div>
@@ -20268,9 +20293,9 @@ document.addEventListener('click', function resumeAudio() {
 
 
 <!-- OSINT TERMINAL MODAL -->
-<div id="osint-modal">
+<div id="osint-modal" role="dialog" aria-modal="true" aria-label="OSINT terminal">
   <div id="osint-header">
-    <div class="osint-title">◈ JDM OSINT TERMINAL // INTELLIGENCE GATHERING MODE</div>
+    <h2 class="osint-title a11y-h">◈ JDM OSINT TERMINAL // INTELLIGENCE GATHERING MODE</h2>
     <div class="osint-status">
       <span class="live">● ACTIVE</span>
       <span id="osint-op-count">0 OPS</span>
@@ -20284,32 +20309,32 @@ document.addEventListener('click', function resumeAudio() {
     <div id="osint-tools">
       <div class="osint-section">
         <div class="osint-section-hdr">INTELLIGENCE</div>
-        <div class="osint-tool-btn" onclick="osintRun('analyze')"><span class="otb-icon">◈</span>Feed Analysis<span class="otb-key">F1</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('entities')"><span class="otb-icon">👤</span>Entity Extract<span class="otb-key">F2</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('correlate')"><span class="otb-icon">⬡</span>Correlate Events<span class="otb-key">F3</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('timeline')"><span class="otb-icon">⏱</span>Event Timeline<span class="otb-key">F4</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('patterns')"><span class="otb-icon">◎</span>Pattern Scan<span class="otb-key">F5</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('analyze')"><span class="otb-icon">◈</span>Feed Analysis<span class="otb-key">F1</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('entities')"><span class="otb-icon">👤</span>Entity Extract<span class="otb-key">F2</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('correlate')"><span class="otb-icon">⬡</span>Correlate Events<span class="otb-key">F3</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('timeline')"><span class="otb-icon">⏱</span>Event Timeline<span class="otb-key">F4</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('patterns')"><span class="otb-icon">◎</span>Pattern Scan<span class="otb-key">F5</span></div>
       </div>
       <div class="osint-section">
         <div class="osint-section-hdr">NETWORK RECON</div>
-        <div class="osint-tool-btn" onclick="osintRun('sources')"><span class="otb-icon">📡</span>Source Map<span class="otb-key">F6</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('geomap')"><span class="otb-icon">🌐</span>Geo Cluster<span class="otb-key">F7</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('actors')"><span class="otb-icon">⚙</span>Actor Network<span class="otb-key">F8</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('keywords')"><span class="otb-icon">◆</span>Keyword Freq<span class="otb-key">F9</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('sources')"><span class="otb-icon">📡</span>Source Map<span class="otb-key">F6</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('geomap')"><span class="otb-icon">🌐</span>Geo Cluster<span class="otb-key">F7</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('actors')"><span class="otb-icon">⚙</span>Actor Network<span class="otb-key">F8</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('keywords')"><span class="otb-icon">◆</span>Keyword Freq<span class="otb-key">F9</span></div>
       </div>
       <div class="osint-section">
         <div class="osint-section-hdr">DEEP INTEL</div>
-        <div class="osint-tool-btn" onclick="osintRun('threat')"><span class="otb-icon">⚠</span>Threat Profile<span class="otb-key">F10</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('predict')"><span class="otb-icon">◉</span>Predictive Model<span class="otb-key">F11</span></div>
-        <div class="osint-tool-btn" onclick="osintRun('darkweb')"><span class="otb-icon">📡</span>SIGINT Sweep<span class="otb-key">F12</span></div>
-        <div class="osint-tool-btn" onclick="osintSitrep()"><span class="otb-icon">📋</span>SITREP</div>
-        <div class="osint-tool-btn" onclick="osintRun('export')"><span class="otb-icon">↓</span>Export Report</div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('threat')"><span class="otb-icon">⚠</span>Threat Profile<span class="otb-key">F10</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('predict')"><span class="otb-icon">◉</span>Predictive Model<span class="otb-key">F11</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('darkweb')"><span class="otb-icon">📡</span>SIGINT Sweep<span class="otb-key">F12</span></div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintSitrep()"><span class="otb-icon">📋</span>SITREP</div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('export')"><span class="otb-icon">↓</span>Export Report</div>
       </div>
       <div class="osint-section">
         <div class="osint-section-hdr">SENTINEL LINK</div>
-        <div class="osint-tool-btn" onclick="osintRun('sentinel_status')"><span class="otb-icon">🛡</span>Sentinel Status</div>
-        <div class="osint-tool-btn" onclick="osintRun('crisis_scan')"><span class="otb-icon">⚡</span>Crisis Scan</div>
-        <div class="osint-tool-btn" onclick="osintRun('ml_status')"><span class="otb-icon">🧠</span>ML Engine Status</div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('sentinel_status')"><span class="otb-icon">🛡</span>Sentinel Status</div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('crisis_scan')"><span class="otb-icon">⚡</span>Crisis Scan</div>
+        <div class="osint-tool-btn" role="button" tabindex="0" onclick="osintRun('ml_status')"><span class="otb-icon">🧠</span>ML Engine Status</div>
       </div>
     </div>
 
@@ -20336,12 +20361,12 @@ document.addEventListener('click', function resumeAudio() {
 
 
 <!-- ═══ CINEMA SCREEN PANEL ═══ -->
-<div id="cinema-modal">
+<div id="cinema-modal" role="dialog" aria-modal="true" aria-label="Camera feeds - JDM Cinema">
   <div id="cinema-header">
-    <div class="cinema-title">
-      <div class="cinema-live-dot"></div>
+    <h2 class="cinema-title a11y-h">
+      <span class="cinema-live-dot"></span>
       ◎ JDM CINEMA — IP CAMERA INTELLIGENCE DISPLAY
-    </div>
+    </h2>
     <div id="cinema-controls">
       <button class="cin-btn" onclick="setCinLayout('1x1')">1×1</button>
       <button class="cin-btn active" onclick="setCinLayout('2x2')">2×2</button>
@@ -20885,12 +20910,12 @@ document.addEventListener('click', function resumeAudio() {
 </style>
 
 <!-- LGU OVERLAY HTML ─────────────────────────────────────────────── -->
-<div id="lgu-overlay">
+<div id="lgu-overlay" role="dialog" aria-modal="true" aria-label="LGU Commander mode">
   <!-- TOP BAR -->
   <div id="lgu-topbar">
     <div class="lgu-wordmark">JDM</div>
     <div class="lgu-location-strip">
-      <div class="lgu-loc-name" id="lgu-loc-name">Iloilo City</div>
+      <h2 class="lgu-loc-name a11y-h" id="lgu-loc-name">Iloilo City</h2>
       <div class="lgu-loc-sub" id="lgu-loc-sub">WESTERN VISAYAS · VI</div>
     </div>
     <div id="lgu-clock-block">
@@ -20905,9 +20930,9 @@ document.addEventListener('click', function resumeAudio() {
       </div>
     </div>
     <div id="lgu-mode-tabs">
-      <div class="lgu-mode-tab active" onclick="setLGUMode('watch')">WATCH</div>
-      <div class="lgu-mode-tab" onclick="setLGUMode('brief')">BRIEF</div>
-      <div class="lgu-mode-tab" onclick="setLGUMode('command')">COMMAND</div>
+      <div class="lgu-mode-tab active" role="button" tabindex="0" onclick="setLGUMode('watch')">WATCH</div>
+      <div class="lgu-mode-tab" role="button" tabindex="0" onclick="setLGUMode('brief')">BRIEF</div>
+      <div class="lgu-mode-tab" role="button" tabindex="0" onclick="setLGUMode('command')">COMMAND</div>
     </div>
     <button id="lgu-close-btn" onclick="closeLGUMode()">✕ EXIT</button>
   </div>
@@ -22643,14 +22668,14 @@ if (_origUpdateMetrics) {
 </style>
 
 <!-- PNP OVERLAY HTML ──────────────────────────────────────────────── -->
-<div id="pnp-overlay">
+<div id="pnp-overlay" role="dialog" aria-modal="true" aria-label="PNP Watch Command mode">
 
   <!-- TOP BAR -->
   <div id="pnp-topbar">
     <div id="pnp-badge-strip" title="Philippine National Police"></div>
 
     <div class="pnp-station-info">
-      <div class="pnp-station-name" id="pnp-station-name">Iloilo City Police Office</div>
+      <h2 class="pnp-station-name a11y-h" id="pnp-station-name">Iloilo City Police Office</h2>
       <div class="pnp-station-sub" id="pnp-station-sub">PRO-6 · REGION VI · WATCH COMMAND</div>
     </div>
 
@@ -22671,9 +22696,9 @@ if (_origUpdateMetrics) {
     </div>
 
     <div id="pnp-mode-tabs">
-      <div class="pnp-mode-tab active" onclick="setPNPMode('watch')">WATCH</div>
-      <div class="pnp-mode-tab" onclick="setPNPMode('dispatch')">DISPATCH</div>
-      <div class="pnp-mode-tab" onclick="setPNPMode('command')">COMMAND</div>
+      <div class="pnp-mode-tab active" role="button" tabindex="0" onclick="setPNPMode('watch')">WATCH</div>
+      <div class="pnp-mode-tab" role="button" tabindex="0" onclick="setPNPMode('dispatch')">DISPATCH</div>
+      <div class="pnp-mode-tab" role="button" tabindex="0" onclick="setPNPMode('command')">COMMAND</div>
     </div>
 
     <button id="pnp-close" onclick="closePNPMode()">✕ EXIT</button>
@@ -22689,11 +22714,11 @@ if (_origUpdateMetrics) {
         <button class="pnp-new-btn" onclick="pnpOpenNewIncident()">+ NEW</button>
       </div>
       <div id="pnp-inc-filters">
-        <div class="pnp-inc-filter on" onclick="pnpFilter('all',this)">ALL</div>
-        <div class="pnp-inc-filter" onclick="pnpFilter('crime',this)">CRIME</div>
-        <div class="pnp-inc-filter" onclick="pnpFilter('drug',this)">DRUGS</div>
-        <div class="pnp-inc-filter" onclick="pnpFilter('traffic',this)">TRAFFIC</div>
-        <div class="pnp-inc-filter" onclick="pnpFilter('disaster',this)">DISASTER</div>
+        <div class="pnp-inc-filter on" role="button" tabindex="0" onclick="pnpFilter('all',this)">ALL</div>
+        <div class="pnp-inc-filter" role="button" tabindex="0" onclick="pnpFilter('crime',this)">CRIME</div>
+        <div class="pnp-inc-filter" role="button" tabindex="0" onclick="pnpFilter('drug',this)">DRUGS</div>
+        <div class="pnp-inc-filter" role="button" tabindex="0" onclick="pnpFilter('traffic',this)">TRAFFIC</div>
+        <div class="pnp-inc-filter" role="button" tabindex="0" onclick="pnpFilter('disaster',this)">DISASTER</div>
       </div>
       <div id="pnp-inc-list">
         <div style="padding:20px 14px;text-align:center;font-family:var(--pnp-mono);font-size:9px;color:var(--pnp-t3);letter-spacing:1px">
@@ -24052,12 +24077,12 @@ if (_pnpOrigUpdate) {
 </style>
 
 <!-- HOME OVERLAY HTML ────────────────────────────────────────────── -->
-<div id="home-overlay">
+<div id="home-overlay" role="dialog" aria-modal="true" aria-label="Home Security mode">
 
   <!-- TOP BAR -->
   <div id="hm-topbar">
     <div class="hm-home-icon">🏠</div>
-    <div class="hm-home-name" id="hm-home-name">My Home</div>
+    <h2 class="hm-home-name a11y-h" id="hm-home-name">My Home</h2>
     <div class="hm-home-sub" id="hm-home-sub">ILOILO CITY · HOME SECURITY</div>
 
     <!-- Status orbs -->
@@ -24159,19 +24184,19 @@ if (_pnpOrigUpdate) {
       <!-- Threat chips: 3 home-relevant threats -->
       <div class="hm-section-title">◎ NEIGHBORHOOD THREATS</div>
       <div id="hm-threat-strip">
-        <div class="hm-threat-chip" id="hm-chip-robbery" onclick="hmAsk('What robbery or theft incidents have been reported near my area recently? What should I do to secure my home?')">
+        <div class="hm-threat-chip" id="hm-chip-robbery" role="button" tabindex="0" onclick="hmAsk('What robbery or theft incidents have been reported near my area recently? What should I do to secure my home?')">
           <div class="hm-tc-icon">🔫</div>
           <div class="hm-tc-label">ROBBERY</div>
           <div class="hm-tc-score" id="hm-score-robbery">—</div>
           <div class="hm-tc-bar"><div class="hm-tc-fill" id="hm-bar-robbery" style="width:0%;background:var(--hm-gold)"></div></div>
         </div>
-        <div class="hm-threat-chip" id="hm-chip-fire" onclick="hmAsk('Any fire incidents reported near my area? What fire safety measures should I check at home?')">
+        <div class="hm-threat-chip" id="hm-chip-fire" role="button" tabindex="0" onclick="hmAsk('Any fire incidents reported near my area? What fire safety measures should I check at home?')">
           <div class="hm-tc-icon">🔥</div>
           <div class="hm-tc-label">FIRE</div>
           <div class="hm-tc-score" id="hm-score-fire">—</div>
           <div class="hm-tc-bar"><div class="hm-tc-fill" id="hm-bar-fire" style="width:0%;background:var(--hm-orange)"></div></div>
         </div>
-        <div class="hm-threat-chip" id="hm-chip-weather" onclick="hmAsk('What is the weather situation near my home? Any typhoon, flood, or weather advisory I should prepare for?')">
+        <div class="hm-threat-chip" id="hm-chip-weather" role="button" tabindex="0" onclick="hmAsk('What is the weather situation near my home? Any typhoon, flood, or weather advisory I should prepare for?')">
           <div class="hm-tc-icon">🌀</div>
           <div class="hm-tc-label">WEATHER</div>
           <div class="hm-tc-score" id="hm-score-weather">—</div>
@@ -24955,11 +24980,11 @@ document.addEventListener('keydown', e => {
 #biz-launch-btn:hover{background:rgba(80,140,220,0.2)!important;}
 </style>
 
-<div id="biz-overlay">
+<div id="biz-overlay" role="dialog" aria-modal="true" aria-label="Business Edge mode">
   <div id="biz-top">
     <div class="biz-brand">EDGE</div>
     <div class="biz-name-wrap">
-      <div id="biz-biz-name">My Business</div>
+      <h2 id="biz-biz-name" class="a11y-h">My Business</h2>
       <div id="biz-biz-sub">ILOILO CITY · SME INTELLIGENCE</div>
     </div>
     <div id="biz-fx-strip">
@@ -24982,20 +25007,20 @@ document.addEventListener('keydown', e => {
     <div id="biz-left">
       <div class="biz-phdr"><span>◆ MARKET PULSE</span><div class="biz-pbadge live">LIVE</div></div>
       <div id="biz-mkt-tiles">
-        <div class="biz-tile" onclick="bizAsk('Should I buy USD now? What is the PHP/USD trend and recommendation for my business?')">
+        <div class="biz-tile" role="button" tabindex="0" onclick="bizAsk('Should I buy USD now? What is the PHP/USD trend and recommendation for my business?')">
           <div class="biz-tile-hdr"><div class="biz-tlbl">PHP / USD</div><div class="biz-tbadge live">LIVE</div></div>
           <div class="biz-tval" id="btile-usd">₱—</div>
           <div class="biz-tsub">per 1 US Dollar · Frankfurter/BSP</div>
           <div class="biz-tctx fl" id="btile-usd-ctx">Loading…</div>
           <svg class="biz-spark" id="bspark-usd" viewBox="0 0 200 24" preserveAspectRatio="none"></svg>
         </div>
-        <div class="biz-tile" onclick="bizAsk('What is the current fuel price situation in PH? How will this affect my business costs?')">
+        <div class="biz-tile" role="button" tabindex="0" onclick="bizAsk('What is the current fuel price situation in PH? How will this affect my business costs?')">
           <div class="biz-tile-hdr"><div class="biz-tlbl">FUEL / ENERGY RISK</div><div class="biz-tbadge sig">SENTINEL</div></div>
           <div class="biz-tval" id="btile-fuel">—</div>
           <div class="biz-tsub">Energy SENTINEL score · 0–100</div>
           <div class="biz-tctx fl" id="btile-fuel-ctx">Checking…</div>
         </div>
-        <div class="biz-tile" onclick="bizAsk('What are current PH inflation conditions and impact on purchasing costs?')">
+        <div class="biz-tile" role="button" tabindex="0" onclick="bizAsk('What are current PH inflation conditions and impact on purchasing costs?')">
           <div class="biz-tile-hdr"><div class="biz-tlbl">INFLATION (PH)</div><div class="biz-tbadge sig">WORLD BANK</div></div>
           <div class="biz-tval" id="btile-cpi">—%</div>
           <div class="biz-tsub">Consumer Price Index · Latest</div>
@@ -25015,12 +25040,12 @@ document.addEventListener('keydown', e => {
 
     <div id="biz-center">
       <div id="biz-sector-bar">
-        <div class="biz-stab on" onclick="bizFilter('all',this)">ALL</div>
-        <div class="biz-stab" onclick="bizFilter('economy',this)">ECONOMY</div>
-        <div class="biz-stab" onclick="bizFilter('policy',this)">POLICY</div>
-        <div class="biz-stab" onclick="bizFilter('supply',this)">SUPPLY</div>
-        <div class="biz-stab" onclick="bizFilter('infra',this)">INFRA</div>
-        <div class="biz-stab" onclick="bizFilter('labor',this)">LABOR</div>
+        <div class="biz-stab on" role="button" tabindex="0" onclick="bizFilter('all',this)">ALL</div>
+        <div class="biz-stab" role="button" tabindex="0" onclick="bizFilter('economy',this)">ECONOMY</div>
+        <div class="biz-stab" role="button" tabindex="0" onclick="bizFilter('policy',this)">POLICY</div>
+        <div class="biz-stab" role="button" tabindex="0" onclick="bizFilter('supply',this)">SUPPLY</div>
+        <div class="biz-stab" role="button" tabindex="0" onclick="bizFilter('infra',this)">INFRA</div>
+        <div class="biz-stab" role="button" tabindex="0" onclick="bizFilter('labor',this)">LABOR</div>
       </div>
       <div id="biz-feed-split">
         <div id="biz-intel-wrap">
@@ -26219,5 +26244,144 @@ setTimeout(() => clearInterval(waitForMap), 30000);
 })();
 </script>
 
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   A11Y RUNTIME — keyboard activation + modal focus management
+   Added by accessibility pass. Self-contained; registered last so all
+   existing document-level key handlers run first (we respect
+   e.defaultPrevented and never double-handle keys).
+   ═══════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  /* ── 1. Enter/Space activates any element carrying role="button" ────── */
+  document.addEventListener('keydown', function (e) {
+    if (e.defaultPrevented) return;
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    var t = e.target;
+    if (!t || !(t instanceof Element)) return;
+    // Never hijack typing or native controls
+    if (t.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
+    var btn = t.closest('[role="button"]');
+    if (!btn) return;
+    e.preventDefault();               // stop Space from scrolling the page
+    btn.click();
+  });
+
+  /* ── 2. Modal dialogs: focus trap, focus restore, Escape ────────────── */
+  var MODALS = [
+    { id: 'brief-modal',         cls: 'show',   esc: true  },
+    { id: 'analytics-modal',     cls: 'show',   esc: true  },
+    { id: 'threat-matrix-modal', cls: 'show',   esc: true  },
+    { id: 'sentinel-cc-modal',   cls: 'show',   esc: true  },
+    { id: 'ml-modal',            cls: 'show',   esc: true  },
+    { id: 'osint-modal',         cls: 'show',   esc: false }, // has own Escape handler
+    { id: 'cinema-modal',        cls: 'show',   esc: false }, // has own Escape handler
+    { id: 'lgu-overlay',         cls: 'active', esc: false }, // has own Escape handler
+    { id: 'pnp-overlay',         cls: 'active', esc: false }, // has own Escape handler
+    { id: 'home-overlay',        cls: 'active', esc: false }, // has own Escape handler
+    { id: 'biz-overlay',         cls: 'active', esc: false }  // has own Escape handler
+  ];
+
+  function closeModal(m) {
+    var el = document.getElementById(m.id);
+    if (el) el.classList.remove(m.cls);
+  }
+
+  var openStack = [];   // ids in the order they were opened
+  var lastFocus = {};   // id -> element focused before the modal opened
+
+  function isOpen(m) {
+    var el = document.getElementById(m.id);
+    return el && el.classList.contains(m.cls) ? el : null;
+  }
+
+  function topModal() {
+    for (var i = openStack.length - 1; i >= 0; i--) {
+      var m = MODALS.filter(function (x) { return x.id === openStack[i]; })[0];
+      var el = m && isOpen(m);
+      if (el) return { m: m, el: el };
+      openStack.splice(i, 1); // stale entry
+    }
+    // Fallback: a modal opened before our observer attached
+    for (var j = MODALS.length - 1; j >= 0; j--) {
+      var el2 = isOpen(MODALS[j]);
+      if (el2) return { m: MODALS[j], el: el2 };
+    }
+    return null;
+  }
+
+  function focusables(root) {
+    var sel = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), ' +
+              'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    return Array.prototype.filter.call(root.querySelectorAll(sel), function (n) {
+      return n.offsetParent !== null || n === document.activeElement;
+    });
+  }
+
+  // Observe open/close (class flips) to record and restore focus
+  var mo = new MutationObserver(function (muts) {
+    muts.forEach(function (mu) {
+      var el = mu.target;
+      var m = MODALS.filter(function (x) { return x.id === el.id; })[0];
+      if (!m) return;
+      var openNow = el.classList.contains(m.cls);
+      var wasOpen = ((mu.oldValue || '').split(/\s+/).indexOf(m.cls) !== -1);
+      if (openNow && !wasOpen) {
+        lastFocus[m.id] = document.activeElement;
+        openStack.push(m.id);
+        setTimeout(function () {
+          // Don't steal focus if the modal already focused something itself
+          if (el.classList.contains(m.cls) && !el.contains(document.activeElement)) {
+            var f = focusables(el);
+            (f.length ? f[0] : el).focus();
+          }
+        }, 120);
+      } else if (!openNow && wasOpen) {
+        var idx = openStack.lastIndexOf(m.id);
+        if (idx !== -1) openStack.splice(idx, 1);
+        var prev = lastFocus[m.id];
+        delete lastFocus[m.id];
+        if (prev && document.contains(prev) && typeof prev.focus === 'function') {
+          try { prev.focus(); } catch (_) { /* noop */ }
+        }
+      }
+    });
+  });
+
+  MODALS.forEach(function (m) {
+    var el = document.getElementById(m.id);
+    if (!el) return;
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+    mo.observe(el, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+  });
+
+  // Tab trap + Escape (bubble phase, after all pre-existing handlers)
+  document.addEventListener('keydown', function (e) {
+    if (e.defaultPrevented) return;   // e.g. OSINT terminal's Tab autocomplete
+    var top = topModal();
+    if (!top) return;
+
+    if (e.key === 'Escape' && top.m.esc) {
+      e.preventDefault();
+      closeModal(top.m);
+      return;
+    }
+
+    if (e.key !== 'Tab') return;
+    var f = focusables(top.el);
+    if (!f.length) { e.preventDefault(); top.el.focus(); return; }
+    var first = f[0], last = f[f.length - 1];
+    var active = document.activeElement;
+    var inside = top.el.contains(active);
+    if (e.shiftKey) {
+      if (!inside || active === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (!inside || active === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+})();
+</script>
 </body>
 </html>
