@@ -24019,6 +24019,48 @@ if (_pnpOrigUpdate) {
   background: transparent; border: 1px solid var(--hm-border); color: var(--hm-t3);
 }
 
+/* ── CCTV PANEL — Hikvision NVR via MediaMTX/HLS bridge ──────────── */
+#hm-cctv-panel {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: min(860px, 92vw);
+  background: var(--hm-card); border: 1px solid var(--hm-border-hi);
+  z-index: 110; box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+  display: none; flex-direction: column;
+}
+#hm-cctv-panel.show { display: flex; }
+#hm-cctv-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; gap: 10px;
+  background: var(--hm-surface); border-bottom: 1px solid var(--hm-border);
+}
+#hm-cctv-title {
+  font-family: var(--hm-mono); font-size: 9px;
+  letter-spacing: 2px; color: var(--hm-gold);
+}
+#hm-cctv-body { position: relative; background: #000; }
+#hm-cctv-video {
+  display: block; width: 100%; aspect-ratio: 16/9; background: #000;
+}
+#hm-cctv-banner {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: none; padding: 10px 14px;
+  font-family: var(--hm-mono); font-size: 10px;
+  letter-spacing: 0.5px; line-height: 1.6;
+  background: rgba(212,64,64,0.14); border-top: 1px solid rgba(212,64,64,0.4);
+  color: var(--hm-red);
+}
+#hm-cctv-banner.show { display: block; }
+#hm-cctv-banner.info {
+  background: var(--hm-gold-glow); border-top-color: var(--hm-border-hi);
+  color: var(--hm-t2);
+}
+#hm-cctv-foot {
+  padding: 6px 14px; font-family: var(--hm-mono); font-size: 8px;
+  letter-spacing: 1.5px; color: var(--hm-t3);
+  border-top: 1px solid var(--hm-border);
+}
+
 /* ── RIGHT: NEIGHBORHOOD + JARVIS ────────────────────────────────── */
 #hm-right {
   display: flex; flex-direction: column; overflow: hidden;
@@ -24225,6 +24267,7 @@ if (_pnpOrigUpdate) {
     <div class="hm-topbar-right">
       <button class="hm-top-btn" id="hm-night-btn" onclick="hmToggleNight()">🌙 NIGHT</button>
       <button class="hm-top-btn" onclick="hmSetHome()">📍 SET HOME</button>
+      <button class="hm-top-btn" id="hm-cctv-btn" onclick="hmToggleCCTV()">🎥 CCTV</button>
       <button class="hm-top-btn" onclick="closeHomeMode()">✕ EXIT</button>
     </div>
   </div>
@@ -24340,6 +24383,19 @@ if (_pnpOrigUpdate) {
     </div>
   </div>
 
+  <!-- CCTV panel — Hikvision NVR via MediaMTX/HLS bridge (local network only) -->
+  <div id="hm-cctv-panel" role="dialog" aria-label="CCTV live view">
+    <div id="hm-cctv-hdr">
+      <div id="hm-cctv-title">◆ CCTV — HOME NVR · MediaMTX BRIDGE</div>
+      <button class="hm-top-btn" onclick="hmCloseCCTV()">✕ CLOSE</button>
+    </div>
+    <div id="hm-cctv-body">
+      <video id="hm-cctv-video" muted autoplay playsinline controls></video>
+      <div id="hm-cctv-banner"></div>
+    </div>
+    <div id="hm-cctv-foot">LOCAL NETWORK ONLY · STREAM IS NOT EXPOSED OUTSIDE THE HOME LAN</div>
+  </div>
+
   <!-- BOTTOM BAR -->
   <div id="hm-bottom">
     <div class="hm-bot-seg">
@@ -24376,6 +24432,18 @@ let hmEventCount  = 0;
 let hmAddingCell  = null;     // which cell triggered add
 let hmHomeLat     = null;
 let hmHomeLng     = null;
+
+// ═══ CCTV STREAM URL — EDIT THIS LINE ═══════════════════════════════
+// TODO: Commander to replace with actual MediaMTX bridge URL once the
+// local bridge is set up (MediaMTX transcodes the Hikvision NVR's RTSP
+// feed into browser-playable HLS).
+// ⚠ This MUST be a LOCAL NETWORK address only (192.168.x.x / 10.x.x.x /
+//   NAS or Pi hostname). NEVER point this at a public/internet-facing
+//   URL — the stream is intentionally not exposed outside the home LAN.
+const CCTV_STREAM_URL = 'http://192.168.1.100:8888/cam1/index.m3u8'; // TODO: Commander to replace with actual MediaMTX bridge URL once local bridge is set up
+// ════════════════════════════════════════════════════════════════════
+let hmCctvOpen = false;
+let hmCctvHls  = null;        // hls.js instance for the CCTV panel (destroyed on close)
 
 // ── HOME-RELEVANT SENTINEL IDs ────────────────────────────────────
 const HM_THREATS = {
@@ -24427,6 +24495,7 @@ function openHomeMode() {
 
 function closeHomeMode() {
   hmActive = false;
+  if (hmCctvOpen) hmCloseCCTV(); // stop CCTV stream when leaving HOME mode
   document.getElementById('home-overlay').classList.remove('active');
 }
 
@@ -24857,11 +24926,98 @@ function hmRefresh() {
   hmUpdateBottomBar();
 }
 
+// ── CCTV panel — Hikvision NVR via MediaMTX/HLS bridge ────────────
+// hls.js is loaded lazily from CDN the first time the panel opens —
+// never on page load. Safari plays HLS natively and skips hls.js.
+
+function hmEnsureHlsJs() {
+  if (window.Hls) return Promise.resolve();
+  if (window.__hmHlsLoading) return window.__hmHlsLoading;
+  window.__hmHlsLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js';
+    s.onload = resolve;
+    s.onerror = () => { window.__hmHlsLoading = null; reject(new Error('hls.js CDN load failed')); };
+    document.head.appendChild(s);
+  });
+  return window.__hmHlsLoading;
+}
+
+function hmToggleCCTV() {
+  if (hmCctvOpen) hmCloseCCTV(); else hmOpenCCTV();
+}
+
+function hmOpenCCTV() {
+  hmCctvOpen = true;
+  document.getElementById('hm-cctv-panel').classList.add('show');
+  hmCctvBanner('◎ CONNECTING TO CCTV BRIDGE… ' + CCTV_STREAM_URL, true);
+  hmCctvAttach();
+}
+
+function hmCloseCCTV() {
+  hmCctvOpen = false;
+  document.getElementById('hm-cctv-panel').classList.remove('show');
+  if (hmCctvHls) { try { hmCctvHls.destroy(); } catch(e){} hmCctvHls = null; }
+  const video = document.getElementById('hm-cctv-video');
+  if (video) {
+    video.onerror = null;
+    try { video.pause(); } catch(e){}
+    video.removeAttribute('src');
+    try { video.load(); } catch(e){}
+  }
+  hmCctvBanner(null);
+}
+
+function hmCctvBanner(msg, info) {
+  const b = document.getElementById('hm-cctv-banner');
+  if (!b) return;
+  if (!msg) { b.className = ''; b.textContent = ''; return; }
+  b.textContent = msg;
+  b.className = 'show' + (info ? ' info' : '');
+}
+
+async function hmCctvAttach() {
+  const video = document.getElementById('hm-cctv-video');
+  if (!video) return;
+
+  const fail = () => {
+    if (!hmCctvOpen) return;
+    hmCctvBanner('⚠ CCTV BRIDGE UNREACHABLE — check you are connected to the home network and the MediaMTX bridge is running at ' + CCTV_STREAM_URL, false);
+  };
+  video.onerror = fail;
+
+  // Lazy-load hls.js; if the CDN is unreachable we still try native HLS below.
+  try { await hmEnsureHlsJs(); } catch(e) {}
+  if (!hmCctvOpen) return; // panel closed while hls.js was loading
+
+  if (window.Hls && Hls.isSupported()) {
+    if (hmCctvHls) { try { hmCctvHls.destroy(); } catch(e){} }
+    hmCctvHls = new Hls({ lowLatencyMode: true });
+    hmCctvHls.loadSource(CCTV_STREAM_URL);
+    hmCctvHls.attachMedia(video);
+    hmCctvHls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hmCctvBanner(null);
+      video.play().catch(()=>{});
+    });
+    hmCctvHls.on(Hls.Events.ERROR, (_, data) => { if (data && data.fatal) fail(); });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    // Safari / iOS — native HLS playback, no hls.js needed
+    video.addEventListener('loadeddata', () => hmCctvBanner(null), { once: true });
+    video.src = CCTV_STREAM_URL;
+    video.play().catch(()=>{});
+  } else {
+    hmCctvBanner('⚠ This browser cannot play HLS — hls.js failed to load and native HLS is unsupported.', false);
+  }
+}
+
 // ── Keyboard: home key (backquote ` or shift+H when not in PNP/LGU) ─
 document.addEventListener('keydown', e => {
   if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
   if (e.key==='`' && !hmActive && !pnpActive && !lguActive) openHomeMode();
-  else if (e.key==='Escape' && hmActive) closeHomeMode();
+  else if (e.key==='Escape' && hmActive) {
+    if (hmCctvOpen) hmCloseCCTV();   // Escape closes CCTV panel first
+    else closeHomeMode();
+  }
 });
 </script>
 
