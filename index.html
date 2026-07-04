@@ -25563,6 +25563,7 @@ window.palantirSearchInput = function(value) {
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
     searchQuery = value.trim();
+    savePalantirState();
     invalidatePalantirCache();
     if (typeof window.addEventMarkers === 'function' && window.allFeeds) {
       window.addEventMarkers(getActivePalantirFeeds());
