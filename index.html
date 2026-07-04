@@ -642,7 +642,6 @@ body {
 .cop-scan-ring.ring-2 { animation-delay:2s; }
 
 /* Animated radar fade */
-.radar-frame { transition:opacity 0.6s ease; }
 
 /* Region bar */
 #region-bar {
@@ -3111,14 +3110,6 @@ window.gm_authFailure = function() {
         <div class="ctrl-divider"></div>
         <div class="ctrl-group-label">🌦️ WEATHER</div>
         <button class="map-ctrl-btn" onclick="toggleWindyOverlay()" id="windy-btn" title="Windy.com interactive weather map — wind/rain/clouds/temp (free embed)">🌀 WINDY</button>
-        <button class="map-ctrl-btn" onclick="toggleWeatherOverlay('radar')" id="weather-radar" title="Real-time rain radar (10 min updates)">📡 RADAR</button>
-        <button class="map-ctrl-btn" onclick="toggleWeatherOverlay('satellite')" id="weather-satellite" title="Cloud satellite imagery">🛰️ SATELLITE</button>
-        <button class="map-ctrl-btn" onclick="toggleWeatherOverlay('forecast')" id="weather-forecast" title="Rain forecast (2 hours)">🌧️ FORECAST</button>
-        <button class="map-ctrl-btn" onclick="enableWeatherRadar()" title="Enable radar + satellite">📡+ RADAR ALL</button>
-        <button class="map-ctrl-btn" onclick="refreshWeatherLayers()" title="Refresh weather data">↻ REFRESH</button>
-        <button class="map-ctrl-btn" onclick="clearWeatherOverlays()" style="color:var(--red)">✕ CLEAR WX</button>
-        <div class="ctrl-divider"></div>
-        <button class="map-ctrl-btn" onclick="fetchOpenWeatherIntel()" style="background:var(--dark-green)" title="Open-Meteo detailed weather (free, no API key)">🌤️ DETAILED WX</button>
         <div class="ctrl-divider"></div>
         <div class="ctrl-group-label">📺 MEDIA</div>
         <button class="map-ctrl-btn" onclick="toggleNewsSources()" id="news-btn" style="background:var(--red)" title="Toggle live news sources panel">📺 LIVE NEWS</button>
@@ -3134,7 +3125,6 @@ window.gm_authFailure = function() {
         <div class="legend-row"><div class="legend-dot" style="background:#b89a28"></div>MEDIUM</div>
         <div class="legend-row"><div class="legend-dot" style="background:#c8a84b;opacity:0.5"></div>LOW</div>
         <div class="legend-row" style="color:var(--t3);margin-top:4px;font-size:7px" id="cop-layers-label">COP LAYERS</div>
-        <div class="legend-row" id="cop-radar-ind"><div class="legend-dot" style="background:#4488ff;opacity:0.5"></div>RADAR</div>
         <div class="legend-row" id="cop-crisis-ind" style="display:none"><div class="legend-dot" style="background:#c85c1a;opacity:0.5;border:1px solid #c85c1a"></div>CRISIS ZONES</div>
         <div class="legend-row" id="cop-infra-ind" style="display:none"><div class="legend-dot" style="background:#44ff88;opacity:0.5"></div>INFRASTRUCTURE</div>
         <div class="legend-row" id="cop-heat-ind" style="display:none"><div class="legend-dot" style="background:#cc2233;opacity:0.5"></div>HEATMAP</div>
@@ -3364,11 +3354,6 @@ const CONFIG = {
   // ── MediaStack — get key at mediastack.com ─────────────────────────────
   // Free: 500 requests/month — good for categorized headlines
   MEDIASTACK_KEY: '',
-
-  // ── OpenWeatherMap One Call API 3.0 — get key at openweathermap.org ───
-  // Free: 1,000 calls/day — current, hourly, daily, alerts, air quality
-  OPENWEATHER_KEY: '',
-  OPENWEATHER_UNITS: 'metric', // metric for Celsius, imperial for Fahrenheit
 
   // ── Tavily — AI-powered search API ──────────────────────────────────────
   // Free tier available at tavily.com — excellent for real-time news search
@@ -3782,21 +3767,6 @@ function toggleSubAreas() {
 let ACTIVE_LOC = PH_LOCATIONS['national'];
 
 // Weather cities — populated dynamically based on active location
-function getWeatherCities(loc) {
-  // Return cities near the active location for weather monitoring
-  const allCities = {
-    'national':        [{name:'Manila',lat:14.5995,lng:120.9842},{name:'Cebu City',lat:10.3157,lng:123.8854},{name:'Davao City',lat:7.0707,lng:125.6087},{name:'Cagayan de Oro',lat:8.4822,lng:124.6472},{name:'Tacloban',lat:11.2543,lng:125.0}],
-    'metro-manila':    [{name:'Manila',lat:14.5995,lng:120.9842},{name:'Quezon City',lat:14.676,lng:121.044},{name:'Makati',lat:14.554,lng:121.017},{name:'Pasig',lat:14.586,lng:121.086},{name:'Taguig',lat:14.521,lng:121.079}],
-    'cebu':            [{name:'Cebu City',lat:10.317,lng:123.891},{name:'Mandaue',lat:10.351,lng:123.934},{name:'Lapu-Lapu',lat:10.312,lng:123.969},{name:'Tagbilaran',lat:9.65,lng:123.85},{name:'Dumaguete',lat:9.307,lng:123.307}],
-    'davao':           [{name:'Davao City',lat:7.073,lng:125.613},{name:'General Santos',lat:6.112,lng:125.172},{name:'Tagum',lat:7.449,lng:125.809},{name:'Digos',lat:6.75,lng:125.36},{name:'Mati',lat:6.95,lng:126.22}],
-    'iloilo':          [{name:'Iloilo City',lat:10.7202,lng:122.5621},{name:'Roxas City',lat:11.5833,lng:122.75},{name:'Bacolod',lat:10.671,lng:122.951},{name:'Kalibo',lat:11.707,lng:122.364},{name:'San Jose Antique',lat:10.75,lng:121.933}],
-    'western-visayas': [{name:'Iloilo City',lat:10.7202,lng:122.5621},{name:'Bacolod',lat:10.671,lng:122.951},{name:'Roxas City',lat:11.583,lng:122.75},{name:'Kalibo',lat:11.707,lng:122.364},{name:'Guimaras',lat:10.6,lng:122.63}],
-    'cdo':             [{name:'Cagayan de Oro',lat:8.482,lng:124.647},{name:'Iligan',lat:8.23,lng:124.24},{name:'Bukidnon',lat:8.05,lng:125.1},{name:'Ozamiz',lat:8.15,lng:123.85},{name:'Butuan',lat:8.95,lng:125.54}],
-    'baguio':          [{name:'Baguio City',lat:16.409,lng:120.599},{name:'Benguet',lat:16.5,lng:120.65},{name:'La Union',lat:16.5,lng:120.4},{name:'Dagupan',lat:16.04,lng:120.33},{name:'Vigan',lat:17.574,lng:120.387}],
-  };
-  return allCities[loc.key] || allCities['national'];
-}
-
 // RSS feeds — national + region-specific
 function getRSSFeeds(loc) {
   const locQuery = encodeURIComponent((loc.aliases?.[0] || loc.label).replace(/🇵🇭 /,''));
@@ -4103,7 +4073,7 @@ function notify(feed) {
 }
 
 const SOURCE_NAMES = {
-  'USGS':'USGS','WEATHER':'WX','OPENWEATHER':'OW','REDDIT':'REDDIT','GDACS':'GDACS','CRYPTO':'CRYPTO',
+  'USGS':'USGS','REDDIT':'REDDIT','GDACS':'GDACS','CRYPTO':'CRYPTO',
   'REDDIT2':'PHnews','REDDIT3':'phinvest',
   'GDELT_MAIN':'GDELT','GDELT_DIS':'DIS','GDELT_POL':'POL','GDELT_SEC':'SEC','GDELT_ECO':'ECO',
   'FX':'BSP/FX','WORLDBANK':'WBANK','RELIEFWEB':'RELIEFWEB','OVERPASS':'OSM','PAGASA':'PAGASA','NDRRMC':'NDRRMC','ACLED':'ACLED',
@@ -4921,7 +4891,7 @@ async function fetchWithProxy(url, opts = {}) {
     } catch(e) {}
   }
 
-  // 2. Try direct fetch (works for CORS-open APIs like USGS, Open-Meteo, World Bank)
+  // 2. Try direct fetch (works for CORS-open APIs like USGS, World Bank)
   try {
     const r = await fetch(url, { ...opts, signal: AbortSignal.timeout(5000) });
     if (r.ok) return r;
@@ -5086,553 +5056,6 @@ async function fetchEarthquakes() {
   }, 'USGS');
 }
 
-// ── Weather — dynamic cities ──
-async function fetchWeather() {
-  return fetchWithRetry(async () => {
-    const cities = getWeatherCities(ACTIVE_LOC);
-    const lats = cities.map(c=>c.lat).join(',');
-    const lngs = cities.map(c=>c.lng).join(',');
-    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,weather_code,wind_speed_10m,precipitation&timezone=Asia%2FManila`);
-    const d = await r.json();
-    const arr = Array.isArray(d)?d:[d];
-    return arr.map((w,i) => {
-      const city=cities[i]||cities[0];
-      const cur=w.current||{};
-      const temp=cur.temperature_2m,wind=cur.wind_speed_10m,rain=cur.precipitation,wcode=cur.weather_code||0;
-      const desc=wcode>=95?'Thunderstorm':wcode>=80?'Heavy rain':wcode>=60?'Rain':wcode>=45?'Foggy':wcode>=2?'Partly cloudy':'Clear';
-      const sev=wind>80?'critical':(wcode>=80||wind>60||rain>20)?'high':rain>5?'medium':'low';
-      return { id:`wx-${city.name}`, source:'Open-Meteo', tag:'gov', category:'disaster', severity:sev,
-        title:`${city.name}: ${temp}°C, ${desc}, Wind ${wind}km/h`,
-        body:`Temp ${temp}°C · Wind ${wind}km/h · Rain ${rain}mm`, loc:city.name, lat:city.lat, lng:city.lng, time:'live' };
-    });
-  }, 'WEATHER');
-}
-
-// ── Open-Meteo Enhanced Weather (Free, No API Key) ──
-async function fetchOpenWeather() {
-  return fetchWithRetry(async () => {
-    const lat = ACTIVE_LOC?.lat || 10.72;
-    const lon = ACTIVE_LOC?.lng || 122.56;
-    const locName = ACTIVE_LOC?.label || 'Philippines';
-    
-    // Open-Meteo API (free, no key required)
-    // Includes: current, hourly, daily, weather_code, temperature, wind, humidity, precipitation
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,pressure_msl,cloud_cover,visibility,uv_index&hourly=temperature_2m,weather_code,precipitation_probability,precipitation&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&timezone=Asia/Manila`;
-    
-    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!r.ok) {
-      console.error('[OPEN-METEO] API error:', r.status);
-      return [];
-    }
-    
-    const data = await r.json();
-    const items = [];
-    
-    // Current weather
-    if (data.current) {
-      const cur = data.current;
-      const wCode = cur.weather_code || 0;
-      const weatherInfo = decodeWeatherCode(wCode);
-      const temp = Math.round(cur.temperature_2m || 0);
-      const feelsLike = Math.round(cur.apparent_temperature || temp);
-      const humidity = cur.relative_humidity_2m || 0;
-      const windSpeed = cur.wind_speed_10m || 0;
-      const windGusts = cur.wind_gusts_10m || 0;
-      const precipitation = cur.precipitation || 0;
-      const pressure = cur.pressure_msl || 0;
-      const cloudCover = cur.cloud_cover || 0;
-      const visibility = cur.visibility || 10000;
-      const uvIndex = cur.uv_index || 0;
-      
-      // Calculate risk severity
-      const sev = windSpeed > 80 ? 'critical' : 
-                  (wCode >= 95 || windSpeed > 60) ? 'high' : 
-                  (wCode >= 61 || windSpeed > 40 || precipitation > 10) ? 'medium' : 'low';
-      
-      const locName = ACTIVE_LOC?.label || 'Philippines';
-      items.push({
-        id: `ow-current`,
-        source: 'Open-Meteo',
-        tag: 'gov',
-        category: 'disaster',
-        severity: sev,
-        title: `🌤️ ${locName}: ${temp}°C, ${weatherInfo.description}`,
-        body: `Feels ${feelsLike}°C · Humidity ${humidity}% · Wind ${Math.round(windSpeed)} km/h (gusts ${Math.round(windGusts)} km/h) · Rain ${precipitation}mm · UV ${uvIndex}`,
-        loc: locName,
-        lat: lat,
-        lng: lon,
-        time: 'live',
-        extra: {
-          temp: temp,
-          feels_like: feelsLike,
-          humidity: humidity,
-          wind_speed: windSpeed,
-          wind_gusts: windGusts,
-          precipitation: precipitation,
-          pressure: pressure,
-          cloud_cover: cloudCover,
-          visibility: visibility,
-          uv_index: uvIndex,
-          weather_code: wCode,
-          weather_description: weatherInfo.description
-        }
-      });
-    }
-    
-    // Daily forecast (3 days)
-    if (data.daily && data.daily.time) {
-      const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-      const forecast = data.daily.time.slice(0, 3).map((date, i) => {
-        const d = new Date(date);
-        const dayName = i === 0 ? 'Today' : days[d.getDay()];
-        const wCode = data.daily.weather_code?.[i] || 0;
-        const weatherInfo = decodeWeatherCode(wCode);
-        const maxTemp = Math.round(data.daily.temperature_2m_max?.[i] || 0);
-        const minTemp = Math.round(data.daily.temperature_2m_min?.[i] || 0);
-        const pop = data.daily.precipitation_probability_max?.[i] || 0;
-        const windMax = Math.round(data.daily.wind_speed_10m_max?.[i] || 0);
-        const rainSum = data.daily.precipitation_sum?.[i] || 0;
-        
-        return {
-          day: dayName,
-          date: date,
-          high: maxTemp,
-          low: minTemp,
-          desc: weatherInfo.description,
-          icon: weatherInfo.icon,
-          pop: pop,
-          wind: windMax,
-          rain: rainSum,
-          code: wCode
-        };
-      });
-      
-      const forecastStr = forecast.map(f => `${f.day}: ${f.high}/${f.low}°C, ${f.desc}${f.pop > 0 ? `, ${f.pop}%💧` : ''}`).join(' · ');
-      items.push({
-        id: `ow-forecast`,
-        source: 'Open-Meteo Forecast',
-        tag: 'gov',
-        category: 'disaster',
-        severity: 'low',
-        title: `📅 3-Day Forecast: ${forecastStr}`,
-        body: forecast.map(f => `${f.day}: ${f.high}°/${f.low}°C, ${f.desc}, Wind ${f.wind}km/h${f.rain > 0 ? `, Rain ${f.rain}mm` : ''}`).join('\n'),
-        loc: locName,
-        lat: lat,
-        lng: lon,
-        time: '3-day',
-        extra: { forecast: forecast }
-      });
-    }
-    
-    // Hourly alerts (next 24h risks)
-    if (data.hourly && data.hourly.time) {
-      const now = new Date();
-      const hourlyAlerts = [];
-      
-      // Check next 24 hours for severe conditions
-      for (let i = 0; i < Math.min(24, data.hourly.time.length); i++) {
-        const wCode = data.hourly.weather_code?.[i] || 0;
-        const pop = data.hourly.precipitation_probability?.[i] || 0;
-        const precip = data.hourly.precipitation?.[i] || 0;
-        
-        // Alert conditions
-        if (wCode >= 95) { // Thunderstorm
-          const hour = new Date(data.hourly.time[i]);
-          const hourStr = hour.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
-          hourlyAlerts.push({ type: 'thunderstorm', time: hourStr, code: wCode });
-        }
-        if (pop > 70 || precip > 5) { // High rain chance
-          const hour = new Date(data.hourly.time[i]);
-          const hourStr = hour.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
-          hourlyAlerts.push({ type: 'rain', time: hourStr, pop: pop, precip: precip });
-        }
-      }
-      
-      // Create alert item if significant
-      if (hourlyAlerts.filter(a => a.type === 'thunderstorm').length >= 2) {
-        const times = hourlyAlerts.filter(a => a.type === 'thunderstorm').map(a => a.time).join(', ');
-        items.push({
-          id: `ow-alert-thunder`,
-          source: 'Open-Meteo Alert',
-          tag: 'gov',
-          category: 'disaster',
-          severity: 'high',
-          title: `⛈️ Thunderstorm Risk: ${hourlyAlerts.filter(a => a.type === 'thunderstorm').length} hours`,
-          body: `Thunderstorm expected at: ${times}\nStay indoors, avoid open areas.`,
-          loc: locName,
-          lat: lat,
-          lng: lon,
-          time: 'next 24h'
-        });
-      } else if (hourlyAlerts.filter(a => a.type === 'rain').length >= 3) {
-        const times = hourlyAlerts.filter(a => a.type === 'rain').slice(0, 4).map(a => a.time).join(', ');
-        items.push({
-          id: `ow-alert-rain`,
-          source: 'Open-Meteo Alert',
-          tag: 'gov',
-          category: 'disaster',
-          severity: 'medium',
-          title: `🌧️ High Rain Chance: ${hourlyAlerts.filter(a => a.type === 'rain').length} hours`,
-          body: `Heavy rain expected at: ${times}\nPrepare for wet conditions.`,
-          loc: locName,
-          lat: lat,
-          lng: lon,
-          time: 'next 24h'
-        });
-      }
-    }
-    
-    console.log(`[OPEN-METEO] Fetched ${items.length} weather items for ${locName}`);
-    return items;
-  }, 'OPENWEATHER');
-}
-
-// ── Weather Code Decoder (WMO Code Table) ──
-function decodeWeatherCode(code) {
-  const codes = {
-    0: { description: 'Clear sky', icon: '☀️' },
-    1: { description: 'Mainly clear', icon: '🌤️' },
-    2: { description: 'Partly cloudy', icon: '⛅' },
-    3: { description: 'Overcast', icon: '☁️' },
-    45: { description: 'Foggy', icon: '🌫️' },
-    48: { description: 'Rime fog', icon: '🌫️' },
-    51: { description: 'Light drizzle', icon: '🌦️' },
-    53: { description: 'Moderate drizzle', icon: '🌦️' },
-    55: { description: 'Dense drizzle', icon: '🌧️' },
-    56: { description: 'Freezing drizzle', icon: '🌨️' },
-    57: { description: 'Dense freezing drizzle', icon: '🌨️' },
-    61: { description: 'Slight rain', icon: '🌧️' },
-    63: { description: 'Moderate rain', icon: '🌧️' },
-    65: { description: 'Heavy rain', icon: '🌧️' },
-    66: { description: 'Freezing rain', icon: '🌨️' },
-    67: { description: 'Heavy freezing rain', icon: '🌨️' },
-    71: { description: 'Slight snow', icon: '🌨️' },
-    73: { description: 'Moderate snow', icon: '🌨️' },
-    75: { description: 'Heavy snow', icon: '❄️' },
-    77: { description: 'Snow grains', icon: '❄️' },
-    80: { description: 'Slight rain showers', icon: '🌦️' },
-    81: { description: 'Moderate rain showers', icon: '🌧️' },
-    82: { description: 'Violent rain showers', icon: '⛈️' },
-    85: { description: 'Slight snow showers', icon: '🌨️' },
-    86: { description: 'Heavy snow showers', icon: '❄️' },
-    95: { description: 'Thunderstorm', icon: '⛈️' },
-    96: { description: 'Thunderstorm with hail', icon: '⛈️' },
-    99: { description: 'Thunderstorm with heavy hail', icon: '⛈️' }
-  };
-  return codes[code] || { description: 'Unknown', icon: '🌡️' };
-}
-
-// ── Open-Meteo Detailed Intel (Button Handler) ──
-async function fetchOpenWeatherIntel() {
-  const locName = ACTIVE_LOC?.label || ACTIVE_LOC?.region || 'Philippines';
-  addJarvisMsg('weather', `🌤️ Fetching detailed weather data from Open-Meteo for ${locName}...`);
-  
-  const items = await fetchOpenWeather();
-  
-  if (items.length === 0) {
-    addJarvisMsg('weather', '⚠️ No weather data available. Open-Meteo should work without API key.');
-    return;
-  }
-  
-  // Add items to allFeeds and re-render
-  items.forEach(item => {
-    item.time = item.time || 'live';
-    item.savedAt = Date.now();
-  });
-  
-  // Add to beginning of feeds
-  allFeeds = [...items, ...allFeeds.filter(f => !f.id.startsWith('ow-'))];
-  
-  // Re-render feeds
-  if (typeof renderFeeds === 'function') renderFeeds(allFeeds);
-  if (typeof addEventMarkers === 'function') addEventMarkers(allFeeds);
-  if (typeof updateMetrics === 'function') updateMetrics(allFeeds);
-  
-  // Log summary to chat
-  const current = items.find(i => i.id === 'ow-current');
-  const forecast = items.find(i => i.id === 'ow-forecast');
-  const alerts = items.filter(i => i.id.startsWith('ow-alert'));
-  
-  let summary = `✅ Open-Meteo weather loaded for ${locName}`;
-  if (current) {
-    summary += `\n🌡️ ${current.title}`;
-    if (current.extra) {
-      summary += `\n   Humidity: ${current.extra.humidity}% | UV: ${current.extra.uv_index || '—'} | Wind: ${Math.round(current.extra.wind_speed || 0)} km/h`;
-    }
-  }
-  if (forecast) {
-    const forecastStr = forecast.extra?.forecast?.slice(0,3).map(f => `${f.day}: ${f.high}/${f.low}°C`).join(' · ') || forecast.title;
-    summary += `\n📅 ${forecastStr}`;
-  }
-  if (alerts.length > 0) {
-    summary += `\n⚠️ ${alerts.length} weather alert(s) detected!`;
-  }
-  
-  addJarvisMsg('weather', summary);
-}
-
-// ── Open-Meteo → SENTINEL Integration ──
-async function updateSentinelWeather() {
-  try {
-    const lat = ACTIVE_LOC?.lat || 10.72;
-    const lon = ACTIVE_LOC?.lng || 122.56;
-    
-    // Open-Meteo API (free, no key required)
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,visibility&hourly=weather_code,precipitation_probability&daily=precipitation_sum,wind_speed_10m_max&timezone=Asia/Manila`;
-    
-    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    
-    if (!r.ok) return;
-    
-    const data = await r.json();
-    let weatherScore = 0;
-    let weatherFactors = [];
-    
-    // Calculate weather-derived risk score (0-100)
-    
-    // 1. Current conditions
-    if (data.current) {
-      const cur = data.current;
-      
-      // Wind speed (km/h) - higher = more risk
-      const windSpeed = cur.wind_speed_10m || 0;
-      if (windSpeed > 80) { weatherScore += 30; weatherFactors.push('Extreme wind'); }
-      else if (windSpeed > 50) { weatherScore += 20; weatherFactors.push('High wind'); }
-      else if (windSpeed > 30) { weatherScore += 10; weatherFactors.push('Moderate wind'); }
-      
-      // Wind gusts
-      const windGusts = cur.wind_gusts_10m || 0;
-      if (windGusts > 100) { weatherScore += 15; weatherFactors.push('Violent gusts'); }
-      else if (windGusts > 60) { weatherScore += 8; weatherFactors.push('Strong gusts'); }
-      
-      // Weather code for severe conditions
-      const wCode = cur.weather_code || 0;
-      if (wCode >= 95) { weatherScore += 35; weatherFactors.push('Thunderstorm'); }
-      else if (wCode >= 80) { weatherScore += 20; weatherFactors.push('Heavy showers'); }
-      else if (wCode >= 61) { weatherScore += 15; weatherFactors.push('Rain'); }
-      else if (wCode >= 45) { weatherScore += 8; weatherFactors.push('Fog'); }
-      
-      // Precipitation (mm)
-      const precip = cur.precipitation || 0;
-      if (precip > 10) { weatherScore += 15; weatherFactors.push('Heavy rain'); }
-      else if (precip > 5) { weatherScore += 8; weatherFactors.push('Moderate rain'); }
-      else if (precip > 0) { weatherScore += 3; weatherFactors.push('Light rain'); }
-      
-      // Visibility (meters) - low visibility = risk
-      const visibility = cur.visibility || 10000;
-      if (visibility < 1000) { weatherScore += 20; weatherFactors.push('Low visibility'); }
-      else if (visibility < 5000) { weatherScore += 10; weatherFactors.push('Reduced visibility'); }
-    }
-    
-    // 2. Hourly forecast risk factors (next 24h)
-    if (data.hourly && data.hourly.weather_code) {
-      let thunderstormHours = 0;
-      let highRainHours = 0;
-      
-      for (let i = 0; i < Math.min(24, data.hourly.weather_code.length); i++) {
-        const wCode = data.hourly.weather_code[i];
-        const pop = data.hourly.precipitation_probability?.[i] || 0;
-        
-        if (wCode >= 95) thunderstormHours++;
-        if (pop > 70) highRainHours++;
-      }
-      
-      if (thunderstormHours >= 3) { weatherScore += 15; weatherFactors.push('Multiple thunderstorms'); }
-      else if (thunderstormHours >= 1) { weatherScore += 8; weatherFactors.push('Thunderstorm risk'); }
-      if (highRainHours >= 5) { weatherScore += 10; weatherFactors.push('Extended rain'); }
-    }
-    
-    // 3. Daily forecast risk factors
-    if (data.daily && data.daily.wind_speed_10m_max) {
-      const maxWind = data.daily.wind_speed_10m_max[0] || 0;
-      if (maxWind > 60) { weatherScore += 10; weatherFactors.push('High winds forecast'); }
-      
-      const rainSum = data.daily.precipitation_sum?.[0] || 0;
-      if (rainSum > 20) { weatherScore += 12; weatherFactors.push('Heavy rain forecast'); }
-      else if (rainSum > 10) { weatherScore += 6; weatherFactors.push('Moderate rain forecast'); }
-    }
-    
-    // Cap at 100
-    weatherScore = Math.min(100, weatherScore);
-    
-    // Update sentinel score for typhoon (weather)
-    if (weatherScore > 0) {
-      const prevScore = sentinelScores['typhoon'] || 0;
-      // Blend with existing score (weighted average, favor new data)
-      sentinelScores['typhoon'] = Math.round(prevScore * 0.3 + weatherScore * 0.7);
-      
-      // Log to console
-      console.log(`[OPEN-METEO→SENTINEL] Weather score: ${prevScore} → ${sentinelScores['typhoon']} (${weatherFactors.join(', ')})`);
-      
-      // Update UI elements
-      if (typeof updateSentinelStatusBar === 'function') updateSentinelStatusBar();
-      if (typeof hmUpdateThreats === 'function') hmUpdateThreats();
-      if (typeof bizUpdateOpsStatus === 'function') bizUpdateOpsStatus();
-    }
-    
-    // Store data for other panels
-    window.lastOpenWeatherData = {
-      current: data.current,
-      hourly: data.hourly,
-      daily: data.daily,
-      score: weatherScore,
-      factors: weatherFactors,
-      timestamp: Date.now()
-    };
-    
-    return weatherScore;
-    
-  } catch (e) {
-    console.error('[OPEN-METEO→SENTINEL] Error:', e);
-    return null;
-  }
-}
-
-// ── OpenWeather Panel Updates (MAIN, LGU, PNP, HOME, BIZ) ──
-function updateAllPanelsWeather() {
-  const data = window.lastOpenWeatherData;
-  if (!data) return;
-  
-  // MAIN Panel - Update status bar
-  const statusBar = document.getElementById('status-bar');
-  if (statusBar) {
-    const weatherIcon = data.current?.weather?.[0]?.icon;
-    const temp = data.current?.temp ? Math.round(data.current.temp) : '—';
-    const desc = data.current?.weather?.[0]?.description || 'Unknown';
-    
-    // Add weather to status (if not already there)
-    const existing = statusBar.innerHTML;
-    if (!existing.includes('wx-current')) {
-      statusBar.innerHTML += `<span id="wx-current" class="status-item" style="margin-left:8px">🌤️ ${temp}°C ${desc}</span>`;
-    } else {
-      document.getElementById('wx-current').innerHTML = `🌤️ ${temp}°C ${desc}`;
-    }
-  }
-  
-  // HOME Panel - Update weather threat chip
-  updateHomeWeatherDisplay(data);
-  
-  // BIZ Panel - Update ops status
-  updateBizWeatherDisplay(data);
-  
-  // LGU Panel - Update if visible
-  updateLguWeatherDisplay(data);
-  
-  // PNP Panel - Update if visible
-  updatePnpWeatherDisplay(data);
-}
-
-function updateHomeWeatherDisplay(data) {
-  if (!data || !data.current) return;
-  
-  const score = data.score || 0;
-  const scoreEl = document.getElementById('hm-score-weather');
-  const barEl = document.getElementById('hm-bar-weather');
-  
-  if (scoreEl) {
-    scoreEl.textContent = score;
-    scoreEl.style.color = score >= 60 ? 'var(--hm-red)' : score >= 35 ? 'var(--hm-orange)' : 'var(--hm-gold)';
-  }
-  
-  if (barEl) {
-    barEl.style.width = score + '%';
-    barEl.style.background = score >= 60 ? 'var(--hm-red)' : score >= 35 ? 'var(--hm-orange)' : 'var(--hm-blue)';
-  }
-  
-  // Update chip class
-  const chip = document.getElementById('hm-chip-weather');
-  if (chip) {
-    chip.className = 'hm-threat-chip' + (score >= 60 ? ' high' : score >= 35 ? ' elevated' : '');
-  }
-  
-  // Update alert banner if severe
-  if (data.alerts && data.alerts.length > 0) {
-    const alert = data.alerts[0];
-    hmUpdateAlertBanner('alert', 
-      `<strong>⚠️ ${alert.event || 'Weather Alert'}</strong>`, 
-      alert.sender_name || 'OpenWeather'
-    );
-  }
-}
-
-function updateBizWeatherDisplay(data) {
-  if (!data || !data.current) return;
-  
-  // Update sentinel score for typhoon (weather)
-  const score = data.score || 0;
-  
-  // Update operations status
-  const ops = document.getElementById('biz-ops');
-  const dot = document.getElementById('biz-ops-dot');
-  const txt = document.getElementById('biz-ops-txt');
-  const sub = document.getElementById('biz-ops-sub');
-  
-  if (ops && dot && txt) {
-    const maxRisk = Math.max(score, sentinelScores['armed_conflict'] || 0, sentinelScores['fuel_energy'] || 0);
-    
-    if (maxRisk >= 60) {
-      ops.className = 'risk';
-      dot.style.cssText = 'background:var(--biz-red);box-shadow:0 0 7px var(--biz-red)';
-      txt.textContent = 'Operations: ELEVATED RISK';
-      if (sub) sub.textContent = data.factors?.join(' · ') || 'WEATHER · SECURITY · SUPPLY';
-    } else if (maxRisk >= 35) {
-      ops.className = 'warn';
-      dot.style.cssText = 'background:var(--biz-amb);box-shadow:0 0 6px var(--biz-amb)';
-      txt.textContent = 'Operations: MONITOR';
-      if (sub) sub.textContent = data.factors?.slice(0,2).join(' · ') || 'Some signals active';
-    } else {
-      ops.className = 'ok';
-      dot.style.cssText = 'background:var(--biz-grn);box-shadow:0 0 6px var(--biz-grn)';
-      txt.textContent = 'Operations: NORMAL';
-      if (sub) sub.textContent = 'WEATHER · SECURITY · SUPPLY';
-    }
-  }
-  
-  // Update typhoon/weather bar
-  const weatherBar = document.getElementById('biz-obar-weather');
-  if (weatherBar && score > 0) {
-    const fill = weatherBar.querySelector('.biz-obar-fill');
-    const val = weatherBar.querySelector('.biz-obar-v');
-    if (fill) fill.style.width = score + '%';
-    if (val) val.textContent = score;
-  }
-}
-
-function updateLguWeatherDisplay(data) {
-  if (!data || !data.current) return;
-  const temp = Math.round(data.current.temp || data.current.temperature_2m || 0);
-  const humidity = data.current.humidity || data.current.relative_humidity_2m || '';
-  if (isNaN(temp) || temp === 0) return;
-
-  let badge = document.getElementById('lgu-wx-badge');
-  if (!badge) {
-    const lguHeader = document.querySelector('.lgu-panel-title');
-    if (lguHeader) {
-      lguHeader.innerHTML += ` <span id="lgu-wx-badge" style="font-size:10px;background:rgba(0,150,255,0.15);padding:2px 6px;border-radius:4px;margin-left:8px;color:rgba(200,168,75,0.7)">🌤️ ${temp}°C${humidity ? ' '+humidity+'%' : ''}</span>`;
-    }
-  } else {
-    badge.textContent = `🌤️ ${temp}°C${humidity ? ' '+humidity+'%' : ''}`;
-  }
-}
-
-function updatePnpWeatherDisplay(data) {
-  if (!data || !data.current) return;
-  const temp = Math.round(data.current.temp || data.current.temperature_2m || 0);
-  const wind = Math.round(data.current.wind_speed || data.current.wind_speed_10m || 0);
-  if (isNaN(temp) || temp === 0) return;
-
-  const el = document.getElementById('pnp-wx-status');
-  const text = `WX: ${temp}°C | Wind: ${wind}m/s`;
-  if (el) {
-    el.textContent = text;
-  } else {
-    const pnpHeader = document.querySelector('.pnp-panel-hdr');
-    if (pnpHeader) {
-      pnpHeader.innerHTML += `<div id="pnp-wx-status" style="font-size:9px;color:#8ab4f8;margin-top:4px">${text}</div>`;
-    }
-  }
-}
-
 // ── GDACS ──
 async function fetchGDACS() {
   return fetchWithRetry(async () => {
@@ -5695,25 +5118,8 @@ async function fetchPAGASA() {
           });
         }
       }
-    } catch(e) { /* fallback to daily forecast */ }
-    
-    // Get daily forecast via public API
-    try {
-      const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=14.60&longitude=120.98&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia/Manila', { signal: AbortSignal.timeout(5000) });
-      if (r.ok) {
-        const d = await r.json();
-        const today = d.daily?.weather_code?.[0] || 0;
-        const maxTemp = d.daily?.temperature_2m_max?.[0] || 0;
-        const minTemp = d.daily?.temperature_2m_min?.[0] || 0;
-        const isBad = today >= 95 || maxTemp > 38;
-        feeds.push({
-          id:'pagasa-forecast', source:'PAGASA', tag:'gov', category:'disaster', severity: isBad ? 'high' : 'low',
-          title:`Metro Manila Forecast: ${minTemp}°C - ${maxTemp}°C`,
-          body: `Weather code: ${today}. ${isBad ? 'Extreme heat/storm possible.' : 'Normal conditions.'} Source: PAGASA/Open-Meteo`,
-          loc:'Manila', lat:14.60, lng:120.98, time:'live'
-        });
-      }
-    } catch(e) {}
+    } catch(e) { /* non-fatal — no bulletin available */ }
+
     return feeds;
   }, 'PAGASA');
 }
@@ -6634,7 +6040,7 @@ async function refreshAllFeeds() {
   const prev = allFeeds.map(f=>f.id);
   // Wave 1: Fast/reliable sources (CORS-open, no proxy needed)
   const wave1 = await Promise.allSettled([
-    fetchEarthquakes(), fetchWeather(), fetchOpenWeather(), fetchCrypto(), fetchFXRates(),
+    fetchEarthquakes(), fetchCrypto(), fetchFXRates(),
     fetchGdeltMain(), fetchGdeltDisaster(), fetchGdeltPolitics(), fetchGdeltSecurity(), fetchGdeltEconomy(),
   ]);
   // Render wave 1 immediately
@@ -6729,15 +6135,6 @@ async function refreshAllFeeds() {
       sentinelWatchCommander().catch(()=>{});
       updateSentinelStatusBar();
       console.log('[SENTINEL] Status bar updated');
-    }
-    // Update weather from OpenWeather and propagate to all panels
-    if (typeof updateSentinelWeather === 'function') {
-      updateSentinelWeather().then(() => {
-        if (typeof updateAllPanelsWeather === 'function') {
-          updateAllPanelsWeather();
-        }
-        console.log('[OPENWEATHER] All panels updated with weather data');
-      }).catch(()=>{});
     }
   }, 1000);
   
@@ -6976,167 +6373,6 @@ function createNASAOverlays() {
 createNASAOverlays();
 
 let nasaOverlaysActive = {};
-
-// ─── REAL-TIME WEATHER OVERLAY LAYERS ─────────────────────────────────────────
-// RainViewer API (free, no key required)
-
-const WEATHER_OVERLAYS = {};
-let lastRadarPath = null;
-let lastSatellitePath = null;
-
-async function fetchRadarData() {
-  try {
-    const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-    const data = await resp.json();
-    
-    // Get latest radar frame
-    if (data.radar && data.radar.past && data.radar.past.length > 0) {
-      const latest = data.radar.past[data.radar.past.length - 1];
-      lastRadarPath = latest.path;
-      console.log('[WEATHER] Latest radar:', latest.time, lastRadarPath);
-    }
-    
-    // Get satellite if available
-    if (data.satellite && data.satellite.infrared && data.satellite.infrared.length > 0) {
-      const latest = data.satellite.infrared[data.satellite.infrared.length - 1];
-      lastSatellitePath = latest.path;
-      console.log('[WEATHER] Latest satellite:', latest.time, lastSatellitePath);
-    }
-    
-    return data;
-  } catch (err) {
-    console.error('[WEATHER] Failed to fetch radar data:', err);
-    return null;
-  }
-}
-
-function createWeatherOverlays() {
-  // Create radar layer with latest data
-  if (lastRadarPath) {
-    WEATHER_OVERLAYS.radar = L.tileLayer(`https://tilecache.rainviewer.com${lastRadarPath}/256/{z}/{x}/{y}/2/1_0.png`, {
-      attribution: '© RainViewer',
-      maxZoom: 18,
-      opacity: 0.65,
-      zIndex: 100
-    });
-  }
-  
-  // Create satellite layer (infrared)
-  if (lastSatellitePath) {
-    WEATHER_OVERLAYS.satellite = L.tileLayer(`https://tilecache.rainviewer.com${lastSatellitePath}/256/{z}/{x}/{y}/2/1_0.png`, {
-      attribution: '© RainViewer',
-      maxZoom: 12,
-      opacity: 0.5,
-      zIndex: 90
-    });
-  } else {
-    // Fallback: current satellite
-    WEATHER_OVERLAYS.satellite = L.tileLayer('https://tilecache.rainviewer.com/v2/satellite/now/256/{z}/{x}/{y}/2/1_0.png', {
-      attribution: '© RainViewer',
-      maxZoom: 12,
-      opacity: 0.5,
-      zIndex: 90
-    });
-  }
-  
-  console.log('[WEATHER] Overlays created');
-}
-
-// Initialize weather overlays after fetching radar data
-let weatherOverlaysActive = {};
-
-// Toggle weather overlay layers
-async function toggleWeatherOverlay(layerName) {
-  // Ensure we have radar data first
-  if ((!lastRadarPath || !WEATHER_OVERLAYS.radar) && layerName === 'radar') {
-    await fetchRadarData();
-    createWeatherOverlays();
-  }
-  
-  let layer = WEATHER_OVERLAYS[layerName];
-  if (!layer) {
-    // Try to create it first
-    createWeatherOverlays();
-    layer = WEATHER_OVERLAYS[layerName];
-    if (!layer) {
-      addJarvisMsg('weather', `⚠ Layer "${layerName}" not available. Try /refresh first.`);
-      return;
-    }
-  }
-  
-  const btn = document.getElementById(`weather-${layerName}`);
-  
-  if (weatherOverlaysActive[layerName]) {
-    // Remove layer
-    try {
-      gmap.removeLayer(layer);
-    } catch(e) {
-      console.error('[WEATHER] Error removing layer:', e);
-    }
-    delete weatherOverlaysActive[layerName];
-    if (btn) btn.classList.remove('active');
-    addJarvisMsg('weather', `✓ ${layerName}: OFF`);
-  } else {
-    // Add layer
-    try {
-      layer.addTo(gmap);
-      weatherOverlaysActive[layerName] = layer;
-      if (btn) btn.classList.add('active');
-      addJarvisMsg('weather', `✓ ${layerName}: ON`);
-    } catch(e) {
-      console.error('[WEATHER] Error adding layer:', e);
-      addJarvisMsg('weather', `⚠ Error: ${e.message}`);
-    }
-  }
-}
-
-// Enable all weather layers (radar + satellite)
-async function enableWeatherRadar() {
-  // Fetch latest radar data first
-  addJarvisMsg('weather', 'Fetching latest radar data...');
-  await fetchRadarData();
-  createWeatherOverlays();
-  
-  setLayer('dark'); // Dark base for weather visibility
-  setTimeout(async () => {
-    await toggleWeatherOverlay('radar');
-    setTimeout(() => toggleWeatherOverlay('satellite'), 300);
-  }, 500);
-  addJarvisMsg('weather', `🌧 Weather radar enabled — 10-min updates`);
-}
-
-// Refresh weather layers with new data
-async function refreshWeatherLayers() {
-  const wasActive = Object.keys(weatherOverlaysActive);
-  clearWeatherOverlays();
-  
-  addJarvisMsg('weather', 'Refreshing radar data...');
-  await fetchRadarData();
-  createWeatherOverlays();
-  
-  // Re-enable previously active layers
-  for (const key of wasActive) {
-    if (WEATHER_OVERLAYS[key]) {
-      await toggleWeatherOverlay(key);
-    }
-  }
-  addJarvisMsg('weather', '✓ Weather layers refreshed');
-}
-
-// Clear all weather overlays
-function clearWeatherOverlays() {
-  Object.keys(weatherOverlaysActive).forEach(key => {
-    try {
-      gmap.removeLayer(WEATHER_OVERLAYS[key]);
-    } catch(e) {}
-  });
-  weatherOverlaysActive = {};
-  document.querySelectorAll('[id^="weather-"]').forEach(btn => btn.classList.remove('active'));
-  addJarvisMsg('weather', 'All weather overlays cleared');
-}
-
-// Prefetch radar data on load
-fetchRadarData().then(() => createWeatherOverlays());
 
 // ── WINDY.COM EMBED OVERLAY (free embed2.html widget — no API key) ──
 let windyOpen = false;
@@ -8480,7 +7716,7 @@ PROXY ARCHITECTURE (CRITICAL):
 The dashboard has a 3-tier proxy system. When Commander reports feeds failing, immediately diagnose which tier is the problem:
 TIER 1 — LOCAL OPENCLAW PROXY (best, port 8082): jdm_proxy_server.py running on WSL2. Has full internet access, no CORS restrictions, proper headers, gzip decompression, response caching. All fetchers use proxify() which routes through localhost:8082/proxy?url= or /proxy-rss?feed= when available.
 TIER 2 — PUBLIC CORS PROXIES (fallback): Rotates through allorigins.win → corsproxy.io → codetabs.com → cors.sh. Unreliable, rate-limited, often returns HTML error pages. proxify() falls back here when local proxy is offline.
-TIER 3 — DIRECT FETCH (CORS-open APIs only): USGS, Open-Meteo, CoinGecko, World Bank, Frankfurter FX — these have open CORS and never need a proxy.
+TIER 3 — DIRECT FETCH (CORS-open APIs only): USGS, CoinGecko, World Bank, Frankfurter FX — these have open CORS and never need a proxy.
 
 ONE-COMMAND INSTALL SEQUENCE (give this verbatim when Commander asks):
 Step 1 — Install the proxy server:
@@ -8521,7 +7757,7 @@ DATA SOURCE STATUS:
   RSS (Inquirer/GMA/Rappler/PhilStar): needs proxy — sites return HTML to bots
   PAGASA/NDRRMC: government RSS, needs proxy
   ReliefWeb: api.reliefweb.int — CORS open, direct fetch works
-  USGS/Open-Meteo/CoinGecko/World Bank: always direct, never fail
+  USGS/CoinGecko/World Bank: always direct, never fail
 
 WHEN COMMANDER REPORTS ISSUES:
 - "feeds not loading" → ask if proxy is running (check http://localhost:8082/health) — if not, give install steps above
@@ -9577,14 +8813,6 @@ const SLASH_COMMANDS = [
     else addJarvisMsg('jarvis','Unknown layer. Use: fires, rain, air, night, all, clear');
   }},
   { cmd:'/fires',    desc:'Enable all fire detection layers',           fn:() => enableFireDetections() },
-  { cmd:'/weather',  desc:'/weather [layer] — real-time weather overlay (radar/clouds/temp/wind)', fn:(arg) => {
-    if (!arg) { addJarvisMsg('jarvis','Weather Layers: radar, clouds, temp, wind, pressure, all, clear<br>Example: /weather radar'); return; }
-    if (arg === 'all') enableWeatherRadar();
-    else if (arg === 'clear') clearWeatherOverlays();
-    else if (WEATHER_OVERLAYS[arg]) toggleWeatherOverlay(arg);
-    else addJarvisMsg('jarvis','Unknown layer. Use: radar, clouds, temp, wind, pressure, all, clear');
-  }},
-  { cmd:'/radar',    desc:'Enable real-time weather radar',             fn:() => enableWeatherRadar() },
   { cmd:'/scan',     desc:'Trigger network camera scan',             fn:() => requestNetworkScan() },
   { cmd:'/reset-sentinel', desc:'Clear SENTINEL history and reset scores', fn:() => clearSentinelData() },
   { cmd:'/shortcuts',  desc:'Show all keyboard shortcuts',                      fn:() => showKeyboardHelp() },
@@ -21081,7 +20309,6 @@ document.addEventListener('click', function resumeAudio() {
         <button class="lgu-map-btn" id="lgu-btn-heat" onclick="lguToggleHeat()">◈ HEAT</button>
         <button class="lgu-map-btn" id="lgu-btn-barangays" onclick="lguToggleBarangays()">🏘 BARANGAYS</button>
         <button class="lgu-map-btn" id="lgu-btn-shelters" onclick="lguToggleShelters()">🏛 SHELTERS</button>
-        <button class="lgu-map-btn" id="lgu-btn-radar" onclick="lguToggleRadar()">📡 RADAR</button>
         <button class="lgu-map-btn" id="lgu-btn-fires" onclick="lguToggleFires()">🔥 FIRES</button>
         <button class="lgu-map-btn active" id="lgu-btn-dark" onclick="lguSetLayer('dark')">◉ DARK</button>
         <button class="lgu-map-btn" id="lgu-btn-streets" onclick="lguSetLayer('streets')">📍 STREETS</button>
@@ -21138,7 +20365,6 @@ let lguHeatLayer = null;
 let lguCluster  = null;
 let lguEventsOn = true;
 let lguHeatOn   = false;
-let lguRadarOn  = false;
 let lguFiresOn  = false;
 let lguMode     = 'watch';
 let lguChatHistory = [];
@@ -21951,15 +21177,6 @@ function lguToggleHeat() {
     try { activeMap2?.removeLayer(lguHeatLayer); } catch(e){}
     lguHeatLayer = null;
   }
-}
-
-function lguToggleRadar() {
-  lguRadarOn = !lguRadarOn;
-  const btn = document.getElementById('lgu-btn-radar');
-  if (btn) btn.classList.toggle('active', lguRadarOn);
-  // Weather radar overlay - would need Google Maps OverlayView extension
-  // For now, display message that this is available on main dashboard
-  lguAddMsg('j', lguRadarOn ? '📡 Weather radar overlay requires Google Maps overlay library. Available on main JDM dashboard.' : '📡 Radar overlay removed.');
 }
 
 function lguToggleFires() {
@@ -26299,10 +25516,6 @@ else window.addEventListener('load', () => setTimeout(palantirInit, 2000));
 (function() {
 
 let copActiveLevel = 'NORMAL';
-let copRadarFrames = [];
-let copRadarLayers = [];
-let copRadarIdx = 0;
-let copRadarTimer = null;
 let copScanMarker = null;
 let copInitialized = false;
 
@@ -26312,59 +25525,6 @@ const COP_CATEGORY_ICONS = {
 };
 
 function copLog(msg) { console.log('[COP] ' + msg); }
-
-// ─── ANIMATED RADAR UNDERLAY ─────────────────────────────────────────────
-async function copInitRadar() {
-  if (!window.gmap || typeof window.gmap.addLayer !== 'function') return;
-  try {
-    const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-    const data = await resp.json();
-    if (!data.radar?.past?.length) return;
-
-    copClearRadar();
-    const frames = data.radar.past.slice(-6);
-    copRadarFrames = frames;
-
-    frames.forEach((frame, i) => {
-      const layer = L.tileLayer(
-        `https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/2/1_0.png`,
-        { attribution: '© RainViewer', maxZoom: 18, opacity: 0, zIndex: 50, className: 'radar-frame' }
-      );
-      layer.addTo(window.gmap);
-      copRadarLayers.push(layer);
-    });
-
-    if (copRadarLayers.length) {
-      copRadarLayers[0].setOpacity(0.20);
-      copRadarIdx = 0;
-    }
-
-    if (!copRadarTimer) {
-      copRadarTimer = setInterval(copAdvanceRadar, 1200);
-    }
-    copLog('Animated radar: ' + frames.length + ' frames loaded');
-  } catch(e) {
-    copLog('Radar init failed: ' + e.message);
-  }
-}
-
-function copAdvanceRadar() {
-  if (!copRadarLayers.length) return;
-  copRadarLayers[copRadarIdx].setOpacity(0);
-  copRadarIdx = (copRadarIdx + 1) % copRadarLayers.length;
-  copRadarLayers[copRadarIdx].setOpacity(0.22);
-}
-
-function copClearRadar() {
-  if (copRadarTimer) { clearInterval(copRadarTimer); copRadarTimer = null; }
-  copRadarLayers.forEach(l => { try { if (window.gmap && typeof window.gmap.removeLayer === 'function') window.gmap.removeLayer(l); } catch(e){} });
-  copRadarLayers = [];
-  copRadarFrames = [];
-  copRadarIdx = 0;
-}
-
-// Refresh radar frames every 10 min
-setInterval(() => { if (copRadarLayers.length) copInitRadar(); }, 600000);
 
 // ─── AMBIENT SCAN PULSE ──────────────────────────────────────────────────
 function copAddScanPulse() {
@@ -26500,7 +25660,6 @@ function copInit() {
   if (copInitialized) return;
   if (!window.gmap || typeof window.gmap.addLayer !== 'function') return;
   copInitialized = true;
-  copInitRadar();
   copAddScanPulse();
   copLog('Auto-COP initialized — level: ' + copActiveLevel);
 }

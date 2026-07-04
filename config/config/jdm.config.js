@@ -34,12 +34,6 @@ const JDM_CONFIG = {
     firmsRSS: 'https://firms.modaps.eosdis.nasa.gov/rss/kml_fire_alerts.php?source=VIIRS&country=PHL',
   },
 
-  // ─── WEATHER ───────────────────────────────────────────────────
-  weather: {
-    rainviewerAPI: 'https://api.rainviewer.com/public/weather-maps.json',
-    refreshInterval: 600000, // 10 minutes
-  },
-
   // ─── RADIO STATIONS ────────────────────────────────────────────
   radio: {
     working: [
