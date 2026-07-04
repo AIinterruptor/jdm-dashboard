@@ -25502,6 +25502,59 @@ const SEV_COLORS = {
   critical:'#c82030', high:'#c06018', medium:'#b89828', low:'#3a8838', info:'#555'
 };
 
+// ─── v2.0 STATE: shared feed pipeline ───────────────────────────────────
+let searchQuery = '';
+let timelineCutoffPct = 1; // 1 = all events, matches palantirTimelineSeek's pct>=0.99 semantics
+let cachedArcConnections = null;
+let cachedNetworkNodes = null;
+
+const STOPWORDS = new Set(['the','and','with','from','this','that','into','over','after',
+  'have','been','were','they','their','will','said','also','more','than','when','what',
+  'where','which','while','about','could','would','should','there']);
+
+function stem(word) {
+  if (word.endsWith('ing') && word.length > 6) return word.slice(0, -3);
+  if (word.endsWith('ed') && word.length > 5) return word.slice(0, -2);
+  if (word.endsWith('s') && !word.endsWith('ss') && word.length > 4) return word.slice(0, -1);
+  return word;
+}
+
+function matchesSearchQuery(feed, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  return (feed.title || '').toLowerCase().includes(q) ||
+         (feed.category || '').toLowerCase().includes(q) ||
+         (feed.source || '').toLowerCase().includes(q);
+}
+
+function getActivePalantirFeeds() {
+  const now = Date.now();
+  const oldest = now - 7 * 24 * 3600 * 1000;
+  const cutoff = oldest + timelineCutoffPct * (now - oldest);
+
+  return (window.allFeeds || [])
+    .filter(f => f.lat && f.lng)
+    .filter(f => {
+      if (timelineCutoffPct >= 0.99) return true;
+      const ts = f.timestamp || f._ts || now;
+      return ts <= cutoff;
+    })
+    .map(f => ({ ...f, _dimmed: !matchesSearchQuery(f, searchQuery) }));
+}
+
+function invalidatePalantirCache() {
+  cachedArcConnections = null;
+  cachedNetworkNodes = null;
+  if (arcsActive) { computeArcs(); drawArcs(); }
+  if (networkActive) { computeNetwork(); drawNetwork(); }
+}
+
+// TEMP STUBS — replaced by Task 2 (arcs) and Task 3 (network)
+function computeArcs() { console.log('[PALANTIR v2] computeArcs stub called'); }
+function drawArcs() { console.log('[PALANTIR v2] drawArcs stub called'); }
+function computeNetwork() { console.log('[PALANTIR v2] computeNetwork stub called'); }
+function drawNetwork() { console.log('[PALANTIR v2] drawNetwork stub called'); }
+
 // ─── INJECT PALANTIR CONTROLS ────────────────────────────────────────────
 function injectPalantirControls() {
   const ctrl = document.getElementById('map-controls');
@@ -25969,8 +26022,7 @@ window.palantirTimelineSpeed = palantirTimelineSpeedFn;
 
 // ─── MAP MOVE/ZOOM REFRESH ─────────────────────────────────────────────
 function onMapUpdate() {
-  if (arcsActive) requestAnimationFrame(renderArcs);
-  if (networkActive) requestAnimationFrame(renderNetwork);
+  invalidatePalantirCache();
 }
 
 // ─── INIT ───────────────────────────────────────────────────────────────
