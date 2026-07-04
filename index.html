@@ -12,11 +12,15 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <!-- Leaflet OpenStreetMap (no API key required) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
+<!-- NOTE: no `defer` here — TILE_LAYERS (and other top-level code in the main
+     inline script) calls L.tileLayer() synchronously at parse time. Deferring
+     Leaflet makes `L` undefined there, which aborts the entire main script
+     block and cascades into TDZ errors for every `let` declared after it. -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js" defer></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════
    CIA COMMAND CENTER — DESIGN SYSTEM
@@ -3846,7 +3850,10 @@ function getRSSFeeds(loc) {
 
 // Build GDELT query terms from location
 function getGdeltTerms(loc) {
-  const aliases = loc.aliases || [loc.label];
+  // GDELT DOC API rejects quoted phrases under 3 chars with
+  // "The specified phrase is too short." — drop aliases like "PH"/"QC".
+  let aliases = (loc.aliases || [loc.label]).filter(a => a && a.length >= 3);
+  if (!aliases.length) aliases = [loc.label];
   // Take up to 4 most specific aliases for the query
   const terms = aliases.slice(0, 4).map(a => `"${a}"`).join(' OR ');
   // GDELT: parentheses ONLY when multiple OR terms, single terms need no parens
@@ -7262,6 +7269,12 @@ async function initMap() {
     zoomControl: false,
     attributionControl: true
   });
+
+  // Expose the map instance globally. `gmap` is a top-level `let`, which does
+  // NOT create window.gmap — so `window.gmap` was resolving to the
+  // <div id="gmap"> element via named DOM access (truthy, but has no .on/.addLayer).
+  // PALANTIR/COP modules gate on window.gmap and need the real map here.
+  window.gmap = gmap;
 
   // Add dark tile layer
   TILE_LAYERS.dark.addTo(gmap);
@@ -26265,10 +26278,13 @@ function onMapUpdate() {
 
 // ─── INIT ───────────────────────────────────────────────────────────────
 function palantirInit() {
-  if (!window.gmap) { setTimeout(palantirInit, 1000); return; }
+  // Guard on the actual map API, not mere truthiness: before initMap() runs,
+  // window.gmap is the <div id="gmap"> DOM element (named access), which is
+  // truthy but has no .on() — that passed the old check and threw here.
+  if (!window.gmap || typeof window.gmap.on !== 'function') { setTimeout(palantirInit, 1000); return; }
   injectPalantirControls();
-  gmap.on('moveend', onMapUpdate);
-  gmap.on('zoomend', onMapUpdate);
+  window.gmap.on('moveend', onMapUpdate);
+  window.gmap.on('zoomend', onMapUpdate);
   console.info('[PALANTIR] Engine v1.0 initialized');
 }
 
