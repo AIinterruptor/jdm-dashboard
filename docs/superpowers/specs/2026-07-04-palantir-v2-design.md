@@ -9,6 +9,8 @@ Palantir is a Gotham-styled geospatial intelligence overlay layered on the Leafl
 
 Name is a styling/UX inspiration (dense analyst/ops aesthetic), not an integration with palantir.com's actual products.
 
+**Purpose note (2026-07-04):** the jdm command center is used for situational control and management in a government context. This raises the bar on correctness and consistency of what's displayed — the timeline/arc-link inconsistency (problem 4 below) and the compute/draw perf fix matter more here than in a purely cosmetic dashboard, since operators may be reading Palantir's correlations and highlights as input to real decisions. Confirmed with Commander JD that this does not change scope for v2.0 — the approved design already serves this need; noted here as rationale, not a new requirement.
+
 ## Problems Being Solved
 
 1. **Correlation heuristic is naive.** `findRelatedEvents` scores relatedness via raw keyword overlap (no stopwords/stemming), flat category/severity matching, and a crude geo-distance term. No time-proximity weighting at all.
