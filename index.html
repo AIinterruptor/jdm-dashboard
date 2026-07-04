@@ -25652,6 +25652,7 @@ function renderTimelineBars() {
 function palantirTimelineSeek(pct) {
   pct = Math.max(0, Math.min(1, pct));
   currentTimeIdx = pct;
+  timelineCutoffPct = pct;
   const cursor = document.getElementById('ptl-cursor');
   if (cursor) cursor.style.left = `${pct * 100}%`;
 
@@ -25673,6 +25674,8 @@ function palantirTimelineSeek(pct) {
   if (typeof window.addEventMarkers === 'function') {
     window.addEventMarkers(feeds);
   }
+
+  invalidatePalantirCache();
 }
 
 let timelineSpeed = 1;
