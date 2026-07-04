@@ -25550,10 +25550,6 @@ function invalidatePalantirCache() {
   if (networkActive) { computeNetwork(); drawNetwork(); }
 }
 
-// TEMP STUBS — replaced by Task 3 (network)
-function computeNetwork() { console.log('[PALANTIR v2] computeNetwork stub called'); }
-function drawNetwork() { console.log('[PALANTIR v2] drawNetwork stub called'); }
-
 // ─── INJECT PALANTIR CONTROLS ────────────────────────────────────────────
 function injectPalantirControls() {
   const ctrl = document.getElementById('map-controls');
@@ -25845,24 +25841,30 @@ function createNetworkSvg() {
   mapEl.parentElement.appendChild(networkSvg);
 }
 
-function renderNetwork() {
-  if (!networkSvg || !window.gmap || !networkActive) return;
-  networkSvg.innerHTML = '';
-
-  const feeds = (window.allFeeds || []).filter(f => f.lat && f.lng);
-  if (!feeds.length) return;
+function computeNetwork() {
+  const feeds = getActivePalantirFeeds();
+  if (!feeds.length) { cachedNetworkNodes = []; return; }
 
   const locGroups = {};
+  const sevRank = { critical:0, high:1, medium:2, low:3, info:4 };
   feeds.forEach(f => {
     const key = `${Math.round(f.lat * 20) / 20},${Math.round(f.lng * 20) / 20}`;
-    if (!locGroups[key]) locGroups[key] = { lat: f.lat, lng: f.lng, feeds: [], categories: new Set(), maxSev: 'info' };
+    if (!locGroups[key]) locGroups[key] = { lat: f.lat, lng: f.lng, feeds: [], categories: new Set(), maxSev: 'info', dimmed: true };
     locGroups[key].feeds.push(f);
     locGroups[key].categories.add(f.category);
-    const sevRank = { critical:0, high:1, medium:2, low:3, info:4 };
     if (sevRank[f.severity] < sevRank[locGroups[key].maxSev]) locGroups[key].maxSev = f.severity;
+    if (!f._dimmed) locGroups[key].dimmed = false;
   });
 
-  const nodes = Object.values(locGroups).sort((a, b) => b.feeds.length - a.feeds.length).slice(0, 30);
+  cachedNetworkNodes = Object.values(locGroups).sort((a, b) => b.feeds.length - a.feeds.length).slice(0, 30);
+}
+
+function drawNetwork() {
+  if (!networkSvg || !window.gmap || !networkActive) return;
+  networkSvg.innerHTML = '';
+  if (!cachedNetworkNodes) computeNetwork();
+  const nodes = cachedNetworkNodes;
+  if (!nodes.length) return;
 
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
@@ -25878,7 +25880,8 @@ function renderNetwork() {
       line.setAttribute('x1', ptA.x); line.setAttribute('y1', ptA.y);
       line.setAttribute('x2', ptB.x); line.setAttribute('y2', ptB.y);
       line.setAttribute('class', 'p-net-line');
-      line.style.opacity = Math.min(0.6, sharedCats.length * 0.2);
+      const baseOpacity = Math.min(0.6, sharedCats.length * 0.2);
+      line.style.opacity = (a.dimmed && b.dimmed) ? baseOpacity * 0.15 : baseOpacity;
       networkSvg.appendChild(line);
     }
   }
@@ -25894,6 +25897,8 @@ function renderNetwork() {
     circle.setAttribute('r', r);
     circle.setAttribute('class', 'p-net-node');
     circle.style.fill = color;
+    circle.style.opacity = node.dimmed ? 0.15 : 0.7;
+    circle.dataset.nodeIdx = String(cachedNetworkNodes.indexOf(node));
     networkSvg.appendChild(circle);
 
     if (node.feeds.length >= 3) {
@@ -26005,13 +26010,16 @@ window.palantirToggleNetwork = function() {
   const btn = document.getElementById('palantir-network-btn');
   if (networkActive) {
     createNetworkSvg();
-    renderNetwork();
+    computeNetwork();
+    drawNetwork();
     if (btn) { btn.classList.add('active'); btn.textContent = '⬡ NETWORK ON'; }
     if (typeof addJarvisMsg === 'function') addJarvisMsg('jarvis', '⬡ <strong>PALANTIR Network Graph</strong> active. Nodes represent event clusters, lines show shared intelligence categories. Node size = event density, color = max severity.');
   } else {
     if (networkSvg) { networkSvg.remove(); networkSvg = null; }
+    cachedNetworkNodes = null;
     if (btn) { btn.classList.remove('active'); btn.textContent = '⬡ NETWORK'; }
   }
+  savePalantirState();
 };
 
 window.palantirToggleWatchzones = function() {
