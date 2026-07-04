@@ -2085,6 +2085,34 @@ body {
 /* ─── HEATMAP TOGGLE ACTIVE STATE ─── */
 #heatmap-btn.active { color: var(--red) !important; border-color: rgba(204,34,51,0.4) !important; }
 
+/* ─── WINDY.COM WEATHER OVERLAY (free embed, no API key) ─── */
+#windy-overlay {
+  display:none; position:absolute; top:0; left:0; width:100%; height:100%;
+  background:var(--void); z-index:1900; flex-direction:column;
+}
+#windy-overlay.show { display:flex; }
+#windy-header {
+  display:flex; align-items:center; gap:10px; padding:6px 10px; flex-shrink:0;
+  background:var(--surface); border-bottom:1px solid var(--border-hi);
+}
+.windy-title {
+  font-family:var(--mono); font-size:9px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--t3); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.windy-layer-btn {
+  background:transparent; border:1px solid var(--border); color:var(--t2);
+  padding:3px 8px; font-family:var(--mono); font-size:8px; letter-spacing:1px;
+  text-transform:uppercase; cursor:pointer; transition:all 0.12s; white-space:nowrap;
+}
+.windy-layer-btn:hover { border-color:var(--amber-dim); color:var(--amber-text); background:var(--amber-glow); }
+.windy-layer-btn.active { border-color:var(--amber-dim); color:var(--amber); background:var(--amber-glow); }
+#windy-close {
+  background:transparent; border:1px solid var(--border); color:var(--t2);
+  padding:3px 8px; font-family:var(--mono); font-size:10px; cursor:pointer; transition:all 0.12s;
+}
+#windy-close:hover { border-color:var(--red); color:var(--red); }
+#windy-frame { flex:1; width:100%; border:0; background:#000; }
+
 /* ═══ PROFESSIONAL POLISH ═══ */
 
 /* Smoother scrollbars */
@@ -3020,7 +3048,20 @@ window.gm_authFailure = function() {
           </div>
         </div>
       </div>
-      
+
+      <!-- WINDY.COM WEATHER OVERLAY (free embed2.html, no API key — hidden by default) -->
+      <div id="windy-overlay">
+        <div id="windy-header">
+          <span class="windy-title">🌀 WINDY.COM // LIVE WEATHER — PANAY / WESTERN VISAYAS</span>
+          <button class="windy-layer-btn" data-layer="wind" onclick="setWindyLayer('wind')">WIND</button>
+          <button class="windy-layer-btn active" data-layer="rain" onclick="setWindyLayer('rain')">RAIN</button>
+          <button class="windy-layer-btn" data-layer="clouds" onclick="setWindyLayer('clouds')">CLOUDS</button>
+          <button class="windy-layer-btn" data-layer="temp" onclick="setWindyLayer('temp')">TEMP</button>
+          <button id="windy-close" onclick="closeWindyOverlay()" title="Close (Esc)">✕</button>
+        </div>
+        <iframe id="windy-frame" title="Windy.com interactive weather map" loading="lazy" allowfullscreen></iframe>
+      </div>
+
       <div id="map-controls">
         <div class="ctrl-group-label">BASE</div>
         <button class="map-ctrl-btn active" onclick="setLayer('dark')" id="layer-dark">◼ TACTICAL</button>
@@ -3045,6 +3086,7 @@ window.gm_authFailure = function() {
         <button class="map-ctrl-btn" onclick="clearNASAOverlays()" style="color:var(--red)">✕ CLEAR NASA</button>
         <div class="ctrl-divider"></div>
         <div class="ctrl-group-label">🌦️ WEATHER</div>
+        <button class="map-ctrl-btn" onclick="toggleWindyOverlay()" id="windy-btn" title="Windy.com interactive weather map — wind/rain/clouds/temp (free embed)">🌀 WINDY</button>
         <button class="map-ctrl-btn" onclick="toggleWeatherOverlay('radar')" id="weather-radar" title="Real-time rain radar (10 min updates)">📡 RADAR</button>
         <button class="map-ctrl-btn" onclick="toggleWeatherOverlay('satellite')" id="weather-satellite" title="Cloud satellite imagery">🛰️ SATELLITE</button>
         <button class="map-ctrl-btn" onclick="toggleWeatherOverlay('forecast')" id="weather-forecast" title="Rain forecast (2 hours)">🌧️ FORECAST</button>
@@ -7046,6 +7088,44 @@ function clearWeatherOverlays() {
 
 // Prefetch radar data on load
 fetchRadarData().then(() => createWeatherOverlays());
+
+// ── WINDY.COM EMBED OVERLAY (free embed2.html widget — no API key) ──
+let windyOpen = false;
+let windyLayer = 'rain'; // default: rain — PH typhoon-season monitoring
+const WINDY_CENTER = { lat: 10.7202, lon: 122.5621, zoom: 7 }; // Iloilo City / Panay
+
+function windyEmbedUrl(overlay) {
+  const { lat, lon, zoom } = WINDY_CENTER;
+  return `https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}` +
+    `&detailLat=${lat}&detailLon=${lon}&zoom=${zoom}&level=surface` +
+    `&overlay=${overlay}&product=ecmwf&menu=&message=true&marker=true` +
+    `&calendar=now&pressure=&type=map&location=coordinates&detail=` +
+    `&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`;
+}
+
+function setWindyLayer(overlay) {
+  windyLayer = overlay;
+  const frame = document.getElementById('windy-frame');
+  if (frame) frame.src = windyEmbedUrl(overlay);
+  document.querySelectorAll('.windy-layer-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.layer === overlay));
+}
+
+function openWindyOverlay() {
+  windyOpen = true;
+  document.getElementById('windy-overlay')?.classList.add('show');
+  document.getElementById('windy-btn')?.classList.add('active');
+  const frame = document.getElementById('windy-frame');
+  if (frame && !frame.getAttribute('src')) setWindyLayer(windyLayer); // lazy-load iframe on first open
+}
+
+function closeWindyOverlay() {
+  windyOpen = false;
+  document.getElementById('windy-overlay')?.classList.remove('show');
+  document.getElementById('windy-btn')?.classList.remove('active');
+}
+
+function toggleWindyOverlay() { windyOpen ? closeWindyOverlay() : openWindyOverlay(); }
 
 // Toggle NASA overlay layers
 function toggleNASAOverlay(layerName) {
@@ -16772,6 +16852,7 @@ setInterval(() => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && cinemaOpen) { closeCinema(); return; }
   if (e.key === 'Escape' && osintActive) { closeOSINT(); return; }
+  if (e.key === 'Escape' && windyOpen) { closeWindyOverlay(); return; }
   if (e.ctrlKey && e.key === 'm') { e.preventDefault(); openCinema(); }
   if (e.ctrlKey && e.key === 'k') { e.preventDefault(); document.getElementById('jarvis-input')?.focus(); }
 });
