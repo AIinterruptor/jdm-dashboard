@@ -25583,9 +25583,10 @@ function showEntityCard(feed, relatedConnections) {
 
   let connHtml = '';
   if (relatedConnections && relatedConnections.length) {
+    const isFeed = (f) => f === feed || (feed.id != null && f.id === feed.id);
     connHtml = `<div class="pec-connections"><div class="pec-conn-label">CORRELATED EVENTS</div>` +
       relatedConnections.slice(0, 5).map(c => {
-        const other = c.from === feed ? c.to : c.from;
+        const other = isFeed(c.from) ? c.to : c.from;
         const dotColor = SEV_COLORS[other.severity] || SEV_COLORS.info;
         return `<div class="pec-conn-item"><span class="pec-conn-dot" style="background:${dotColor}"></span>${(other.title||'Untitled').slice(0,60)}</div>`;
       }).join('') + `</div>`;
@@ -25914,7 +25915,8 @@ function createNetworkSvg() {
     const node = cachedNetworkNodes[Number(idx)];
     if (!node || !node.feeds.length) return;
     const primary = node.feeds[0];
-    const related = (cachedArcConnections || []).filter(c => c.from === primary || c.to === primary);
+    const sameFeed = (f) => f === primary || (primary.id != null && f.id === primary.id);
+    const related = (cachedArcConnections || []).filter(c => sameFeed(c.from) || sameFeed(c.to));
     showEntityCard(primary, related);
   });
   mapEl.parentElement.appendChild(networkSvg);
