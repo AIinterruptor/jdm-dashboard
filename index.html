@@ -25465,6 +25465,14 @@ document.addEventListener('keydown',e=>{
 .palantir-ctrl-group { margin-top:4px; padding-top:4px; border-top:1px solid var(--border); }
 .palantir-ctrl-label { font-size:7px; color:var(--amber-dim); letter-spacing:2px;
   padding:2px 6px; font-family:var(--mono); }
+.palantir-search-input {
+  width:100%; box-sizing:border-box; margin:4px 0;
+  background:rgba(6,6,5,0.6); border:1px solid var(--border);
+  color:var(--amber-text); font-family:var(--mono); font-size:9px;
+  letter-spacing:1px; padding:4px 6px; border-radius:2px;
+}
+.palantir-search-input:focus { outline:none; border-color:var(--amber-dim); }
+.palantir-search-input::placeholder { color:var(--t3); }
 
 /* ── NETWORK GRAPH OVERLAY ── */
 #palantir-network-svg { position:absolute; top:0; left:0; width:100%; height:100%;
@@ -25550,6 +25558,63 @@ function invalidatePalantirCache() {
   if (networkActive) { computeNetwork(); drawNetwork(); }
 }
 
+let searchDebounceTimer = null;
+window.palantirSearchInput = function(value) {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    searchQuery = value.trim();
+    invalidatePalantirCache();
+    if (typeof window.addEventMarkers === 'function' && window.allFeeds) {
+      window.addEventMarkers(getActivePalantirFeeds());
+    }
+  }, 200);
+};
+
+function showEntityCard(feed, relatedConnections) {
+  hideEntityCard();
+  const card = document.createElement('div');
+  card.id = 'palantir-entity-card-popup';
+  card.className = 'palantir-entity-card';
+  card.style.cssText = 'position:absolute; z-index:900; top:16px; right:16px;';
+
+  const color = SEV_COLORS[feed.severity] || SEV_COLORS.info;
+  const ts = feed.timestamp || feed._ts;
+  const dateStr = ts ? new Date(ts).toLocaleString('en-PH', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+
+  let connHtml = '';
+  if (relatedConnections && relatedConnections.length) {
+    connHtml = `<div class="pec-connections"><div class="pec-conn-label">CORRELATED EVENTS</div>` +
+      relatedConnections.slice(0, 5).map(c => {
+        const other = c.from === feed ? c.to : c.from;
+        const dotColor = SEV_COLORS[other.severity] || SEV_COLORS.info;
+        return `<div class="pec-conn-item"><span class="pec-conn-dot" style="background:${dotColor}"></span>${(other.title||'Untitled').slice(0,60)}</div>`;
+      }).join('') + `</div>`;
+  }
+
+  card.innerHTML = `
+    <div class="pec-header">
+      <span class="pec-sev-dot" style="background:${color};color:${color}"></span>
+      <span class="pec-source">${feed.source || 'UNKNOWN'}</span>
+    </div>
+    <div class="pec-title">${feed.title || 'Untitled event'}</div>
+    <div class="pec-body">${feed.category || 'uncategorized'}</div>
+    <div class="pec-meta">
+      <div class="pec-meta-item">${dateStr}</div>
+      <div class="pec-meta-item">${(feed.severity||'info').toUpperCase()}</div>
+    </div>
+    ${connHtml}
+    <div class="pec-actions"><div class="pec-btn" onclick="window.palantirHideEntityCard()">CLOSE</div></div>
+  `;
+
+  const mapEl = document.getElementById('panel-map') || document.getElementById('gmap')?.parentElement;
+  if (mapEl) { mapEl.style.position = 'relative'; mapEl.appendChild(card); }
+}
+
+function hideEntityCard() {
+  document.getElementById('palantir-entity-card-popup')?.remove();
+}
+window.palantirHideEntityCard = hideEntityCard;
+
 // ─── INJECT PALANTIR CONTROLS ────────────────────────────────────────────
 function injectPalantirControls() {
   const ctrl = document.getElementById('map-controls');
@@ -25559,6 +25624,7 @@ function injectPalantirControls() {
   ctrl.insertAdjacentHTML('beforeend', `
     <div class="ctrl-divider"></div>
     <div class="ctrl-group-label" style="color:var(--amber)">PALANTIR</div>
+    <input type="text" id="palantir-search" class="palantir-search-input" placeholder="FILTER ENTITIES..." oninput="window.palantirSearchInput(this.value)">
     <button class="map-ctrl-btn" id="palantir-timeline-btn" onclick="window.palantirToggleTimeline()">⏱ TIMELINE</button>
     <button class="map-ctrl-btn" id="palantir-arcs-btn" onclick="window.palantirToggleArcs()">⌁ ARC LINKS</button>
     <button class="map-ctrl-btn" id="palantir-pulse-btn" onclick="window.palantirTogglePulse()">◎ THREAT PULSE</button>
@@ -25841,6 +25907,16 @@ function createNetworkSvg() {
   if (networkSvg) networkSvg.remove();
   networkSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   networkSvg.id = 'palantir-network-svg';
+  networkSvg.style.pointerEvents = 'none';
+  networkSvg.addEventListener('click', (e) => {
+    const idx = e.target?.dataset?.nodeIdx;
+    if (idx === undefined || !cachedNetworkNodes) return;
+    const node = cachedNetworkNodes[Number(idx)];
+    if (!node || !node.feeds.length) return;
+    const primary = node.feeds[0];
+    const related = (cachedArcConnections || []).filter(c => c.from === primary || c.to === primary);
+    showEntityCard(primary, related);
+  });
   mapEl.parentElement.appendChild(networkSvg);
 }
 
