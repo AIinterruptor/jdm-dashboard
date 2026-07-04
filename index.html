@@ -3715,6 +3715,7 @@ function toggleSubAreas() {
 
 // Current active location — starts national
 let ACTIVE_LOC = PH_LOCATIONS['national'];
+window.ACTIVE_LOC = ACTIVE_LOC;
 
 // Weather cities — populated dynamically based on active location
 function getWeatherCities(loc) {
@@ -4095,6 +4096,7 @@ function switchLocation(locKey) {
   }
   loc.key = locKey;
   ACTIVE_LOC = loc;
+  window.ACTIVE_LOC = loc;
 
   console.log('[LOC] Switching to:', loc.label, 'at', loc.lat, loc.lng);
 
@@ -25485,7 +25487,7 @@ document.addEventListener('keydown',e=>{
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
-// PALANTIR ENGINE v1.0 — Geospatial Intelligence Overlay
+// PALANTIR ENGINE v2.0 — Geospatial Intelligence Overlay
 // ═══════════════════════════════════════════════════════════════════════════
 
 (function() {
