@@ -25997,7 +25997,8 @@ function renderWatchzones() {
   clearWatchzones();
   if (!window.gmap || !watchzonesActive) return;
 
-  const loc = window.ACTIVE_LOC || { lat: 10.72, lng: 122.56 };
+  const loc = window.ACTIVE_LOC;
+  if (!loc) return;
   const zones = [
     { label:'INNER PERIMETER', radius:5000, color:'var(--red)', dash:'8,4' },
     { label:'SECURITY ZONE', radius:15000, color:'var(--orange)', dash:'12,6' },
@@ -26052,9 +26053,35 @@ window.palantirToggleTimeline = function() {
     palantirTimelineSeek(1);
     if (btn) { btn.classList.remove('active'); btn.textContent = '⏱ TIMELINE'; }
   }
+  savePalantirState();
 };
 
-function savePalantirState() {}
+function savePalantirState() {
+  try {
+    localStorage.setItem('palantir-state', JSON.stringify({
+      timeline: timelineActive, arcs: arcsActive, pulse: pulseActive,
+      network: networkActive, watchzones: watchzonesActive, searchQuery: searchQuery
+    }));
+  } catch(e) { /* localStorage unavailable (private browsing etc.) — non-fatal */ }
+}
+
+function restorePalantirState() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem('palantir-state') || 'null'); }
+  catch(e) { return; }
+  if (!saved) return;
+
+  if (saved.searchQuery) {
+    searchQuery = saved.searchQuery;
+    const input = document.getElementById('palantir-search');
+    if (input) input.value = saved.searchQuery;
+  }
+  if (saved.timeline) window.palantirToggleTimeline();
+  if (saved.arcs) window.palantirToggleArcs();
+  if (saved.pulse) window.palantirTogglePulse();
+  if (saved.network) window.palantirToggleNetwork();
+  if (saved.watchzones) window.palantirToggleWatchzones();
+}
 
 window.palantirToggleArcs = function() {
   arcsActive = !arcsActive;
@@ -26084,6 +26111,7 @@ window.palantirTogglePulse = function() {
     clearPulseRings();
     if (btn) { btn.classList.remove('active'); btn.textContent = '◎ THREAT PULSE'; }
   }
+  savePalantirState();
 };
 
 window.palantirToggleNetwork = function() {
@@ -26114,6 +26142,7 @@ window.palantirToggleWatchzones = function() {
     clearWatchzones();
     if (btn) { btn.classList.remove('active'); btn.textContent = '⊚ WATCHZONE'; }
   }
+  savePalantirState();
 };
 
 window.palantirTimelinePlay = palantirTimelinePlay;
@@ -26131,7 +26160,8 @@ function palantirInit() {
   injectPalantirControls();
   gmap.on('moveend', onMapUpdate);
   gmap.on('zoomend', onMapUpdate);
-  console.info('[PALANTIR] Engine v1.0 initialized');
+  restorePalantirState();
+  console.info('[PALANTIR] Engine v2.0 initialized');
 }
 
 if (document.readyState === 'complete') setTimeout(palantirInit, 2000);
@@ -26215,7 +26245,8 @@ setInterval(() => { if (copRadarLayers.length) copInitRadar(); }, 600000);
 // ─── AMBIENT SCAN PULSE ──────────────────────────────────────────────────
 function copAddScanPulse() {
   if (copScanMarker || !window.gmap || typeof window.gmap.addLayer !== 'function') return;
-  const loc = window.ACTIVE_LOC || { lat: 10.7202, lng: 122.5621 };
+  const loc = window.ACTIVE_LOC;
+  if (!loc) return;
   copScanMarker = L.marker([loc.lat, loc.lng], {
     icon: L.divIcon({
       html: '<div class="cop-scan-ring"></div><div class="cop-scan-ring ring-2"></div>',
