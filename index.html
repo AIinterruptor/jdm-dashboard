@@ -7281,7 +7281,7 @@ function addEventMarkers(feeds) {
         animation:pulse-expand ${pulseMs}ms ease-out infinite;
         pointer-events:none"></div>` : '';
 
-    const iconHTML = `<div style="position:relative;width:${size}px;height:${size}px">
+    const iconHTML = `<div style="position:relative;width:${size}px;height:${size}px;opacity:${f._dimmed ? '0.2' : '1'};">
       ${pulseHTML}
       <div class="jdm-dot" data-sev="${f.severity}" style="
         width:${size}px;height:${size}px;border-radius:50%;
@@ -25730,11 +25730,6 @@ function palantirTimelineSeek(pct) {
   const oldest = now - 7 * 24 * 3600 * 1000;
   const cutoff = oldest + pct * (now - oldest);
 
-  const feeds = (window.allFeeds || []).filter(f => {
-    const ts = f.timestamp || f._ts || now;
-    return ts <= cutoff;
-  });
-
   const label = document.getElementById('ptl-time-label');
   if (label) {
     if (pct >= 0.99) label.textContent = 'ALL EVENTS';
@@ -25742,7 +25737,7 @@ function palantirTimelineSeek(pct) {
   }
 
   if (typeof window.addEventMarkers === 'function') {
-    window.addEventMarkers(feeds);
+    window.addEventMarkers(getActivePalantirFeeds());
   }
 
   invalidatePalantirCache();
