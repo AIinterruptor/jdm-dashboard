@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="JDM Command Center — Real-time Philippines intelligence dashboard aggregating GDELT, PAGASA, PHIVOLCS, news, social, and satellite feeds into a unified situational awareness platform.">
-<title>JDM · COMMAND CENTER v5.1</title>
+<title>JDM · COMMAND CENTER v5.2</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7532,7 +7532,11 @@ const YT_PROXIES = [
   url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
 ];
 
-async function fetchWithProxy(url) {
+// Renamed from fetchWithProxy — the duplicate declaration SHADOWED the main
+// Response-returning fetchWithProxy (line ~4887) for the whole script, so
+// every caller doing `(await fetchWithProxy(url)).text()` threw on a string.
+// That silently killed radio intel, the fetchRSS fallback path, and GDACS.
+async function fetchTextViaProxy(url) {
   for (const mkUrl of YT_PROXIES) {
     try {
       const resp = await fetch(mkUrl(url), { signal: AbortSignal.timeout(8000) });
@@ -7561,7 +7565,7 @@ async function fetchYTFeed(key) {
   if (!ch) return [];
   if (ytVideoCache[key] && Date.now() - ytVideoCache[key].ts < 300000) return ytVideoCache[key].vids;
   const feedUrl = 'https://www.youtube.com/feeds/videos.xml?channel_id=' + ch.id;
-  const xml = await fetchWithProxy(feedUrl);
+  const xml = await fetchTextViaProxy(feedUrl);
   if (!xml) return [];
   const vids = parseYTFeed(xml, ch, key);
   ytVideoCache[key] = { vids, ts: Date.now() };
@@ -8805,7 +8809,7 @@ const SLASH_COMMANDS = [
   { cmd:'/offline',  desc:'Check offline data status',               fn:() => showOfflineStatus() },
   { cmd:'/cache-map', desc:'Cache map tiles for offline use',         fn:(arg) => cacheMapTilesForOffline(arg) },
   { cmd:'/download-archive', desc:'Download full offline package',    fn:() => downloadOfflinePackage() },
-  { cmd:'/radio',    desc:'/radio [station-id] — play radio station', fn:(arg) => arg ? radioPlay(arg) : addJarvisMsg('jarvis','Stations: dzrh dzmm dzbb dyri dyss dypr dyrf dyab dxrr bbcws voa') },
+  { cmd:'/radio',    desc:'/radio [station-id] — play radio station', fn:(arg) => arg ? radioPlay(arg) : addJarvisMsg('jarvis','Stations: dzrh dwpm dzbb dwiz dyfm r6news dyri bombobcd dyhp dyss dyab dxdc bbcws bbcwsea (▶ = direct stream)') },
   { cmd:'/nasa',     desc:'/nasa [layer] — toggle NASA satellite layers (fires/rain/air/night)', fn:(arg) => {
     const layers = { fires: 'fires_viirs', rain: 'precipitation', air: 'aerosol', night: 'nightlights', all: 'all' };
     if (!arg) { addJarvisMsg('jarvis','NASA Layers: fires, rain, air, night, all, clear<br>Example: /nasa fires'); return; }
@@ -16840,81 +16844,70 @@ async function triggerSocialScrape(platform, action, target, max = 20) {
 // ─── RADIO BROADCAST FEEDS ────────────────────────────────────────────────
 // Philippine radio stations with RSS/online feeds
 // Note: Streams require user interaction to play (browser autoplay policy)
+// All stream URLs verified live 2026-07-07 (https-only — GitHub Pages blocks
+// mixed content). Stations without a working https stream keep stream:null
+// and fall back to YouTube Live / web via radioPlay.
 const PH_RADIO_STATIONS = [
   // ═══ MANILA NEWS ═══
-  // Note: Most PH AM stations stream via YouTube Live. Use browser to access.
-  { id:'dzrh',    name:'DZRH 666',         freq:'666 AM',   city:'Manila',       type:'news',    
-    stream:null,
-    rss:'https://www.dzrh.com.ph/feed/',
+  { id:'dzrh',    name:'DZRH 666',         freq:'666 AM',   city:'Manila',       type:'news',
+    stream:'https://azura.dzrh.com.ph/listen/dzrh_manila/radio.mp3',
+    rss:null,
     youtube:'https://www.youtube.com/@dzrh666am/live',
     web:'https://www.dzrh.com.ph/' },
-  { id:'dzbb',    name:'DZBB Super Radyo', freq:'594 AM',   city:'Manila',       type:'news',    
-    stream:null,
-    rss:'https://www.gmanetwork.com/news/rss/',
-    youtube:'https://www.youtube.com/@dzbb594am/live' },
-  { id:'dwnn',    name:'DWNN News Radio',  freq:'648 AM',   city:'Manila',       type:'news',    
-    stream:null,
+  { id:'dwpm',    name:'DWPM Radyo 630',   freq:'630 AM',   city:'Manila',       type:'news',
+    stream:'https://playerservices.streamtheworld.com/api/livestream-redirect/DZMMAAC.aac',
     rss:null,
-    web:'https://www.netnews.ph/' },
-  { id:'dwiz',    name:'DWIZ 882',         freq:'882 AM',   city:'Manila',       type:'news',    
+    note:'TeleRadyo Serbisyo (ex-DZMM slot)',
+    web:'https://www.teleradyoserbisyo.ph/' },
+  { id:'dzbb',    name:'DZBB Super Radyo', freq:'594 AM',   city:'Manila',       type:'news',
+    stream:null,
+    rss:'https://data.gmanetwork.com/gno/rss/news/feed.xml',
+    youtube:'https://www.youtube.com/@dzbb594am/live' },
+  { id:'dwiz',    name:'DWIZ 882',         freq:'882 AM',   city:'Manila',       type:'news',
     stream:null,
     rss:null,
     youtube:'https://www.youtube.com/@dwiz882am/live' },
-  { id:'dzmm',    name:'DZMM 630',         freq:'630 AM',   city:'Manila',       type:'news',    
-    stream:null,
-    rss:'https://newsinfo.inquirer.net/feed',
-    note:'Currently offline - TeleRadyo Serbisyo',
-    web:'https://teleradyo.abs-cbn.com/' },
-  
-  // ═══ ILOILO ═══
-  { id:'dyri',    name:'DYRI RMN Iloilo',  freq:'918 AM',   city:'Iloilo',       type:'news',    
-    stream:null,
+
+  // ═══ ILOILO / WESTERN VISAYAS ═══
+  { id:'dyfm',    name:'Bombo Radyo Iloilo', freq:'837 AM', city:'Iloilo',       type:'news',
+    stream:'https://stream.zenolive.com/gzudz59nz9duv',
+    rss:'https://www.bomboradyo.com/feed/' },
+  { id:'r6news',  name:'R6 News FM',       freq:'Online',   city:'Iloilo',       type:'news',
+    stream:'https://stream.zeno.fm/adqlxubrtshvv',
     rss:null },
-  { id:'dyss',    name:'DYSS Super Radyo', freq:'954 AM',   city:'Iloilo',       type:'news',    
+  { id:'dyri',    name:'DYRI RMN Iloilo',  freq:'774 AM',   city:'Iloilo',       type:'news',
     stream:null,
+    rss:'https://rmn.ph/feed/',
+    web:'https://rmn.ph/' },
+  { id:'bombobcd', name:'Bombo Radyo Bacolod', freq:'630 AM', city:'Bacolod',    type:'news',
+    stream:'https://stream.zenolive.com/g2ak4fu78heuv',
     rss:null },
-  { id:'dypr',    name:'DYPR Bombo Iloilo',freq:'1080 AM',  city:'Iloilo',       type:'news',    
-    stream:null,
-    rss:null },
-  { id:'dyfm',    name:'DYFM Bombo Iloilo',freq:'720 AM',   city:'Iloilo',       type:'news',    
-    stream:null,
-    rss:null },
-  
+
   // ═══ CEBU ═══
-  { id:'dyrf',    name:'DYRF RMN Cebu',    freq:'612 AM',   city:'Cebu',         type:'news',    
-    stream:null,
+  { id:'dyhp',    name:'DYHP RMN Cebu',    freq:'612 AM',   city:'Cebu',         type:'news',
+    stream:'https://de3.amfmph.com/ssl/rmncebu?mp=%2Fstream',
     rss:null },
-  { id:'dyab',    name:'DYAB Bombo Cebu',  freq:'1512 AM',  city:'Cebu',         type:'news',    
+  { id:'dyss',    name:'DYSS Super Radyo', freq:'999 AM',   city:'Cebu',         type:'news',
     stream:null,
-    rss:null },
-  { id:'dyhp',    name:'DYHP Cebu',        freq:'594 AM',   city:'Cebu',         type:'news',    
+    rss:null,
+    youtube:'https://www.youtube.com/@gmaregionaltv/live' },
+  { id:'dyab',    name:'DYAB Bombo Cebu',  freq:'1512 AM',  city:'Cebu',         type:'news',
     stream:null,
-    rss:null },
-  
+    rss:null,
+    web:'https://www.bomboradyo.com/cebu/' },
+
   // ═══ DAVAO ═══
-  { id:'dxrr',    name:'DXRR RMN Davao',  freq:'954 AM',   city:'Davao',        type:'news',    
-    stream:null,
+  { id:'dxdc',    name:'DXDC RMN Davao',   freq:'621 AM',   city:'Davao',        type:'news',
+    stream:'https://stream.zeno.fm/qrrgyy1hyuatv',
     rss:null },
-  { id:'dxbq',    name:'DXBQ Bombo Davao', freq:'888 AM',   city:'Davao',        type:'news',    
-    stream:null,
-    rss:null },
-  
-  // ═══ INTERNATIONAL (Working Streams) ═══
-  { id:'bbcws',   name:'BBC World Service',freq:'Online',   city:'International',type:'intl',    
+
+  // ═══ INTERNATIONAL ═══
+  { id:'bbcws',   name:'BBC World Service',freq:'Online',   city:'International',type:'intl',
     stream:'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service',
     rss:'https://feeds.bbci.co.uk/news/world/rss.xml' },
-  { id:'voa',     name:'Voice of America', freq:'Online',   city:'International',type:'intl',    
-    stream:'https://vgtrk-priem.hostingradio.ru/voa_aac_64.mp3',
-    rss:'https://www.voanews.com/rssfeeds' },
-  { id:'nhk',     name:'NHK World Japan',  freq:'Online',   city:'International',type:'intl',    
-    stream:'https://nhkworld.webcdn.stream.ne.jp/www11/nhkworld-tv/domestic/263942/live.m3u8',
-    rss:null },
-  { id:'rfi',     name:'RFI International',freq:'Online',   city:'International',type:'intl',    
-    stream:'https://stream.rfi.fr/rfi_en.mp3',
-    rss:'https://rfi.my/rss/en' },
-  { id:'dw',      name:'DW News',          freq:'Online',   city:'International',type:'intl',    
-    stream:'https://dwstream1-lh.akamaihd.net/i/dwstream1_live@130440/master.m3u8',
-    rss:'https://rss.dw.com/rss/rss-en-all' },
+  { id:'bbcwsea', name:'BBC WS East Asia', freq:'Online',   city:'International',type:'intl',
+    stream:'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service_east_asia',
+    rss:'https://feeds.bbci.co.uk/news/world/asia/rss.xml' },
 ];
 
 let radioState = {
@@ -16935,9 +16928,16 @@ async function fetchRadioFeeds() {
     s.city.toLowerCase().includes(city.toLowerCase())
   );
 
-  // Fetch RSS for stations that have them
+  // Fetch RSS for stations that have them — dedupe shared network feeds
+  // (e.g. bomboradyo.com serves every Bombo affiliate)
+  const seenRss = new Set();
+  const rssStations = relevant.filter(s => {
+    if (!s.rss || seenRss.has(s.rss)) return false;
+    seenRss.add(s.rss);
+    return true;
+  });
   const rssResults = await Promise.allSettled(
-    relevant.filter(s => s.rss).map(async s => {
+    rssStations.map(async s => {
       const r   = await fetchWithProxy(s.rss, {});
       const txt = await r.text();
       if (txt.startsWith('<!DOCTYPE') || txt.startsWith('<html')) throw new Error('HTML');
@@ -16968,10 +16968,12 @@ function buildRadioPanel() {
   const loc  = ACTIVE_LOC;
   const city = loc.label.replace(/🇵🇭 /,'').split(' ')[0];
 
-  const relevant = PH_RADIO_STATIONS.filter(s =>
-    s.city === 'Manila' || s.city === 'International' ||
-    s.city.toLowerCase().includes(city.toLowerCase())
-  );
+  // Full net, local stations first: active city → Manila → rest of PH → intl
+  const rank = s =>
+    s.city.toLowerCase().includes(city.toLowerCase()) ? 0 :
+    s.city === 'Manila' ? 1 :
+    s.city !== 'International' ? 2 : 3;
+  const relevant = [...PH_RADIO_STATIONS].sort((a, b) => rank(a) - rank(b));
 
   return `<div id="radio-panel">
     <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
@@ -16990,12 +16992,13 @@ function buildRadioPanel() {
     </div>
     <div style="overflow-y:auto;max-height:200px;scrollbar-width:thin;scrollbar-color:var(--border) transparent">
       ${relevant.map(s => `
-        <div class="radio-station-item" id="rs-${s.id}" onclick="radioPlay('${s.id}')">
+        <div class="radio-station-item" id="rs-${s.id}" onclick="radioPlay('${s.id}')" title="${s.stream ? 'Direct stream — click to play' : 'Opens YouTube Live / website'}">
           <div class="rs-dot" id="rsd-${s.id}"></div>
           <div class="rs-info">
             <div class="rs-name">${s.name}</div>
             <div class="rs-freq">${s.freq} · ${s.city}</div>
           </div>
+          <span style="font-family:var(--mono);font-size:8px;color:${s.stream ? 'var(--green-hi)' : 'var(--t3)'};margin-right:4px">${s.stream ? '▶' : '↗'}</span>
           <div class="rs-type ${s.type}">${s.type.toUpperCase()}</div>
         </div>`).join('')}
     </div>
@@ -17023,11 +17026,24 @@ function radioPlay(stationId) {
     return;
   }
 
+  // No direct stream — fall back to YouTube Live / station website
+  if (!station.stream) {
+    const fallback = station.youtube || station.web;
+    if (fallback) {
+      window.open(fallback, '_blank', 'noopener');
+      addJarvisMsg('jarvis', `📻 <strong>${station.name}</strong> has no direct audio stream — opened its ${station.youtube ? 'YouTube Live' : 'website'} in a new tab.`);
+    } else {
+      addJarvisMsg('jarvis', `⚠ <strong>${station.name}</strong> has no online stream available.`);
+    }
+    return;
+  }
+
   // Play new station
   const audio = new Audio();
   audio.volume = radioState.muted ? 0 : radioState.volume;
-  audio.crossOrigin = 'anonymous';
-  
+  // NOTE: no crossOrigin attribute — setting it forces CORS checks that
+  // most radio streams fail; without it the browser plays them fine.
+
   // Add detailed logging for debugging
   audio.onloadstart = () => console.log(`[RADIO] Loading: ${station.name}`);
   audio.onprogress = () => console.log(`[RADIO] Buffering: ${station.name}`);
