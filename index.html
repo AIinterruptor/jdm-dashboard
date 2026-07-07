@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="JDM Command Center — Real-time Philippines intelligence dashboard aggregating GDELT, PAGASA, PHIVOLCS, news, social, and satellite feeds into a unified situational awareness platform.">
-<title>JDM · COMMAND CENTER v5.0</title>
+<title>JDM · COMMAND CENTER v5.1</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12038,8 +12038,11 @@ function switchSCCTab(tab, el) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// JDM ML INTELLIGENCE ENGINE
+// JDM ML INTELLIGENCE ENGINE — v2.0
 // Browser-native machine learning — learns from every event, grows smarter
+// v2.0: temporal supervision (escalation heads train on REAL future outcomes),
+//       naive-Bayes pattern ensemble, true MC-dropout uncertainty,
+//       event-time features, robust (median/MAD) anomaly baselines
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
@@ -12171,6 +12174,13 @@ const FEATURE_KEYWORDS = [
   // 57: has_location, 58: word_count_norm, 59: recency_score
 ];
 
+// Precompiled keyword regexes — leading word boundary stops false hits
+// ("fire" no longer matches "ceasefire"), suffixes still match ("floods").
+const FEATURE_KEYWORD_RES = FEATURE_KEYWORDS.map(kw => {
+  const esc = kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return new RegExp(kw.includes(' ') ? esc : `\\b${esc}`, 'g');
+});
+
 function extractFeatures(event) {
   const vec  = new Float32Array(FEATURE_DIM).fill(0);
   const text = ((event.title||'') + ' ' + (event.body||'')).toLowerCase();
@@ -12178,13 +12188,15 @@ function extractFeatures(event) {
 
   // ── ORIGINAL FEATURES (dims 0-59) ──────────────────────────────────────
   // Keyword presence features (dims 0-49)
-  FEATURE_KEYWORDS.forEach((kw, i) => {
-    const count = (text.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'g'))||[]).length;
+  FEATURE_KEYWORD_RES.forEach((re, i) => {
+    const count = (text.match(re)||[]).length;
     vec[i] = Math.min(1, count / 3); // normalize 0-1
   });
 
-  // Temporal features (dims 50-53)
-  const now  = new Date();
+  // Temporal features (dims 50-53) — anchored to the EVENT's own time, not
+  // extraction time, so stored events keep meaningful hour/day/season signals
+  const evtMs = event._ts || (typeof event.timestamp === 'number' ? event.timestamp : Date.now());
+  const now  = new Date(evtMs);
   const hour = now.getHours();
   const day  = now.getDay();
   vec[50] = Math.sin(2 * Math.PI * hour / 24);
@@ -12358,6 +12370,9 @@ async function learnFromFeed(feeds) {
     : null;
   const mlPredMap = new Map((mlPredictions || []).map(p => [p.feed.id, p]));
 
+  // Pattern classifier for feeds the NN doesn't cover (cold start / overflow)
+  const nb = await loadPatternClassifier().catch(() => null);
+
   // Category-to-crisis mapping for relevant categories only
   const categoryToCrisis = {
     'disaster': ['typhoon', 'flooding', 'earthquake_tsunami', 'volcanic'],
@@ -12380,11 +12395,25 @@ async function learnFromFeed(feeds) {
         const found = mlPred.allProbs.find(p => p.crisis === id);
         return found ? found.prob : 0;
       });
+    } else if (nb && (() => {
+      // Fallback 1: learned keyword associations (naive Bayes). Only trusted
+      // with strong evidence — ≥3 matched keywords and ≥50% posterior — so
+      // weak self-labels can't feed back into the pattern store.
+      const nbPred = patternPredict((feed.title||'') + ' ' + (feed.body||''), nb);
+      const top = nbTopCrisis(nbPred);
+      if (nbPred && nbPred.matched >= 3 && nbPred.probs[top] >= 0.5) {
+        dominantCrisis = top;
+        labels = CRISIS_IDS.map(id => nbPred.probs[id] >= 0.15 ? Math.min(1, nbPred.probs[id]) : 0);
+        return true;
+      }
+      return false;
+    })()) {
+      // labels/dominantCrisis set by the pattern classifier above
     } else {
-      // Fallback: only apply crisis classification to relevant categories
+      // Fallback 2: only apply crisis classification to relevant categories
       const feedCategory = feed.category || 'social';
       const relevantCrises = categoryToCrisis[feedCategory] || [];
-      
+
       if (relevantCrises.length > 0) {
         labels = CRISIS_IDS.map(id => {
           if (relevantCrises.includes(id)) {
@@ -12486,9 +12515,81 @@ async function updatePatternDB(events) {
         store.put(update);
       };
     }
-    tx.oncomplete = () => resolve();
+    tx.oncomplete = () => { nbCacheTime = 0; resolve(); };
     tx.onerror = () => resolve();
   });
+}
+
+// ─── PATTERN CLASSIFIER — Naive Bayes over learned keyword→crisis stats ────
+// The patterns store used to only accumulate; now it's a second classifier:
+// P(crisis | words) with Laplace smoothing and 30-day recency decay. Serves
+// as a cold-start classifier before the NN trains, and blends with the NN
+// softmax afterward (ensemble).
+let nbCache = null;
+let nbCacheTime = 0;
+const NB_CACHE_TTL   = 5 * 60000;
+const NB_DECAY_DAYS  = 30;   // pattern weight halves roughly every 3 weeks
+
+async function loadPatternClassifier(force = false) {
+  if (!mlDB) return null;
+  if (!force && nbCache && Date.now() - nbCacheTime < NB_CACHE_TTL) return nbCache;
+  const patterns = await dbGetAll('patterns');
+  const byWord = new Map();  // word -> { crisis_id -> decayed weight }
+  const totals = {};         // crisis_id -> total decayed weight
+  const vocab  = new Set();
+  const nowMs  = Date.now();
+  for (const p of patterns) {
+    if (!p.word || !p.crisis_type) continue;
+    const ageDays = (nowMs - (p.last_seen || nowMs)) / 86400000;
+    const w = (p.score || 1) * Math.exp(-ageDays / NB_DECAY_DAYS);
+    if (w < 0.05) continue; // stale association — ignore
+    vocab.add(p.word);
+    let m = byWord.get(p.word);
+    if (!m) { m = {}; byWord.set(p.word, m); }
+    m[p.crisis_type] = (m[p.crisis_type] || 0) + w;
+    totals[p.crisis_type] = (totals[p.crisis_type] || 0) + w;
+  }
+  nbCache = { byWord, totals, vocabSize: Math.max(vocab.size, 1) };
+  nbCacheTime = nowMs;
+  return nbCache;
+}
+
+function patternPredict(text, nb) {
+  if (!nb || !nb.byWord.size) return null;
+  const words = [...new Set(String(text).toLowerCase().split(/\W+/).filter(w => w.length > 4))].slice(0, 40);
+  if (!words.length) return null;
+  const alpha = 0.5; // Laplace smoothing
+  // Only crises with actual pattern evidence compete — otherwise the 18-way
+  // softmax lets evidence-free classes dilute the posterior to nothing
+  const cands = CRISIS_IDS.filter(id => (nb.totals[id] || 0) > 0);
+  if (cands.length < 2) return null;
+  const logs = {};
+  cands.forEach(id => { logs[id] = 0; });
+  let matched = 0;
+  for (const word of words) {
+    const m = nb.byWord.get(word);
+    if (!m) continue;
+    matched++;
+    for (const id of cands) {
+      const num = (m[id] || 0) + alpha;
+      const den = nb.totals[id] + alpha * nb.vocabSize;
+      logs[id] += Math.log(num / den);
+    }
+  }
+  if (matched < 2) return null; // not enough evidence to say anything
+  // Softmax over log-likelihoods (uniform prior cancels out)
+  const maxLog = Math.max(...cands.map(id => logs[id]));
+  let sum = 0;
+  const exps = cands.map(id => { const v = Math.exp(logs[id] - maxLog); sum += v; return v; });
+  const probs = {};
+  CRISIS_IDS.forEach(id => { probs[id] = 0; });
+  cands.forEach((id, i) => { probs[id] = exps[i] / sum; });
+  return { probs, matched };
+}
+
+function nbTopCrisis(nbPred) {
+  if (!nbPred) return null;
+  return CRISIS_IDS.reduce((best, id) => nbPred.probs[id] > nbPred.probs[best] ? id : best, CRISIS_IDS[0]);
 }
 
 // ─── TRAINING ENGINE ──────────────────────────────────────────────────────
@@ -12537,39 +12638,65 @@ async function trainCrisisModel() {
       return vec.map(v => v/sum);
     }), [labeled.length, CRISIS_COUNT]);
 
-    // Escalation targets derived from SENTINEL scores + severity + recency
-    const ysB = tf.tensor2d(labeled.map(e => {
-      const ss = e.sentinel_scores || {};
-      const sev = e.severity === 'critical' ? 1.0 : e.severity === 'high' ? 0.75 : e.severity === 'medium' ? 0.5 : 0.25;
-      const ageHrs = (Date.now() - (e.timestamp || Date.now())) / 3600000;
-      const recency = Math.max(0.1, 1 - Math.min(ageHrs / 168, 1));
-      return CRISIS_IDS.map(id => {
-        const base = Math.min(1.0, (ss[id] || 0) / 100);
-        return Math.min(1.0, base * 0.9 * recency + sev * 0.1);
-      });
-    }), [labeled.length, CRISIS_COUNT]);
+    // ── TEMPORAL SUPERVISION ────────────────────────────────────────────
+    // Old targets were derived from the SAME sentinel scores the model gets
+    // as input features (dims 60-61, 72-79) — pure label leakage; the heads
+    // learned to copy their inputs. New targets are what the sentinel scores
+    // ACTUALLY became 24/48/72h after each event, reconstructed from the
+    // sentinel_scores snapshots stored on every event in the corpus. The old
+    // heuristic remains only as fallback for events with no future snapshot.
+    const snapshots = allEvents
+      .filter(e => e.timestamp && e.sentinel_scores)
+      .map(e => ({ ts: e.timestamp, ss: e.sentinel_scores }))
+      .sort((a, b) => a.ts - b.ts);
+    const snapTimes = snapshots.map(s => s.ts);
 
-    const ysC = tf.tensor2d(labeled.map(e => {
-      const ss = e.sentinel_scores || {};
-      const sev = e.severity === 'critical' ? 1.0 : e.severity === 'high' ? 0.75 : e.severity === 'medium' ? 0.5 : 0.25;
-      const ageHrs = (Date.now() - (e.timestamp || Date.now())) / 3600000;
-      const recency = Math.max(0.1, 1 - Math.min(ageHrs / 168, 1));
-      return CRISIS_IDS.map(id => {
-        const base = Math.min(1.0, (ss[id] || 0) / 100);
-        return Math.min(1.0, base * 0.75 * recency + sev * 0.08);
-      });
-    }), [labeled.length, CRISIS_COUNT]);
+    const lowerBound = (arr, val) => {
+      let lo = 0, hi = arr.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid] < val) lo = mid + 1; else hi = mid; }
+      return lo;
+    };
 
-    const ysD = tf.tensor2d(labeled.map(e => {
+    // Max sentinel score per crisis observed in [t + 0.5·h, t + 1.3·h]
+    const futureScores = (ts, horizonHrs) => {
+      const lo = ts + horizonHrs * 0.5 * 3600000;
+      const hi = ts + horizonHrs * 1.3 * 3600000;
+      let i = lowerBound(snapTimes, lo);
+      if (i >= snapshots.length || snapshots[i].ts > hi) return null;
+      const agg = {};
+      for (; i < snapshots.length && snapshots[i].ts <= hi; i++) {
+        const ss = snapshots[i].ss;
+        for (const id of CRISIS_IDS) {
+          const v = ss[id] || 0;
+          if (v > (agg[id] || 0)) agg[id] = v;
+        }
+      }
+      return agg;
+    };
+
+    let futureBacked = 0, totalRows = 0;
+    const escalationRow = (e, horizonHrs, scale, sevW) => {
+      totalRows++;
+      const fut = e.timestamp ? futureScores(e.timestamp, horizonHrs) : null;
+      if (fut) {
+        futureBacked++;
+        return CRISIS_IDS.map(id => Math.min(1.0, (fut[id] || 0) / 100));
+      }
+      // Fallback heuristic (no future data yet for this event)
       const ss = e.sentinel_scores || {};
       const sev = e.severity === 'critical' ? 1.0 : e.severity === 'high' ? 0.75 : e.severity === 'medium' ? 0.5 : 0.25;
       const ageHrs = (Date.now() - (e.timestamp || Date.now())) / 3600000;
       const recency = Math.max(0.1, 1 - Math.min(ageHrs / 168, 1));
       return CRISIS_IDS.map(id => {
         const base = Math.min(1.0, (ss[id] || 0) / 100);
-        return Math.min(1.0, base * 0.6 * recency + sev * 0.05);
+        return Math.min(1.0, base * scale * recency + sev * sevW);
       });
-    }), [labeled.length, CRISIS_COUNT]);
+    };
+
+    const ysB = tf.tensor2d(labeled.map(e => escalationRow(e, 24, 0.9,  0.10)), [labeled.length, CRISIS_COUNT]);
+    const ysC = tf.tensor2d(labeled.map(e => escalationRow(e, 48, 0.75, 0.08)), [labeled.length, CRISIS_COUNT]);
+    const ysD = tf.tensor2d(labeled.map(e => escalationRow(e, 72, 0.6,  0.05)), [labeled.length, CRISIS_COUNT]);
+    const futureBackedPct = totalRows ? Math.round((futureBacked / totalRows) * 100) : 0;
 
     if (!crisisModel) crisisModel = buildCrisisModel();
 
@@ -12638,7 +12765,7 @@ async function trainCrisisModel() {
     lastTrainTime = Date.now();
 
     await saveModelWeights();
-    updateMLStatus(`Model trained — ${labeled.length} samples · ${(modelAccuracy*100).toFixed(1)}% accuracy`);
+    updateMLStatus(`Model trained — ${labeled.length} samples · ${(modelAccuracy*100).toFixed(1)}% accuracy · ${futureBackedPct}% real-outcome escalation targets`);
 
   } catch(e) {
     updateMLStatus(`Training error: ${e.message}`);
@@ -12694,6 +12821,7 @@ async function loadModelWeights() {
 async function predictCrisisProbabilities(feeds) {
   if (!modelTrained || !crisisModel || !window.tf) return null;
 
+  const nb = await loadPatternClassifier().catch(() => null);
   const predictions = [];
   for (const feed of feeds.slice(0, 20)) {
     const features = extractFeatures(feed);
@@ -12713,13 +12841,20 @@ async function predictCrisisProbabilities(feeds) {
     
     tensor.dispose(); outputs.forEach(o => o.dispose());
 
-    // Head A: Current crisis classification
-    const crisisProbs = CRISIS_IDS.map((id, i) => ({
-      crisis: id,
-      label:  SENTINEL_CRISES[id]?.label || id,
-      prob:   probDataA[i],
-      score:  Math.round(probDataA[i] * 100),
-    })).filter(p => p.prob > 0.05).sort((a,b) => b.prob - a.prob);
+    // Head A: Current crisis classification — ensembled with the pattern
+    // classifier. Blend weight grows with NB evidence (matched keywords),
+    // capped at 35% so the NN stays primary.
+    const nbPred = patternPredict((feed.title||'') + ' ' + (feed.body||''), nb);
+    const blend  = nbPred ? Math.min(0.35, 0.10 + nbPred.matched * 0.05) : 0;
+    const crisisProbs = CRISIS_IDS.map((id, i) => {
+      const p = blend ? (1 - blend) * probDataA[i] + blend * nbPred.probs[id] : probDataA[i];
+      return {
+        crisis: id,
+        label:  SENTINEL_CRISES[id]?.label || id,
+        prob:   p,
+        score:  Math.round(p * 100),
+      };
+    }).filter(p => p.prob > 0.05).sort((a,b) => b.prob - a.prob);
 
     // Temporal forecasts: 24h, 48h, 72h
     const temporalForecast = CRISIS_IDS.map((id, i) => ({
@@ -12750,14 +12885,17 @@ async function predictWithMCConfidence(feed, numSamples = MC_DROPOUT_SAMPLES) {
   const features = extractFeatures(feed);
   const allPredictions = [];
 
-  // Run inference multiple times with dropout active
+  // Run inference multiple times with dropout active.
+  // NOTE: model.predict() ignores {training:true} in tf.js — dropout stayed
+  // OFF and every sample was identical (std always 0, fake confidence).
+  // model.apply(x, {training:true}) actually activates the dropout layers.
   for (let i = 0; i < numSamples; i++) {
-    // Enable dropout during inference by setting training=true
     const tensor = tf.tensor2d([Array.from(features)], [1, FEATURE_DIM]);
-    const outputs = crisisModel.predict(tensor, { training: true });
-    const probData = await outputs[0].data();
+    const outputs = crisisModel.apply(tensor, { training: true });
+    const outArr = Array.isArray(outputs) ? outputs : [outputs];
+    const probData = await outArr[0].data();
     allPredictions.push(Array.from(probData));
-    tensor.dispose(); outputs.forEach(o => o.dispose());
+    tensor.dispose(); outArr.forEach(o => o.dispose());
   }
 
   // Compute statistics: mean, std, confidence intervals
@@ -12827,9 +12965,11 @@ async function findHistoricalPatterns(currentFeatures, threshold = HISTORICAL_MA
     
     const eventVec = event.features.slice(0, 60);
     
-    // Compute cosine similarity
+    // Compute cosine similarity — skip clock dims 50-53: two unrelated events
+    // extracted in the same hour would otherwise look artificially similar
     let dotProduct = 0, magA = 0, magB = 0;
     for (let i = 0; i < 60; i++) {
+      if (i >= 50 && i <= 53) continue;
       dotProduct += currentVec[i] * eventVec[i];
       magA += currentVec[i] * currentVec[i];
       magB += eventVec[i] * eventVec[i];
@@ -12917,15 +13057,26 @@ async function updateBaselines() {
     const scores = history.slice(-ANOMALY_WINDOW).map(h => h.score);
     const mean   = scores.reduce((a,b) => a+b, 0) / scores.length;
     const std    = Math.sqrt(scores.reduce((a,b) => a+(b-mean)**2, 0) / scores.length) || 1;
-    baselineStats[crisisId] = { mean, std, n: scores.length };
-    await dbPut('baselines', { crisis_id: crisisId, mean, std, n: scores.length, updated: Date.now() })
+    // Robust center/scale (median + MAD): a genuine spike inside the window
+    // no longer drags the baseline up and masks itself from detection
+    const sortedS = [...scores].sort((a,b) => a-b);
+    const median  = sortedS[Math.floor(sortedS.length / 2)];
+    const absDev  = scores.map(s => Math.abs(s - median)).sort((a,b) => a-b);
+    const mad     = (absDev[Math.floor(absDev.length / 2)] * 1.4826) || 1;
+    baselineStats[crisisId] = { mean, std, median, mad, n: scores.length };
+    await dbPut('baselines', { crisis_id: crisisId, mean, std, median, mad, n: scores.length, updated: Date.now() })
       .catch(() => {});
   }
 }
 
 function getZScore(crisisId, currentScore) {
   const b = baselineStats[crisisId];
-  if (!b || b.std < 0.1) return 0;
+  if (!b) return 0;
+  // Prefer the robust score; fall back to classic z for pre-v2.0 baselines
+  if (typeof b.median === 'number' && typeof b.mad === 'number') {
+    return (currentScore - b.median) / Math.max(b.mad, 0.5);
+  }
+  if (b.std < 0.1) return 0;
   return (currentScore - b.mean) / b.std;
 }
 
@@ -13252,8 +13403,8 @@ function featuresFromSeed(event) {
   const month = now.getMonth();
   const isTyphoonSeason = month >= 5 && month <= 10;
   
-  FEATURE_KEYWORDS.forEach((kw, i) => {
-    const count = (text.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'g'))||[]).length;
+  FEATURE_KEYWORD_RES.forEach((re, i) => {
+    const count = (text.match(re)||[]).length;
     vec[i] = Math.min(1, count / 3);
   });
   vec[50] = Math.sin(2 * Math.PI * 10 / 24); vec[51] = Math.cos(2 * Math.PI * 10 / 24);
