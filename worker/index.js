@@ -1,6 +1,6 @@
 /**
  * JDM Command Center — Cloudflare Worker Proxy
- * Version: 3.0.0 (2026-09-04)
+ * Version: 3.0.1 (2026-09-04)
  *
  * Merges the live v1.0.0 worker (domain allowlist, legacy /proxy-* routes) with the
  * repo v2.1.0 worker (keyed /api/* routes) — the dashboard needs BOTH families.
@@ -30,7 +30,7 @@
  * Vars (wrangler.toml): ALLOWED_ORIGINS, RATE_LIMIT, MAX_RESPONSE_SIZE
  */
 
-const VERSION = '3.0.0';
+const VERSION = '3.0.1';
 const UPSTREAM_TIMEOUT_MS = 15000;
 let MAX_BYTES_DEFAULT = 5242880;   // overridden per request from env.MAX_RESPONSE_SIZE
 const FRESH_TTL = 300;          // seconds a cached upstream body is considered fresh
@@ -196,8 +196,9 @@ async function handleProxy(url, request, ctx) {
   const host = hostOf(target);
   const isReddit = host.endsWith('reddit.com');
   const isGdelt = host === 'api.gdeltproject.org';
-  // GDELT: short upstream timeout + one spaced retry keeps worst case ~22 s (client allows 30 s for GDELT calls)
-  return cachedFetch(target, { userAgent: isReddit ? REDDIT_UA : BROWSER_UA, retry429Ms: isGdelt ? 5500 : 0, timeoutMs: isGdelt ? 8000 : 0 }, ctx);
+  // GDELT: from Cloudflare egress it often hangs rather than 429s. 12 s + 5.5 s + 12 s = 29.5 s worst case
+  // (client allows 35 s for GDELT calls). Best-effort source — it is off the render-critical path.
+  return cachedFetch(target, { userAgent: isReddit ? REDDIT_UA : BROWSER_UA, retry429Ms: isGdelt ? 5500 : 0, timeoutMs: isGdelt ? 12000 : 0 }, ctx);
 }
 
 async function handleProxyRss(url, ctx) {
@@ -229,7 +230,7 @@ async function handleProxyReddit(url, ctx) {
 async function handleProxyGdelt(url, ctx) {
   const q = url.searchParams.get('q');
   if (!q) return json({ error: 'Missing q parameter' }, 400);
-  return cachedFetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&format=json&maxrecords=10&sourcelang=english`, { retry429Ms: 5500, timeoutMs: 8000 }, ctx);
+  return cachedFetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&format=json&maxrecords=10&sourcelang=english`, { retry429Ms: 5500, timeoutMs: 12000 }, ctx);
 }
 
 async function handleProxyNewsAggregate(url, ctx) {

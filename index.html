@@ -4421,7 +4421,7 @@ function gdeltThrottledFetch(url, sourceKey) {
       try {
         const base = getProxyBase() || LOCAL_PROXY_URL;
         const proxyUrl = `${base}/proxy?url=${encodeURIComponent(url)}`;
-        const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(30000) });   // v5.4: worker retries GDELT 429 once
+        const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(35000) });   // v5.4: worker retries GDELT 429 once (12+5.5+12 s budget)
         raw = await r.text();
       } catch(e) { /* fall through */ }
     }
