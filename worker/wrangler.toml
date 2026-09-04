@@ -4,7 +4,7 @@ compatibility_date = "2024-09-01"
 
 [vars]
 # Comma-separated list of allowed browser origins (prefix match). First entry is the fallback.
-ALLOWED_ORIGINS = "https://aiinterruptor.github.io,https://josed.github.io,http://localhost,http://127.0.0.1"
+ALLOWED_ORIGINS = "https://state-of-the-nationph.pages.dev,https://aiinterruptor.github.io,https://josed.github.io,http://localhost,http://127.0.0.1"
 # Soft per-IP limit per minute. One dashboard refresh is ~130 requests over 2 minutes.
 RATE_LIMIT = "300"
 MAX_RESPONSE_SIZE = "5242880"
@@ -12,3 +12,11 @@ MAX_RESPONSE_SIZE = "5242880"
 # Secrets are set via `wrangler secret put <NAME>` (never committed):
 #   wrangler secret put FIRMS_KEY
 #   wrangler secret put TAVILY_KEY
+
+[[kv_namespaces]]
+binding = "JDM_KV"
+id = "6d8b5ecaf053453eb510f14cc26052ae"
+
+[triggers]
+# every 30 min: collect feeds into KV. 22:05 UTC = 06:05 PHT and 10:05 UTC = 18:05 PHT: collect + Haiku brief.
+crons = ["*/30 * * * *", "5 22 * * *", "5 10 * * *"]

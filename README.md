@@ -1,27 +1,35 @@
-# JDM Command Center
+# State of the Nation PH — Command Center
 
-Philippines intelligence dashboard with real-time situational awareness.
+Philippines situational-awareness dashboard for government operations: live feeds, hazard outlook, and a twice-daily Intelligence Director's brief written by Claude Haiku 4.5.
 
-**Live:** https://aiinterruptor.github.io/jdm-dashboard
+**Live:** https://state-of-the-nationph.pages.dev (Cloudflare Pages, primary)
+**Mirror:** https://aiinterruptor.github.io/jdm-dashboard (GitHub Pages)
 
 ## Features
 
-- **Leaflet map** with tactical/satellite/terrain layers, NASA GIBS overlays (fires, precipitation, nightlights), and a Windy.com weather overlay (sole weather source)
-- **Intel feeds** from GDELT, USGS earthquakes, CoinGecko crypto, Frankfurter FX rates, World Bank indicators
-- **JARVIS AI chat** with threat analysis, simulation engine, and ML-powered crisis prediction
-- **4 sub-modes:** LGU Commander, PNP Watch, Home Security, Business Edge
-- **OSINT terminal** with deep search, entity extraction, and network analysis
-- **Radio intercept** panel with PH AM stations and international streams
-- **Mobile responsive** with bottom nav and stacked panels
+- **Leaflet map** with tactical (OpenStreetMap, dark filter), satellite, terrain and street layers, NASA GIBS overlays, and a Windy.com weather overlay
+- **Intel feeds** — Inquirer, GMA, Rappler, PhilStar, PTV, BBC Asia, ReliefWeb, GDACS, PHIVOLCS, NDRRMC, USGS, NASA FIRMS/EONET, CoinGecko, Frankfurter FX, World Bank, Reddit; per-source freshness badges (STALE when the worker served cache)
+- **Command screen** — the Intelligence Director's brief (anchor lead, analysis, developments with source refs, director's orders, 24-h outlook, gaps), generated at 06:00 and 18:00 PHT, plus a video news tab
+- **OUTLOOK** — predictive analytics: 72-h hazard table per region (Open-Meteo rain/gust, USGS, PHIVOLCS, FIRMS), rainfall chart, threat-index projection, items/hour nowcast, anomaly z-scores and emerging terms
+- **Keyword watchlist** with alerts, **operator notes** in a persisted incident log
+- **SENTINEL** early warning, Palantir correlation overlay, **4 sub-modes:** LGU Commander, PNP Watch, Home Security, Business Edge
+- **OSINT terminal** and JARVIS chat (bring your own model key)
 
 ## Architecture
 
-Single-page static app (no build step). Cloudflare Worker proxy handles CORS for RSS feeds and gov sources.
+Single-page static app (no build step). The Cloudflare Worker proxies feeds (domain allowlist, cache with stale-on-failure), collects the PH feeds into KV every 30 minutes, serves 7–30 days of hourly history, and runs the Haiku brief on a cron.
 
 | Component | Stack |
 |---|---|
-| Map | Leaflet + OpenStreetMap/CARTO tiles |
-| Data | GDELT, USGS, CoinGecko, Frankfurter (weather: Windy.com embed only) |
-| Proxy | Cloudflare Worker (`jdm-proxy.josed-jdm.workers.dev`) |
-| Hosting | GitHub Pages |
-| AI | Configurable LLM (Gemini/OpenRouter/OpenAI) |
+| Frontend | `index.html` on Cloudflare Pages (`scripts/deploy-pages.sh`), mirrored on GitHub Pages |
+| Proxy / collector / curator | Cloudflare Worker `jdm-proxy.josed-jdm.workers.dev` (`worker/`), KV `JDM_KV`, crons `*/30`, `0 22`, `0 10` UTC |
+| Curator model | Claude Haiku 4.5 via the Messages API (secret `ANTHROPIC_KEY`) |
+| Weather | Open-Meteo (keyless) |
+
+## Deploy
+
+```
+cd worker && npx wrangler deploy            # worker (secrets: FIRMS_KEY, TAVILY_KEY, ANTHROPIC_KEY, ADMIN_TOKEN)
+scripts/deploy-pages.sh                      # Cloudflare Pages
+git push origin main                         # GitHub Pages mirror
+```

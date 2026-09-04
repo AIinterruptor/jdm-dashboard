@@ -4,11 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="JDM Command Center — Real-time Philippines intelligence dashboard aggregating GDELT, PAGASA, PHIVOLCS, news, social, and satellite feeds into a unified situational awareness platform.">
-<title>JDM · COMMAND CENTER v5.7</title>
+<title>STATE OF THE NATION PH · COMMAND CENTER v5.9</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://jdm-proxy.josed-jdm.workers.dev" crossorigin>
+<link rel="preconnect" href="https://a.tile.openstreetmap.org">
+<link rel="dns-prefetch" href="https://api.open-meteo.com">
+<link rel="dns-prefetch" href="https://earthquake.usgs.gov">
+<link rel="dns-prefetch" href="https://api.coingecko.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <!-- Leaflet OpenStreetMap (no API key required) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -65,7 +70,7 @@
   --hdr:   48px;
   --left:  296px;
   --right: 304px;
-  --btm:   232px;
+  --btm: clamp(300px, 42vh, 460px);   /* v5.9: command screen gets real estate */
 
   /* Elevation shadows */
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
@@ -816,7 +821,37 @@ body {
   border-top:1px solid var(--border);
   overflow:hidden;
 }
-#panel-bottom.collapsed #yt-news-content { display:none; }
+#panel-bottom.collapsed #yt-news-content, #panel-bottom.collapsed #curator-content { display:none; }
+/* v5.9 command screen */
+.cmd-tab { background:none; border:1px solid var(--border); color:var(--t3); font-family:var(--mono); font-size:8px; letter-spacing:1.5px; padding:2px 8px; cursor:pointer; }
+.cmd-tab.active { color:var(--amber); border-color:var(--amber-dim); background:rgba(200,168,75,0.07); }
+#curator-content { flex:1; min-height:0; overflow:auto; background:var(--dark-ops); padding:12px 16px; scrollbar-width:thin; font-family:var(--ui); color:var(--t1); }
+#curator-content[hidden], #yt-news-content[hidden] { display:none; }
+.cur-empty { color:var(--t3); font-family:var(--mono); font-size:10px; padding:14px 0; }
+.cur-meta { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-family:var(--mono); font-size:8px; letter-spacing:1px; color:var(--t3); margin-bottom:8px; }
+.cur-meta .cur-conf { border:1px solid currentColor; padding:0 6px; border-radius:2px; }
+.cur-headline { font-family:var(--ui); font-size:19px; font-weight:700; line-height:1.2; color:var(--amber-text, var(--amber)); letter-spacing:0.2px; margin:0 0 6px; }
+.cur-lead { font-size:13px; line-height:1.5; color:var(--t1); margin:0 0 10px; }
+.cur-grid { display:grid; grid-template-columns:3fr 2fr; gap:14px; }
+.cur-sub { font-family:var(--mono); font-size:8px; letter-spacing:2px; color:var(--amber-dim); margin:8px 0 5px; text-transform:uppercase; }
+.cur-situation { font-size:12px; line-height:1.55; color:var(--t2); margin:0 0 4px; }
+.cur-dev { display:grid; grid-template-columns:22px 1fr; gap:6px; padding:6px 0; border-top:1px solid rgba(200,168,75,0.08); }
+.cur-dev .cur-rank { font-family:var(--mono); font-size:10px; color:var(--t3); padding-top:2px; }
+.cur-dev .cur-title { font-size:12.5px; font-weight:600; color:var(--t1); }
+.cur-dev .cur-what { font-size:11.5px; color:var(--t2); line-height:1.45; margin-top:2px; }
+.cur-dev .cur-why { font-size:11px; color:var(--t2); line-height:1.4; margin-top:2px; font-style:italic; }
+.cur-pill { display:inline-block; font-family:var(--mono); font-size:7px; letter-spacing:1px; padding:0 5px; border:1px solid currentColor; border-radius:2px; margin-right:5px; vertical-align:middle; }
+.cur-refs { font-family:var(--mono); font-size:8px; margin-top:3px; }
+.cur-refs a { color:var(--t3); text-decoration:none; margin-right:6px; }
+.cur-refs a:hover { color:var(--amber); }
+.cur-order { padding:5px 0 5px 10px; border-left:2px solid var(--amber-dim); margin:0 0 6px; }
+.cur-order .cur-o { font-size:12px; color:var(--t1); font-weight:600; }
+.cur-order .cur-r { font-size:11px; color:var(--t2); line-height:1.4; margin-top:2px; }
+.cur-outlook { font-size:11.5px; color:var(--t2); line-height:1.5; }
+.cur-gaps { font-size:11px; color:var(--t3); line-height:1.45; padding-left:14px; margin:0; }
+.cur-gaps li { margin-bottom:2px; }
+.cur-stale { font-family:var(--mono); font-size:9px; color:var(--orange); border:1px solid rgba(200,92,26,0.5); background:rgba(200,92,26,0.08); padding:5px 8px; margin-bottom:8px; }
+@media (max-width: 1100px) { .cur-grid { grid-template-columns:1fr; } }
 
 .jarvis-toggle-btn {
   background:none; border:none; color:var(--amber-dim);
@@ -2795,8 +2830,8 @@ window.gm_authFailure = function() {
     <div class="hdr-logo">
       <div class="hdr-logo-mark"></div>
       <div class="hdr-wordmark">
-        <div class="hdr-brand">JDM</div>
-        <div class="hdr-tagline">COMMAND CENTER v5.7</div>
+        <div class="hdr-brand">STATE OF THE NATION PH</div>
+        <div class="hdr-tagline">COMMAND CENTER v5.9</div>
       </div>
     </div>
   </div>
@@ -3248,15 +3283,18 @@ window.gm_authFailure = function() {
         </div>
     </div>
 
-  <!-- BOTTOM: YOUTUBE NEWS -->
-  <div class="panel" id="panel-bottom" role="region" aria-label="YouTube News Feed">
+  <!-- BOTTOM: COMMAND SCREEN — Intelligence Director's brief (Claude Haiku 4.5, every 12 h) + video news -->
+  <div class="panel" id="panel-bottom" role="region" aria-label="Command screen">
     <div class="panel-header">
-      <h2 class="panel-title">YOUTUBE · NEWS FEED</h2>
+      <h2 class="panel-title">COMMAND SCREEN · INTELLIGENCE DIRECTOR</h2>
       <div style="display:flex;align-items:center;gap:4px">
+        <button class="cmd-tab active" id="cmd-tab-curator" onclick="switchCmd('curator')">◈ CURATOR</button>
+        <button class="cmd-tab" id="cmd-tab-video" onclick="switchCmd('video')">▶ VIDEO</button>
         <button class="jarvis-toggle-btn" id="jarvis-toggle" onclick="toggleJarvis()" title="Collapse">▼</button>
       </div>
     </div>
-    <div id="yt-news-content">
+    <div id="curator-content"><div class="cur-empty">Loading the Intelligence Director's brief…</div></div>
+    <div id="yt-news-content" hidden>
       <div id="yt-channel-bar">
         <button class="yt-ch-btn active" onclick="switchYT('all',this)">ALL</button>
         <button class="yt-ch-btn" onclick="switchYT('abs-cbn',this)">ABS-CBN</button>
@@ -4821,7 +4859,8 @@ function renderGdeltFeedBadge(item) {
 // Deploy: cd jdm-cf-worker && npx wrangler deploy
 // Update CLOUDFLARE_WORKER_URL after deploying
 const CLOUDFLARE_WORKER_URL = 'https://jdm-proxy.josed-jdm.workers.dev';
-const GITHUB_PAGES_URL = 'https://aiinterruptor.github.io/jdm-dashboard';
+const GITHUB_PAGES_URL = 'https://aiinterruptor.github.io/jdm-dashboard';   // mirror
+const CANONICAL_URL    = 'https://state-of-the-nationph.pages.dev';          // v5.8: primary host (Cloudflare Pages)
 const LOCAL_PROXY_URL = `http://${window.location.hostname}:8083`;
 let proxyMode = 'unknown'; // 'cloudflare' | 'local' | 'cors' | 'none'
 
@@ -5755,7 +5794,8 @@ async function initSystem() {
   addJarvisMsg('jarvis', `J.A.R.V.I.S. Philippines National Intelligence Platform online.<br>Coverage: <strong>All 17 Regions · 82 Provinces · Key Cities</strong>.<br>Sources: <strong>Inquirer · GMA · Rappler · PhilStar · PTV · BBC Asia · ReliefWeb · GDELT · Reddit · USGS · NASA FIRMS/EONET · GDACS · PHIVOLCS · NDRRMC · Frankfurter FX · World Bank · CoinGecko · YouTube news</strong><br>Early Warning: <strong>18 crisis types · 72h ML forecast · 8 precursor chains · Z-score anomaly detection</strong>.<br><br>${proxyStatus}<br><br>Select a location using the <strong>◉ LOCATION</strong> button or search by city/province/region. Press <strong>?</strong> for keyboard shortcuts. Press <strong>F</strong> for a 72-hour early warning forecast.<br>${hasActiveKey() ? 'AI analysis <strong style="color:var(--green-hi)">ONLINE</strong> via <strong>' + (OPENROUTER_KEY ? 'OpenRouter' : GEMINI_KEY ? 'Google Gemini' : 'Anthropic Claude') + '</strong> · Model: <strong>' + ACTIVE_MODEL.split('/').pop().replace(':free','').substring(0,24) + '</strong>. Awaiting orders, Commander.' : '⚠ Set CONFIG.GROQ_KEY (free) or CONFIG.OPENROUTER_KEY (free) or CONFIG.GEMINI_KEY / CLAUDE_KEY to activate AI analysis.'}<br><br><span style="color:var(--t3)">📱 <strong>PWA Ready</strong> — Works offline with cached data. Type /offline for status.</span>`);
   
   setTimeout(injectRadioPanel, 1000);
-  setTimeout(() => loadYTGrid('all'), 2000);
+  setTimeout(fetchCuratorBrief, 1500);                  // v5.9: command screen (video feeds load when that tab opens)
+  setInterval(fetchCuratorBrief, 30 * 60000);
   initMLEngine().catch(e => console.warn("ML Engine:", e.message));
   // Build initial EW forecasts after feeds load (non-blocking)
   setTimeout(async () => {
@@ -7071,7 +7111,7 @@ function toggleJarvis() {
   document.getElementById('panel-bottom').classList.toggle('collapsed', jarvisCollapsed);
   const btn = document.getElementById('jarvis-toggle');
   btn.textContent = jarvisCollapsed ? '▲' : '▼';
-  btn.title = jarvisCollapsed ? 'Expand News' : 'Collapse News';
+  btn.title = jarvisCollapsed ? 'Expand command screen' : 'Collapse command screen';
 }
 
 // ─── BRIEF MODAL ──────────────────────────────────────────────────────────
@@ -7203,6 +7243,84 @@ function showKeyboardHelp() {
   ).join('');
 
   addJarvisMsg('jarvis', `<strong style="letter-spacing:2px">⌨ KEYBOARD SHORTCUTS</strong><br><br><div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin-top:4px">${rows}</div>`);
+}
+
+// ─── COMMAND SCREEN / CURATOR (v5.9) ─────────────────────────────────────
+// The worker runs Claude Haiku 4.5 as the Intelligence Director every 12 h (06:00 / 18:00 PHT) over the
+// feeds it collected into KV, and serves the structured brief at /api/brief. This panel only renders it.
+let curatorBrief = null, cmdView = 'curator';
+function switchCmd(v) {
+  cmdView = v;
+  const cur = document.getElementById('curator-content'), vid = document.getElementById('yt-news-content');
+  if (cur) cur.hidden = v !== 'curator';
+  if (vid) vid.hidden = v !== 'video';
+  document.querySelectorAll('.cmd-tab').forEach(b => b.classList.toggle('active', b.id === 'cmd-tab-' + v));
+  if (v === 'video' && !Object.keys(ytVideoCache).length) loadYTGrid('all');   // video feeds load on first open
+}
+function nextBriefLabel() {
+  const now = new Date(Date.now() + 8 * 3600000); const h = now.getUTCHours();
+  const next = h < 6 ? '06:00' : h < 18 ? '18:00' : '06:00';
+  return `${next} PHT${h >= 18 ? ' tomorrow' : ''}`;
+}
+async function fetchCuratorBrief() {
+  const base = (typeof getProxyBase === 'function' && getProxyBase()) || CLOUDFLARE_WORKER_URL;
+  try {
+    const r = await fetch(base + '/api/brief', { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+    if (r.status === 404) { renderCurator(null, `The Intelligence Director has not filed a brief yet. First brief at ${nextBriefLabel()}.`); return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    curatorBrief = await r.json();
+    renderCurator(curatorBrief);
+  } catch(e) {
+    if (!curatorBrief) renderCurator(null, 'Brief unavailable: ' + e.message);
+  }
+}
+function renderCurator(rec, msg) {
+  const el = document.getElementById('curator-content'); if (!el) return;
+  if (!rec || !rec.brief) { el.innerHTML = `<div class="cur-empty">${escHtml(msg || 'No brief.')}</div>`; return; }
+  const b = rec.brief; const refs = Array.isArray(rec.refs) ? rec.refs : [];
+  const sevColor = { critical:'var(--red)', high:'var(--orange)', medium:'var(--yellow)', low:'var(--green-hi)' };
+  const confColor = { high:'var(--green-hi)', moderate:'var(--yellow)', low:'var(--orange)' };
+  const safeUrl = u => (typeof u === 'string' && /^https?:\/\//i.test(u)) ? u : '';
+  const refLinks = arr => (Array.isArray(arr) ? arr : []).slice(0, 6).map(n => { const r = refs[n - 1]; if (!r) return ''; const u = safeUrl(r.l); return u ? `<a href="${escAttr(u)}" target="_blank" rel="noopener" title="${escAttr(r.t)}">[${n}] ${escHtml((r.s || '').substring(0, 14))}</a>` : `<span title="${escAttr(r.t)}">[${n}] ${escHtml((r.s || '').substring(0, 14))}</span>`; }).join('');
+  const pick = (map, k, dflt) => Object.hasOwn(map, k) ? map[k] : dflt;
+  const devs = (b.developments || []).map((d, i) => `<div class="cur-dev"><div class="cur-rank">${String(i + 1).padStart(2, '0')}</div><div>
+      <div class="cur-title"><span class="cur-pill" style="color:${pick(sevColor, d.severity, 'var(--t3)')}">${escHtml(String(d.severity || '').toUpperCase())}</span><span class="cur-pill" style="color:var(--t3)">${escHtml(String(d.category || '').toUpperCase())}</span>${escHtml(d.title || '')}</div>
+      <div class="cur-what">${escHtml(d.what || '')}</div>
+      ${d.why_it_matters ? `<div class="cur-why">Why it matters: ${escHtml(d.why_it_matters)}</div>` : ''}
+      <div class="cur-refs">${refLinks(d.refs)}</div></div></div>`).join('');
+  const orders = (b.director_orders || []).map(o => `<div class="cur-order"><div class="cur-o">${escHtml(o.order || '')}</div><div class="cur-r">${escHtml(o.rationale || '')}</div><div class="cur-refs">${refLinks(o.refs)}</div></div>`).join('');
+  const gaps = (b.gaps || []).map(g => `<li>${escHtml(g)}</li>`).join('');
+  const gen = rec.generated_at ? new Date(rec.generated_at) : null;
+  const ageH = gen ? (Date.now() - gen.getTime()) / 3600000 : 0;
+  const stale = ageH > 13;   // a 12-hourly brief older than 13 h means a run was missed
+  const lastErr = rec.lasterror && rec.lasterror.error ? rec.lasterror : null;
+  el.innerHTML = `
+    ${stale || lastErr ? `<div class="cur-stale">⚠ ${stale ? `STALE — this brief is ${Math.round(ageH)} h old; the scheduled run did not replace it.` : 'The latest scheduled run failed; showing the previous brief.'}${lastErr ? ` Last error: ${escHtml(String(lastErr.error).slice(0, 160))}` : ''}</div>` : ''}
+    <div class="cur-meta">
+      <span>BRIEF · ${escHtml(rec.generated_pht || '')}</span>
+      <span>${gen ? escHtml(timeAgo(gen.getTime())) : ''}</span>
+      <span class="cur-conf" style="color:${pick(confColor, b.confidence, 'var(--t3)')}" title="The model's own confidence in its read of the feed — not an analyst grading">MODEL CONF ${escHtml(String(b.confidence || '').toUpperCase())}</span>
+      <span>${rec.items_considered || 0} ITEMS · 24 H</span>
+      <span>${escHtml(String(rec.model || 'claude-haiku-4-5').replace(/-\d{8}$/, ''))}</span>
+      <span>NEXT ${escHtml(nextBriefLabel())}</span>
+    </div>
+    <h3 class="cur-headline">${escHtml(b.headline || '')}</h3>
+    <p class="cur-lead">${escHtml(b.anchor_lead || '')}</p>
+    <div class="cur-grid">
+      <div>
+        <div class="cur-sub">Situation</div>
+        <p class="cur-situation">${escHtml(b.situation || '')}</p>
+        <div class="cur-sub">Developments</div>
+        ${devs || '<div class="cur-empty">None listed.</div>'}
+      </div>
+      <div>
+        <div class="cur-sub">Director's orders · next 24 h</div>
+        ${orders || '<div class="cur-empty">None.</div>'}
+        <div class="cur-sub">Outlook · 24 h</div>
+        <p class="cur-outlook">${escHtml(b.outlook_24h || '')}</p>
+        ${gaps ? `<div class="cur-sub">Gaps to verify</div><ul class="cur-gaps">${gaps}</ul>` : ''}
+      </div>
+    </div>`;
 }
 
 // ─── YOUTUBE NEWS PANEL ───────────────────────────────────────────────────
@@ -8622,7 +8740,7 @@ async function registerServiceWorker() {
     const swCode = `
 // JDM Intel Dashboard - Service Worker v1.0
 const CACHE_NAME = 'jdm-cache-v1';
-const STATIC_CACHE = 'jdm-static-v1';
+const STATIC_CACHE = 'jdm-static-v2';   // v5.8: bumped so the old cache-first shell copy is dropped
 const MAP_CACHE = 'jdm-maps-v1';
 
 // Files to cache immediately
@@ -8710,18 +8828,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Handle static files - cache first
+  // v5.8: the app shell (same-origin HTML) is NETWORK-FIRST with cache fallback, so a deploy is live on the
+  // first load and the cached copy only serves offline. Third-party CDN assets stay cache-first below.
+  const isShell = url.origin === self.location.origin && (url.pathname.endsWith('/') || url.pathname.endsWith('/index.html'));
+  if (isShell) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-cache' }).then((response) => {
+        if (response.ok) caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, response.clone())).catch(() => {});
+        return response;
+      }).catch(() => caches.match(event.request).then((cached) => cached || new Response('<!doctype html><title>Offline</title><p style="font-family:monospace;padding:2em">JDM Command Center is offline and no cached copy exists yet.</p>', { status: 503, headers: { 'Content-Type': 'text/html' } })))
+    );
+    return;
+  }
+  // Static CDN assets - cache first, refresh in background
   if (STATIC_FILES.some(file => url.href.includes(file))) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) {
-          // Fetch in background to update cache
           fetch(event.request).then((response) => {
-            if (response.ok) {
-              caches.open(STATIC_CACHE).then((cache) => {
-                cache.put(event.request, response);
-              });
-            }
+            if (response.ok) caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, response));
           }).catch(() => {});
           return cached;
         }
@@ -9725,9 +9850,48 @@ function acRecordingStart(history) {
   const s = history.map(f => f && f.savedAt).filter(Boolean);
   return s.length ? Math.min(...s) : Date.now() - 3600000;
 }
+// v5.9: the worker collects the same feeds every 30 min into KV (see /api/history). When that record covers
+// more hours than this browser has seen, it becomes the baseline so OUTLOOK is meaningful from day one.
+let _serverHist = null;
+async function fetchServerHistory() {
+  try {
+    const base = (typeof getProxyBase === 'function' && getProxyBase()) || CLOUDFLARE_WORKER_URL;
+    const r = await fetch(base + '/api/history?days=8', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return null;
+    const d = await r.json(); const now = Date.now(); const H = 168;
+    const counts = Array(H).fill(null), cats = Array(H).fill(null);
+    for (const day of d.days || []) {
+      const y = +day.day.slice(0, 4), m = +day.day.slice(4, 6) - 1, dd = +day.day.slice(6, 8);
+      (day.hours || []).forEach((h, hh) => {
+        const t = Date.UTC(y, m, dd, hh) - 8 * 3600000; const age = Math.floor((now - t) / 3600000);
+        if (age < 0 || age >= H) return; const idx = H - 1 - age; counts[idx] = h.n || 0; cats[idx] = h.cat || {};
+      });
+    }
+    // Hours before collection began hold back-filled archive items, not observed activity — blank them.
+    const sinceIdx = d.since ? H - 1 - Math.floor((now - d.since) / 3600000) : counts.findIndex(c => c > 0);
+    const first = Math.max(0, sinceIdx);
+    for (let i = 0; i < first; i++) { counts[i] = null; cats[i] = null; }
+    const hoursAvail = counts.filter(c => c != null).length;
+    _serverHist = { counts, cats, hoursAvail, since: first >= 0 ? now - (H - 1 - first) * 3600000 : null, collector: d.collector || null };
+    return _serverHist;
+  } catch(e) { return null; }
+}
 function buildHourlySeries(history, feeds) {
   const now = Date.now(); const H = 168; const counts = Array(H).fill(0); const seen = new Set();
-  const since = Math.max(acRecordingStart(history), now - (H - 1) * 3600000);
+  const localSince = Math.max(acRecordingStart(history), now - (H - 1) * 3600000);
+  const S = _serverHist; const localHours = Math.floor((now - localSince) / 3600000) + 1;
+  if (S && S.hoursAvail >= 12 && S.hoursAvail >= localHours) {
+    const c = S.counts.map(v => v == null ? 0 : v);
+    const coverageH = S.hoursAvail;
+    const hodStart = new Date(now - (H - 1) * 3600000).getHours();
+    const byHod = Array.from({ length: 24 }, () => []);
+    // null = hour not observed (before collection began, or a missing day doc) — excluded from the baseline
+    S.counts.forEach((v, i) => { if (v != null) byHod[(hodStart + i) % 24].push(v); });
+    const base = byHod.map(a => a.length ? acSum(a) / a.length : 0);
+    const sd = byHod.map((a, h) => a.length > 1 ? Math.sqrt(a.reduce((s, v) => s + (v - base[h]) ** 2, 0) / (a.length - 1)) : 0);
+    return { counts: c, base, sd, coverageH, nowHod: new Date(now).getHours(), source: 'server' };
+  }
+  const since = localSince;
   history.concat(feeds).forEach(f => {
     if (!f || !f.title) return;
     const k = f.url || f.title.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 40);
@@ -9742,7 +9906,7 @@ function buildHourlySeries(history, feeds) {
   counts.forEach((c, i) => { if (i >= firstNonZero) byHod[(hodStart + i) % 24].push(c); });
   const base = byHod.map(a => a.length ? acSum(a) / a.length : 0);
   const sd = byHod.map((a, h) => a.length > 1 ? Math.sqrt(a.reduce((s, v) => s + (v - base[h]) ** 2, 0) / (a.length - 1)) : 0);
-  return { counts, base, sd, coverageH, nowHod: new Date(now).getHours() };
+  return { counts, base, sd, coverageH, nowHod: new Date(now).getHours(), source: 'browser' };
 }
 
 function renderRateNowcast(hs) {
@@ -9762,7 +9926,7 @@ function renderRateNowcast(hs) {
       { type:'line', label:`Nowcast ×${ratio.toFixed(2)}`, data: pad(23).concat([last24[23]], proj.map(p => p.mean)), borderColor:'rgba(74,140,63,0.95)', borderDash:[4, 3], pointRadius:0, borderWidth:1.5, tension:0.2 },
     ] },
     options:{ ...AC_CHART, plugins:{ ...AC_CHART.plugins, legend:{ ...AC_CHART.plugins.legend, labels:{ ...AC_CHART.plugins.legend.labels, filter: it => it.text !== 'hi' } },
-      subtitle:{ display:true, color:'rgba(180,165,120,0.55)', font:{ family:'IBM Plex Mono', size:7 }, text:`Baseline from ${hs.coverageH} h of stored history${hs.coverageH < 72 ? ' — thin; bands firm up after ~3 days' : ''} · last 6 h ran ${ratio.toFixed(2)}× baseline` } } } });
+      subtitle:{ display:true, color:'rgba(180,165,120,0.55)', font:{ family:'IBM Plex Mono', size:7 }, text:`Baseline from ${hs.coverageH} h of ${hs.source === 'server' ? 'worker-collected' : 'browser'} history${hs.coverageH < 72 ? ' — thin; bands firm up after ~3 days' : ''} · last 6 h ran ${ratio.toFixed(2)}× baseline` } } } });
 }
 
 const AC_STOP = new Set(['latest','world','green','service','services','population','category','region','regional','province','provincial','local','metro','online','stream','livestream','replay','inquirer','rappler','philstar','gmanetwork','reuters','bloomberg','asian','asia','pacific','global','international','nation','nationwide','public','people','group','media','network','channel','digital','watch','shorts','episode','headlines','headline','story','stories','trending','viral','exclusive','photos','photo','videos','philippines','philippine','filipino','filipinos','pilipinas','manila','after','before','under','over','while','during','their','there','these','those','about','against','among','because','would','could','should','which','where','being','other','first','still','since','police','government','national','official','officials','senate','house','president','news','update','breaking','report','reports','says','said','video','watch','live','today','monday','tuesday','wednesday','thursday','friday','saturday','sunday','january','february','march','april','june','july','august','september','october','november','december']);
@@ -9775,10 +9939,22 @@ function renderAnomalies(history, feeds) {
   const since = acRecordingStart(history);
   for (let i = items.length - 1; i >= 0; i--) if (items[i]._ts < since) items.splice(i, 1);   // pre-recording items would pile into one window
   const winsAvail = Math.max(1, Math.min(nWin, Math.ceil((now - since) / win)));
-  // Category z-scores
-  const cats = {}; items.forEach(i => { const c = i.category || 'other'; cats[c] = cats[c] || Array(nWin).fill(0); cats[c][bucket(i._ts)]++; });
+  // Category z-scores — from the worker's hourly record when it covers more than this browser has seen
+  const cats = {};
+  const S = _serverHist; const localWins = winsAvail;
+  const serverWins = S ? Math.min(nWin, Math.floor(Math.max(0, S.hoursAvail - 1) / 6)) : 0;
+  const useServer = S && S.hoursAvail >= 12 && serverWins >= localWins;
+  if (useServer) {
+    // Windows are built from COMPLETED hours only (the in-progress hour is partial and the collector lags ≤30 min),
+    // so the current window is compared like-for-like with the prior ones.
+    const H = 168;
+    S.cats.forEach((cm, idx) => { if (!cm) return; const age = H - 1 - idx; if (age < 1) return; const w = Math.min(nWin - 1, Math.floor((age - 1) / 6)); for (const [c, n] of Object.entries(cm)) { cats[c] = cats[c] || Array(nWin).fill(0); cats[c][w] += n; } });
+  } else {
+    items.forEach(i => { const c = i.category || 'other'; cats[c] = cats[c] || Array(nWin).fill(0); cats[c][bucket(i._ts)]++; });
+  }
+  const winsForZ = useServer ? serverWins : winsAvail;
   // A z-score needs at least two prior windows; before that we show the raw count and say so.
-  const catRows = Object.entries(cats).map(([c, arr]) => { const cur = arr[0]; const hist = arr.slice(1, winsAvail); const mean = hist.length ? acSum(hist) / hist.length : 0; const sd = hist.length > 1 ? Math.sqrt(hist.reduce((s, v) => s + (v - mean) ** 2, 0) / (hist.length - 1)) : 0; return { c, cur, mean, z: hist.length >= 2 ? (cur - mean) / Math.max(sd, Math.sqrt(mean), 1) : null }; })   // Poisson floor on σ.sort((a, b) => ((b.z ?? -1e9) - (a.z ?? -1e9)) || b.cur - a.cur);
+  const catRows = Object.entries(cats).map(([c, arr]) => { const cur = arr[0]; const hist = arr.slice(1, winsForZ); const mean = hist.length ? acSum(hist) / hist.length : 0; const sd = hist.length > 1 ? Math.sqrt(hist.reduce((s, v) => s + (v - mean) ** 2, 0) / (hist.length - 1)) : 0; return { c, cur, mean, z: hist.length >= 2 ? (cur - mean) / Math.max(sd, Math.sqrt(mean), 1) : null }; })   // Poisson floor on σ.sort((a, b) => ((b.z ?? -1e9) - (a.z ?? -1e9)) || b.cur - a.cur);
   // Emerging terms: places (loc) + capitalised tokens, scored by current 6 h vs average 6-h window
   const terms = {};
   const bump = (t, b, srcName, isPlace) => { if (!t) return; const e = terms[t] = terms[t] || { arr: Array(nWin).fill(0), srcs: new Set(), place: isPlace }; e.arr[b]++; e.srcs.add(srcName || '?'); };
@@ -9798,7 +9974,7 @@ function renderAnomalies(history, feeds) {
         : `<div class="ac-row"><span class="lbl">${escHtml(r.c)}</span><span class="bar"><i style="left:50%;width:${Math.min(50, Math.abs(r.z) * 12)}%;${r.z < 0 ? 'left:auto;right:50%;' : ''}background:${zColor(r.z)}"></i></span><span class="val" style="color:${zColor(r.z)}">${r.z >= 0 ? '+' : ''}${r.z.toFixed(1)}σ</span><span class="val" style="color:var(--t3)">${r.cur} / ${r.mean.toFixed(1)}</span></div>`).join('') : '<div class="ac-empty">No history yet.</div>') +
     `<div class="ac-sub">EMERGING · MENTIONS NOW VS 6-H AVERAGE</div>` +
     (winsAvail < 3 ? '<div class="ac-empty">Needs 12 h of recorded history to tell acceleration from arrival.</div>' : emerging.length ? emerging.map(e => `<div class="ac-row"><span class="lbl" title="${escAttr(e.t)} — ${e.srcs} source${e.srcs > 1 ? 's' : ''}">${escHtml(e.t)}</span><span class="bar"><i style="left:0;width:${Math.min(100, e.score * 25)}%;background:var(--amber)"></i></span><span class="val" style="color:var(--amber)">${e.score.toFixed(1)}×</span><span class="val" style="color:var(--t3)">${e.cur} / ${e.avg.toFixed(1)}</span></div>`).join('') : '<div class="ac-empty">Nothing accelerating.</div>') +
-    `<div class="ac-note">Baselines use ${winsAvail - 1} prior 6-hour windows${winsAvail < 3 ? ' — z-scores start after 12 h of recorded history' : winsAvail < 8 ? ' (thin — firms up after ~2 days of history)' : ''}. z ≥ 2σ is unusual; ≥ 3σ is a spike. Emerging = mentions in the current window divided by the window average + 1; places come from geolocated items, names from capitalised headline terms.</div>`;
+    `<div class="ac-note">Category baselines use ${winsForZ - 1} prior 6-hour windows of ${useServer ? 'worker-collected' : 'browser'} history${winsForZ < 3 ? ' — z-scores start after 12 h of recorded history' : winsForZ < 8 ? ' (thin — firms up after ~2 days)' : ''}. z ≥ 2σ is unusual; ≥ 3σ is a spike. Emerging = mentions in the current window divided by the window average + 1; places come from geolocated items, names from capitalised headline terms.</div>`;
 }
 
 let _acGen = 0;
@@ -9810,6 +9986,7 @@ async function renderAnalytics(force) {
   if (stamp) stamp.textContent = 'COMPUTING…';
   let history = [];
   try { history = await loadFeedsFromHistoryDB(168); } catch(e) { history = []; }
+  await fetchServerHistory();                                // v5.9: worker-collected baselines
   if (gen !== _acGen) return;
   const feeds = allFeeds || [];
   renderThreatProjection();                                  // needs no I/O
@@ -9822,7 +9999,7 @@ async function renderAnalytics(force) {
   renderHazardTable(hz);
   renderRainChart(hz);
   window._lastHazards = hz;                                  // for JARVIS / OSINT reuse
-  if (stamp) stamp.textContent = `${wx ? 'FORECAST ' + new Date(_wxCache.t).toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit' }) : 'FORECAST OFFLINE'} · HISTORY ${hs.coverageH} H · ${history.length} ITEMS`;
+  if (stamp) stamp.textContent = `${wx ? 'FORECAST ' + new Date(_wxCache.t).toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit' }) : 'FORECAST OFFLINE'} · HISTORY ${hs.coverageH} H (${hs.source}) · ${history.length} ITEMS`;
 }
 
 // ─── 11. QUICK CHART GENERATOR ────────────────────────────────────────────
