@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="JDM Command Center — Real-time Philippines intelligence dashboard aggregating GDELT, PAGASA, PHIVOLCS, news, social, and satellite feeds into a unified situational awareness platform.">
-<title>JDM · COMMAND CENTER v5.6</title>
+<title>JDM · COMMAND CENTER v5.7</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1313,6 +1313,23 @@ body {
   color:var(--amber-dim); text-transform:uppercase; margin-bottom:10px;
 }
 .analytics-cell canvas { flex:1; min-height:0; }
+/* v5.7 predictive analytics */
+.analytics-cell.wide { grid-column: span 2; }
+.analytics-scroll { flex:1; min-height:0; overflow:auto; font-family:var(--mono); font-size:9px; color:var(--t2); scrollbar-width:thin; }
+.ac-basis { color:var(--t3); letter-spacing:0; text-transform:none; margin-left:6px; }
+.ac-empty { color:var(--t3); padding:12px 0; }
+.ac-table { width:100%; border-collapse:collapse; }
+.ac-table th { text-align:left; color:var(--t3); font-weight:500; letter-spacing:1px; font-size:7px; padding:3px 6px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--surface); }
+.ac-table td { padding:3px 6px; border-bottom:1px solid rgba(200,168,75,0.06); white-space:nowrap; }
+.ac-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.ac-pill { display:inline-block; padding:0 5px; border:1px solid currentColor; border-radius:2px; font-size:7px; letter-spacing:1px; }
+.ac-row { display:flex; align-items:center; gap:6px; padding:2px 0; }
+.ac-row .lbl { width:78px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--t1); }
+.ac-row .bar { flex:1; height:6px; background:rgba(200,168,75,0.08); position:relative; }
+.ac-row .bar i { position:absolute; top:0; bottom:0; }
+.ac-row .val { width:52px; text-align:right; font-variant-numeric:tabular-nums; }
+.ac-sub { color:var(--amber-dim); font-size:7px; letter-spacing:2px; margin:8px 0 4px; }
+.ac-note { color:var(--t3); font-size:7px; margin-top:8px; line-height:1.5; }
 
 /* ═══ INCIDENT LOG ═══ */
 #incident-log-modal {
@@ -2779,7 +2796,7 @@ window.gm_authFailure = function() {
       <div class="hdr-logo-mark"></div>
       <div class="hdr-wordmark">
         <div class="hdr-brand">JDM</div>
-        <div class="hdr-tagline">COMMAND CENTER v5.6</div>
+        <div class="hdr-tagline">COMMAND CENTER v5.7</div>
       </div>
     </div>
   </div>
@@ -2851,7 +2868,7 @@ window.gm_authFailure = function() {
     <button class="hdr-btn" onclick="openOSINT()" title="OSINT Terminal">OSINT</button>
     <button class="hdr-btn" onclick="openCinema()" title="Camera Feeds">CAMERA</button>
     <button class="hdr-btn" onclick="openMLDashboard()" title="ML Engine">ML</button>
-    <button class="hdr-btn" onclick="openAnalytics()" title="Analytics">STATS</button>
+    <button class="hdr-btn" onclick="openAnalytics()" title="Predictive analytics — 72 h outlook">OUTLOOK</button>
     <button class="hdr-btn" id="streetview-btn" onclick="toggleStreetMode()" title="Street View">STREET</button>
 
     <div class="hdr-sep"></div>
@@ -5031,7 +5048,8 @@ async function fetchEarthquakes() {
         return { id:f.id, source:'USGS/PHIVOLCS', tag:'gov', category:'disaster', severity:magToSeverity(mag),
           title:`M${mag.toFixed(1)} Earthquake — ${f.properties.place}`,
           body:`Depth: ${depth.toFixed(0)}km. ${mag>=5?'Felt shaking expected.':'Minor tremor.'}`,
-          loc:f.properties.place, lat, lng, time:timeAgo(f.properties.time), url:f.properties.url };
+          loc:f.properties.place, lat, lng, time:timeAgo(f.properties.time), url:f.properties.url,
+          mag, depth, timestamp: f.properties.time };   // v5.7: used by the seismic watch
       });
   }, 'USGS');
 }
@@ -8122,6 +8140,10 @@ function clearSim() {
 
 // ─── 1. THREAT SCORE ENGINE ───────────────────────────────────────────────
 let threatScoreHistory = [];
+try {   // v5.7: restore the last 24 h so the projection has history after a reload
+  const s = JSON.parse(localStorage.getItem('jdm_threat_history') || '[]');
+  if (Array.isArray(s)) threatScoreHistory = s.filter(p => p && Number.isFinite(p.score) && Date.now() - p.t < 24 * 3600000).slice(-800);
+} catch(e) {}
 let threatScoreCurrent = 0;
 
 function computeThreatScore(feeds) {
@@ -8155,7 +8177,8 @@ function updateThreatMeter(feeds) {
   const score = computeThreatScore(feeds);
   threatScoreCurrent = score;
   threatScoreHistory.push({ t: Date.now(), score });
-  if (threatScoreHistory.length > 144) threatScoreHistory.shift(); // keep 24h at 10min intervals
+  if (threatScoreHistory.length > 800) threatScoreHistory.shift(); // one sample per refresh cycle (~2 min) → ~24 h
+  try { localStorage.setItem('jdm_threat_history', JSON.stringify(threatScoreHistory)); } catch(e) {}   // v5.7
 
   const el    = document.getElementById('threat-score');
   const bar   = document.getElementById('threat-bar');
@@ -9512,62 +9535,294 @@ function renderThreatMatrix() {
   });
 }
 
-// ─── 10. ANALYTICS DASHBOARD ──────────────────────────────────────────────
+// ─── 10. PREDICTIVE ANALYTICS (v5.7) ─────────────────────────────────────
+// Replaces the descriptive STATS charts. Every panel is forward-looking or anomaly-based and states its basis.
+// Physical inputs (Open-Meteo rain/wind, USGS quakes, PHIVOLCS alert levels, NASA FIRMS hotspots) carry the
+// real forward skill; the news-derived series are nowcasts against explicit baselines, not predictions.
 let analyticsCharts = {};
+let _wxCache = { t: 0, data: null };
+const HAZARD_REGIONS = [
+  ['metro-manila','NCR'], ['ilocos','Ilocos (I)'], ['cagayan','Cagayan V. (II)'], ['central-luzon','C. Luzon (III)'],
+  ['calabarzon','CALABARZON'], ['mimaropa','MIMAROPA'], ['bicol','Bicol (V)'], ['western-visayas','W. Visayas (VI)'],
+  ['central-visayas','C. Visayas (VII)'], ['eastern-visayas','E. Visayas (VIII)'], ['zamboanga','Zamboanga (IX)'],
+  ['northern-mindanao','N. Mindanao (X)'], ['davao-region','Davao (XI)'], ['soccsksargen','SOCCSKSARGEN'],
+  ['caraga','Caraga (XIII)'], ['barmm','BARMM'], ['car','CAR'],
+];
+const VOLCANO_REGION = { taal:'calabarzon', kanlaon:'western-visayas', mayon:'bicol', bulusan:'bicol', pinatubo:'central-luzon' };
+const RISK_LABEL = ['LOW', 'MODERATE', 'HIGH', 'SEVERE'];
+const AC_RADIUS_DEG = 1.5;   // ~150 km catchment around each regional anchor for quakes and hotspots
+const RISK_COLOR = ['var(--green-hi)', 'var(--yellow)', 'var(--orange)', 'var(--red)'];
+const AC_CHART = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{ legend:{ labels:{ color:'rgba(200,185,140,0.6)', font:{ family:'IBM Plex Mono', size:8 }, boxWidth:10 } } },
+  scales:{ x:{ ticks:{ color:'rgba(180,165,120,0.5)', font:{ family:'IBM Plex Mono', size:7 }, maxTicksLimit:12 }, grid:{ color:'rgba(200,168,75,0.05)' } },
+           y:{ ticks:{ color:'rgba(180,165,120,0.5)', font:{ family:'IBM Plex Mono', size:7 } }, grid:{ color:'rgba(200,168,75,0.05)' } } },
+};
+const acSum = arr => arr.reduce((s, v) => s + (Number(v) || 0), 0);
+const acMax = arr => arr.length ? Math.max(...arr.map(v => Number(v) || 0)) : 0;
+function acDistDeg(a, b) { return Math.hypot(a.lat - b.lat, (a.lng - b.lng) * Math.cos(a.lat * Math.PI / 180)); }
+function acPill(level, text) { return `<span class="ac-pill" style="color:${RISK_COLOR[level]}">${text || RISK_LABEL[level]}</span>`; }
 
 function openAnalytics() {
   const modal = document.getElementById('analytics-modal');
   if (!modal) return;
   modal.classList.add('show');
-  setTimeout(renderAnalytics, 100);
+  setTimeout(() => renderAnalytics(false).catch(e => console.warn('[ANALYTICS]', e.message)), 100);
 }
 
-function renderAnalytics() {
-  const CIA_COLORS = ['rgba(200,168,75,0.8)','rgba(204,34,51,0.8)','rgba(200,92,26,0.8)','rgba(74,140,63,0.8)','rgba(180,160,100,0.7)','rgba(160,120,60,0.7)'];
-  const chartDefaults = {
-    responsive:true, maintainAspectRatio:false,
-    plugins:{ legend:{ labels:{ color:'rgba(200,185,140,0.6)', font:{ family:'IBM Plex Mono', size:9 } } } },
-    scales:{ x:{ ticks:{ color:'rgba(180,165,120,0.5)', font:{ family:'IBM Plex Mono', size:8 } }, grid:{ color:'rgba(200,168,75,0.05)' } }, y:{ ticks:{ color:'rgba(180,165,120,0.5)', font:{ family:'IBM Plex Mono', size:8 } }, grid:{ color:'rgba(200,168,75,0.05)' } } }
-  };
+// One Open-Meteo call for all 17 regional anchors; cached 30 min in memory, 6 h in localStorage as a fallback.
+async function fetchRegionForecast(force) {
+  if (!force && _wxCache.data && Date.now() - _wxCache.t < 30 * 60000) return _wxCache.data;
+  const lats = HAZARD_REGIONS.map(([k]) => PH_LOCATIONS[k].lat).join(',');
+  const lngs = HAZARD_REGIONS.map(([k]) => PH_LOCATIONS[k].lng).join(',');
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&hourly=precipitation,wind_gusts_10m&forecast_days=4&timezone=Asia%2FManila`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error('Open-Meteo HTTP ' + r.status);
+    let d = await r.json(); if (!Array.isArray(d)) d = [d];
+    _wxCache = { t: Date.now(), data: d };
+    try { localStorage.setItem('jdm_wx_cache', JSON.stringify(_wxCache)); } catch(e) {}
+    return d;
+  } catch(e) {
+    console.warn('[ANALYTICS] forecast fetch failed:', e.message);
+    try { const c = JSON.parse(localStorage.getItem('jdm_wx_cache') || 'null'); if (c && Date.now() - c.t < 6 * 3600000) { _wxCache = c; return c.data; } } catch(e2) {}
+    return null;
+  }
+}
 
-  Object.values(analyticsCharts).forEach(c => c.destroy());
-  analyticsCharts = {};
-
-  // 1. Category breakdown
-  const catCounts = {};
-  allFeeds.forEach(f => catCounts[f.category] = (catCounts[f.category]||0)+1);
-  analyticsCharts.category = new Chart(document.getElementById('ac-category'), { type:'bar', data:{ labels:Object.keys(catCounts), datasets:[{ label:'Events', data:Object.values(catCounts), backgroundColor:CIA_COLORS }] }, options:{...chartDefaults} });
-
-  // 2. Severity distribution
-  const sevCounts = {critical:0,high:0,medium:0,low:0};
-  allFeeds.forEach(f => { if(sevCounts[f.severity]!==undefined) sevCounts[f.severity]++; });
-  analyticsCharts.severity = new Chart(document.getElementById('ac-severity'), { type:'doughnut', data:{ labels:Object.keys(sevCounts), datasets:[{ data:Object.values(sevCounts), backgroundColor:[SEV_COLOR.critical,SEV_COLOR.high,SEV_COLOR.medium,'rgba(138,117,53,0.8)'] }] }, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'rgba(200,185,140,0.6)',font:{family:'IBM Plex Mono',size:9}}}}} });
-
-  // 3. Top sources
-  const srcCounts = {};
-  allFeeds.forEach(f => srcCounts[f.source] = (srcCounts[f.source]||0)+1);
-  const topSrc = Object.entries(srcCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  analyticsCharts.sources = new Chart(document.getElementById('ac-sources'), { type:'bar', data:{ labels:topSrc.map(([s])=>s.substring(0,12)), datasets:[{ label:'Items', data:topSrc.map(([,v])=>v), backgroundColor:CIA_COLORS[0] }] }, options:{...chartDefaults, indexAxis:'y'} });
-
-  // 4. Threat score history
-  const tsh = threatScoreHistory.slice(-24);
-  analyticsCharts.trend = new Chart(document.getElementById('ac-trend'), { type:'line', data:{ labels:tsh.map((_,i)=>`-${tsh.length-i}m`), datasets:[{ label:'Threat Score', data:tsh.map(t=>t.score), borderColor:SEV_COLOR.high, backgroundColor:'rgba(200,92,26,0.1)', fill:true, tension:0.4 }] }, options:{...chartDefaults} });
-
-  // 5. Events by time (last 24h bucketed)
+// Hazard scoring. Thresholds are PAGASA-aligned and stated in the panel footer.
+function computeHazards(wx, feeds, history) {
   const now = Date.now();
-  const buckets = Array(8).fill(0);
-  allFeeds.forEach(f => {
-    const diff = (now - (f._fetchTime||now)) / (3600000);
-    const bucket = Math.min(7, Math.floor(diff));
-    buckets[bucket]++;
+  const pool = history.concat(feeds);
+  const quakes = pool.filter(f => f && f.source === 'USGS/PHIVOLCS' && f.mag >= 4.5 && f.lat && f.timestamp && now - f.timestamp < 72 * 3600000);
+  const fires = (window._firmsSpots && window._firmsSpots.length) ? window._firmsSpots : feeds.filter(f => f && f.source === 'NASA FIRMS' && f.lat);
+  const firesComplete = !!(window._firmsSpots && window._firmsSpots.length);
+  const volcano = {};
+  pool.forEach(f => {
+    const m = /(taal|kanlaon|mayon|bulusan|pinatubo)\s+volcano\s+alert\s+level\s+(\d)(?!\d)/i.exec(f?.title || '');
+    if (m && VOLCANO_REGION[m[1].toLowerCase()] && now - (f.timestamp || f._ts || f.savedAt || 0) < 7 * 86400000) {
+      const k = VOLCANO_REGION[m[1].toLowerCase()]; volcano[k] = Math.max(volcano[k] || 0, +m[2]);
+    }
   });
-  analyticsCharts.timeline = new Chart(document.getElementById('ac-timeline'), { type:'bar', data:{ labels:['now','1h','2h','3h','4h','5h','6h','7h+'], datasets:[{ label:'Events', data:buckets, backgroundColor:'rgba(200,168,75,0.6)' }] }, options:{...chartDefaults} });
+  return HAZARD_REGIONS.map(([key, short], i) => {
+    const loc = PH_LOCATIONS[key]; const w = wx && wx[i];
+    const hp = w?.hourly?.precipitation || [], hg = w?.hourly?.wind_gusts_10m || [], ht = w?.hourly?.time || [];
+    let nowIdx = 0;
+    if (ht.length) { const t0 = new Date(ht[0] + '+08:00').getTime(); nowIdx = Math.min(ht.length - 1, Math.max(0, Math.floor((now - t0) / 3600000))); }
+    const next = hp.slice(nowIdx, nowIdx + 72), gusts = hg.slice(nowIdx, nowIdx + 72), times = ht.slice(nowIdx, nowIdx + 72);
+    const rain24 = acSum(next.slice(0, 24)), rain72 = acSum(next), peakHr = acMax(next), peakHr24 = acMax(next.slice(0, 24)), peakGust = acMax(gusts);
+    // Rain: PAGASA rainfall advisory 7.5 / 15 / 30 mm/h; daily totals 50 / 100 / 200 mm. rainRisk = worst hour in 72 h; rain24Risk = first 24 h only.
+    const rainRiskOf = (peak, daySum) => (peak >= 30 || daySum >= 200) ? 3 : (peak >= 15 || daySum >= 100) ? 2 : (peak >= 7.5 || daySum >= 50) ? 1 : 0;
+    const rainRisk = rainRiskOf(peakHr, rain24), rain24Risk = rainRiskOf(peakHr24, rain24);
+    // Wind: 10 m GUST bands 60 / 90 / 125 km/h. Gusts run ~1.3–1.5× sustained, so these sit near the sustained-wind
+    // lower bounds of TCWS #1 / #2 / #3 (39 / 62 / 89 km/h). They are gust bands, not a TCWS declaration.
+    const windRisk = peakGust >= 125 ? 3 : peakGust >= 90 ? 2 : peakGust >= 60 ? 1 : 0;
+    const q = quakes.filter(f => acDistDeg(loc, f) < AC_RADIUS_DEG).sort((a, b) => b.mag - a.mag)[0] || null;
+    const seisRisk = q ? (q.mag >= 6 ? 2 : 1) : 0;
+    const vol = volcano[key] || 0; const volRisk = vol >= 3 ? 3 : vol >= 2 ? 2 : vol >= 1 ? 1 : 0;
+    const hot = fires.filter(f => acDistDeg(loc, f) < AC_RADIUS_DEG).length;
+    const fireRisk = hot >= 30 ? 2 : (hot >= 10 && rain72 < 10) ? 1 : 0;
+    const overall = Math.max(rainRisk, windRisk, seisRisk, volRisk, fireRisk);
+    return { key, short, hasWx: !!w, rain24, rain72, peakHr, peakHr24, peakGust, rainRisk, rain24Risk, windRisk, seisRisk, quake: q, volRisk, vol, fireRisk, hot, firesComplete, overall, hourly: next, times };
+  });
+}
 
-  // 6. Source reliability (by correlated confirmation)
-  const relMap = {};
-  allFeeds.forEach(f => { if(!relMap[f.source]) relMap[f.source]={total:0,confirmed:0}; relMap[f.source].total++; if(f.confirmed) relMap[f.source].confirmed++; });
-  const topRel = Object.entries(relMap).sort((a,b)=>b[1].total-a[1].total).slice(0,6);
-  analyticsCharts.reliability = new Chart(document.getElementById('ac-reliability'), { type:'bar', data:{ labels:topRel.map(([s])=>s.substring(0,12)), datasets:[{ label:'Total', data:topRel.map(([,v])=>v.total), backgroundColor:'rgba(200,168,75,0.6)' },{ label:'Confirmed', data:topRel.map(([,v])=>v.confirmed), backgroundColor:'rgba(74,140,63,0.7)' }] }, options:{...chartDefaults} });
+function renderHazardTable(hz) {
+  const el = document.getElementById('ac-hazard'); if (!el) return;
+  const rows = hz.slice().sort((a, b) => b.overall - a.overall || b.rain72 - a.rain72);
+  const anyWx = hz.some(h => h.hasWx);
+  el.innerHTML = `<table class="ac-table"><thead><tr>
+      <th>Region</th><th>Outlook</th><th style="text-align:right">Rain 24h</th><th style="text-align:right">Rain 72h</th><th style="text-align:right">Peak mm/h</th><th style="text-align:right">Gust km/h</th><th title="USGS M≥4.5 within ~150 km">Seismic</th><th>Volcano</th><th>Fire</th></tr></thead><tbody>` +
+    rows.map(h => `<tr>
+      <td style="color:var(--t1)">${escHtml(h.short)}</td>
+      <td>${acPill(h.overall)}</td>
+      <td class="num" style="color:${RISK_COLOR[h.rain24Risk]}">${h.hasWx ? h.rain24.toFixed(0) : '—'}</td>
+      <td class="num">${h.hasWx ? h.rain72.toFixed(0) : '—'}</td>
+      <td class="num" style="color:${RISK_COLOR[h.rainRisk]}">${h.hasWx ? h.peakHr.toFixed(1) : '—'}</td>
+      <td class="num" style="color:${RISK_COLOR[h.windRisk]}">${h.hasWx ? h.peakGust.toFixed(0) : '—'}</td>
+      <td>${h.quake ? `<span style="color:${RISK_COLOR[h.seisRisk]}">M${h.quake.mag.toFixed(1)} ${timeAgo(h.quake.timestamp)}</span>` : '<span style="color:var(--t3)">quiet</span>'}</td>
+      <td>${h.vol ? `<span style="color:${RISK_COLOR[h.volRisk]}">Alert ${h.vol}</span>` : '<span style="color:var(--t3)">—</span>'}</td>
+      <td>${h.hot ? `<span style="color:${RISK_COLOR[h.fireRisk]}">${h.hot} hotspots</span>` : '<span style="color:var(--t3)">—</span>'}</td>
+    </tr>`).join('') + `</tbody></table>
+    <div class="ac-note">${anyWx ? 'Forecast: Open-Meteo, 3-day hourly at each regional anchor point.' : '<span style="color:var(--red)">Forecast unavailable — rain and wind columns are blank; risk shown from seismic / volcano / fire only.</span>'}
+    Rain: PAGASA advisory thresholds 7.5 / 15 / 30 mm/h or 50 / 100 / 200 mm per day (24 h column coloured on the first 24 h; peak column on the full 72 h). Wind: 10 m gust bands 60 / 90 / 125 km/h — gust bands, not a TCWS signal.
+    Seismic watch: USGS M≥4.5 within ~150 km (live feed covers 24 h; up to 72 h as history accrues); a flag, not an aftershock probability. Volcano: latest PHIVOLCS alert level seen in the last 7 days — a lifted alert can linger until it ages out.
+    Fire: NASA VIIRS hotspots within ~150 km in 48 h${hz.some(h => h.firesComplete) ? '' : ' (top-25 by intensity only until the full set loads)'}, raised when the 72-h rain outlook is under 10 mm. Overall = worst factor.</div>`;
+}
+
+function renderRainChart(hz) {
+  const canvas = document.getElementById('ac-rain'); if (!canvas) return;
+  const top = hz.filter(h => h.hasWx).sort((a, b) => b.rain72 - a.rain72).slice(0, 4);
+  let empty = document.getElementById('ac-rain-empty');
+  if (!empty) { empty = Object.assign(document.createElement('div'), { id:'ac-rain-empty', className:'ac-empty', textContent:'Forecast unavailable.' }); canvas.parentNode.insertBefore(empty, canvas); }
+  empty.hidden = top.length > 0; canvas.hidden = top.length === 0;
+  if (!top.length) return;
+  const labels = top[0].times.map(t => t.slice(5, 13).replace('T', ' '));
+  const cols = ['rgba(204,34,51,0.9)', 'rgba(200,92,26,0.9)', 'rgba(200,168,75,0.9)', 'rgba(74,140,63,0.9)'];
+  analyticsCharts.rain = new Chart(canvas, { type:'line', data:{ labels, datasets: top.map((h, i) => ({ label:`${h.short} (${h.rain72.toFixed(0)} mm/72h)`, data:h.hourly, borderColor:cols[i], backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3 })) },
+    options:{ ...AC_CHART, plugins:{ ...AC_CHART.plugins, annotation:undefined } } });
+}
+
+// Holt's linear (double exponential) smoothing with a residual-based 95% band that widens with horizon.
+function holtForecast(series, steps, alpha = 0.5, beta = 0.3) {
+  if (series.length < 4) return null;
+  let level = series[0], trend = series[1] - series[0]; const resid = [];
+  for (let i = 1; i < series.length; i++) {
+    const v = series[i]; resid.push(v - (level + trend));
+    const nl = alpha * v + (1 - alpha) * (level + trend);
+    trend = beta * (nl - level) + (1 - beta) * trend; level = nl;
+  }
+  const sd = Math.sqrt(resid.reduce((s, r) => s + r * r, 0) / resid.length) || 1;
+  return Array.from({ length: steps }, (_, k) => { const m = level + (k + 1) * trend, band = 1.96 * sd * Math.sqrt(k + 1); return { mean: m, lo: m - band, hi: m + band }; });
+}
+
+// Resample the irregular threat-index samples (one per refresh cycle, ~2 min, gaps when the tab sleeps) onto a
+// fixed grid so the smoothing and the axis are honest.
+function resampleThreatHistory(stepMs, maxMs) {
+  const now = Date.now();
+  const pts = threatScoreHistory.filter(p => p && Number.isFinite(p.score) && p.t && now - p.t <= maxMs).sort((a, b) => a.t - b.t);
+  if (pts.length < 2) return { values: [], times: [] };
+  const start = Math.ceil(pts[0].t / stepMs) * stepMs; const values = [], times = [];
+  let j = 0, last = pts[0].score;
+  for (let t = start; t <= now; t += stepMs) {
+    let sum = 0, n = 0;
+    while (j < pts.length && pts[j].t <= t) { sum += pts[j].score; n++; last = pts[j].score; j++; }
+    values.push(n ? sum / n : last); times.push(t);   // mean within the bin, else carry the last value forward
+  }
+  return { values, times };
+}
+
+function renderThreatProjection() {
+  const canvas = document.getElementById('ac-threat'); if (!canvas) return;
+  const STEP = 5 * 60000, AHEAD = 72;                     // 5-min grid, 72 steps = 6 h ahead, up to 24 h back
+  const { values: series, times } = resampleThreatHistory(STEP, 24 * 3600000);
+  const fc = series.length >= 8 ? holtForecast(series, AHEAD) : null;   // ≥ 40 min of samples
+  const clamp = v => Math.max(0, Math.min(100, v));
+  const fmtRel = ms => { const h = ms / 3600000; return Math.abs(h) < 1 ? `${ms >= 0 ? '+' : '-'}${Math.round(Math.abs(ms) / 60000)}m` : `${ms >= 0 ? '+' : '-'}${Math.abs(h).toFixed(1)}h`; };
+  const now = Date.now();
+  const labels = times.map(t => fmtRel(t - now)).concat(Array.from({ length: fc ? AHEAD : 0 }, (_, k) => fmtRel((k + 1) * STEP)));
+  const spanH = times.length ? ((times[times.length - 1] - times[0]) / 3600000).toFixed(1) : '0';
+  const pad = n => Array(n).fill(null);
+  const ds = [
+    { label:`Threat index (${spanH} h)`, data: series.concat(pad(fc ? AHEAD : 0)), borderColor:SEV_COLOR.high, backgroundColor:'rgba(200,92,26,0.12)', fill:true, tension:0.35, pointRadius:0, borderWidth:1.5 },
+  ];
+  if (fc) {
+    const lead = series.length - 1;
+    ds.push({ label:'Residual band (~95%)', data: pad(lead).concat([series[lead]], fc.map(p => clamp(p.lo))), borderColor:'transparent', backgroundColor:'rgba(200,168,75,0.10)', pointRadius:0, fill:'+1' });
+    ds.push({ label:'band-hi', data: pad(lead).concat([series[lead]], fc.map(p => clamp(p.hi))), borderColor:'transparent', backgroundColor:'transparent', pointRadius:0, fill:false });
+    ds.push({ label:'Projection (Holt)', data: pad(lead).concat([series[lead]], fc.map(p => clamp(p.mean))), borderColor:'rgba(200,168,75,0.95)', borderDash:[4, 3], backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.2 });
+  }
+  analyticsCharts.threat = new Chart(canvas, { type:'line', data:{ labels, datasets: ds },
+    options:{ ...AC_CHART, scales:{ ...AC_CHART.scales, y:{ ...AC_CHART.scales.y, min:0, max:100 } },
+      plugins:{ ...AC_CHART.plugins, legend:{ ...AC_CHART.plugins.legend, labels:{ ...AC_CHART.plugins.legend.labels, filter: it => it.text !== 'band-hi' } },
+        subtitle:{ display:true, color:'rgba(180,165,120,0.55)', font:{ family:'IBM Plex Mono', size:7 }, text: fc ? `Trend ${fc[AHEAD-1].mean - series[series.length-1] >= 0 ? '↑' : '↓'} ${Math.abs(fc[AHEAD-1].mean - series[series.length-1]).toFixed(0)} pts over 6 h · 5-min grid · band widens with horizon` : `Need ≥40 min of history for a projection (${(series.length * 5)} min so far)` } } } });
+}
+
+// Hourly event counts over the last 7 days from the history DB (+ current feed), baseline by hour-of-day.
+// Recording start = earliest savedAt in the history DB. Items published before that are clamped to it, so the
+// baseline only spans hours we were actually observing (otherwise a 3-day-old pubDate fakes 3 days of zeros).
+function acRecordingStart(history) {
+  const s = history.map(f => f && f.savedAt).filter(Boolean);
+  return s.length ? Math.min(...s) : Date.now() - 3600000;
+}
+function buildHourlySeries(history, feeds) {
+  const now = Date.now(); const H = 168; const counts = Array(H).fill(0); const seen = new Set();
+  const since = Math.max(acRecordingStart(history), now - (H - 1) * 3600000);
+  history.concat(feeds).forEach(f => {
+    if (!f || !f.title) return;
+    const k = f.url || f.title.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 40);
+    if (seen.has(k)) return; seen.add(k);
+    const ts = f.timestamp || f.savedAt || now; if (ts < since) return;   // published before we were recording
+    const age = Math.floor((now - ts) / 3600000); if (age < 0 || age >= H) return;
+    counts[H - 1 - age]++;
+  });
+  const firstNonZero = H - 1 - Math.floor((now - since) / 3600000); const coverageH = H - firstNonZero;
+  const hodStart = new Date(now - (H - 1) * 3600000).getHours();
+  const byHod = Array.from({ length: 24 }, () => []);
+  counts.forEach((c, i) => { if (i >= firstNonZero) byHod[(hodStart + i) % 24].push(c); });
+  const base = byHod.map(a => a.length ? acSum(a) / a.length : 0);
+  const sd = byHod.map((a, h) => a.length > 1 ? Math.sqrt(a.reduce((s, v) => s + (v - base[h]) ** 2, 0) / (a.length - 1)) : 0);
+  return { counts, base, sd, coverageH, nowHod: new Date(now).getHours() };
+}
+
+function renderRateNowcast(hs) {
+  const canvas = document.getElementById('ac-rate'); if (!canvas) return;
+  const last24 = hs.counts.slice(-24); const nowH = hs.nowHod;
+  const last6 = acSum(hs.counts.slice(-6)); const base6 = acSum(Array.from({ length: 6 }, (_, i) => hs.base[(nowH - i + 24) % 24]));
+  const ratio = Math.max(0.5, Math.min(2, last6 / (base6 + 1)));
+  const proj = Array.from({ length: 12 }, (_, k) => { const h = (nowH + k + 1) % 24; return { mean: hs.base[h] * ratio, lo: Math.max(0, hs.base[h] * ratio - 2 * hs.sd[h]), hi: hs.base[h] * ratio + 2 * hs.sd[h] }; });
+  const labels = last24.map((_, i) => `${(nowH - 23 + i + 24) % 24}h`).concat(proj.map((_, k) => `+${k + 1}`));
+  const pad = n => Array(n).fill(null);
+  const baseLine = last24.map((_, i) => hs.base[(nowH - 23 + i + 24) % 24]).concat(proj.map((_, k) => hs.base[(nowH + k + 1) % 24]));
+  analyticsCharts.rate = new Chart(canvas, { type:'bar', data:{ labels, datasets:[
+      { type:'bar', label:'Items/hour (actual)', data: last24.concat(pad(12)), backgroundColor:'rgba(200,168,75,0.55)' },
+      { type:'line', label:'Baseline (hour-of-day mean)', data: baseLine, borderColor:'rgba(180,165,120,0.55)', borderDash:[3, 3], pointRadius:0, borderWidth:1, tension:0.3 },
+      { type:'line', label:'±2σ', data: pad(23).concat([last24[23]], proj.map(p => p.lo)), borderColor:'transparent', backgroundColor:'rgba(74,140,63,0.14)', pointRadius:0, fill:'+1' },
+      { type:'line', label:'hi', data: pad(23).concat([last24[23]], proj.map(p => p.hi)), borderColor:'transparent', backgroundColor:'transparent', pointRadius:0 },
+      { type:'line', label:`Nowcast ×${ratio.toFixed(2)}`, data: pad(23).concat([last24[23]], proj.map(p => p.mean)), borderColor:'rgba(74,140,63,0.95)', borderDash:[4, 3], pointRadius:0, borderWidth:1.5, tension:0.2 },
+    ] },
+    options:{ ...AC_CHART, plugins:{ ...AC_CHART.plugins, legend:{ ...AC_CHART.plugins.legend, labels:{ ...AC_CHART.plugins.legend.labels, filter: it => it.text !== 'hi' } },
+      subtitle:{ display:true, color:'rgba(180,165,120,0.55)', font:{ family:'IBM Plex Mono', size:7 }, text:`Baseline from ${hs.coverageH} h of stored history${hs.coverageH < 72 ? ' — thin; bands firm up after ~3 days' : ''} · last 6 h ran ${ratio.toFixed(2)}× baseline` } } } });
+}
+
+const AC_STOP = new Set(['latest','world','green','service','services','population','category','region','regional','province','provincial','local','metro','online','stream','livestream','replay','inquirer','rappler','philstar','gmanetwork','reuters','bloomberg','asian','asia','pacific','global','international','nation','nationwide','public','people','group','media','network','channel','digital','watch','shorts','episode','headlines','headline','story','stories','trending','viral','exclusive','photos','photo','videos','philippines','philippine','filipino','filipinos','pilipinas','manila','after','before','under','over','while','during','their','there','these','those','about','against','among','because','would','could','should','which','where','being','other','first','still','since','police','government','national','official','officials','senate','house','president','news','update','breaking','report','reports','says','said','video','watch','live','today','monday','tuesday','wednesday','thursday','friday','saturday','sunday','january','february','march','april','june','july','august','september','october','november','december']);
+function renderAnomalies(history, feeds) {
+  const el = document.getElementById('ac-anomaly'); if (!el) return;
+  const now = Date.now(); const pool = history.concat(feeds); const seen = new Set(); const items = [];
+  pool.forEach(f => { if (!f || !f.title) return; const k = f.url || f.title.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 40); if (seen.has(k)) return; seen.add(k); const ts = f.timestamp || f.savedAt; if (ts && now - ts < 7 * 86400000) items.push({ ...f, _ts: ts }); });
+  const win = 6 * 3600000; const nWin = 28;
+  const bucket = ts => Math.min(nWin - 1, Math.floor((now - ts) / win));   // 0 = current 6 h
+  const since = acRecordingStart(history);
+  for (let i = items.length - 1; i >= 0; i--) if (items[i]._ts < since) items.splice(i, 1);   // pre-recording items would pile into one window
+  const winsAvail = Math.max(1, Math.min(nWin, Math.ceil((now - since) / win)));
+  // Category z-scores
+  const cats = {}; items.forEach(i => { const c = i.category || 'other'; cats[c] = cats[c] || Array(nWin).fill(0); cats[c][bucket(i._ts)]++; });
+  // A z-score needs at least two prior windows; before that we show the raw count and say so.
+  const catRows = Object.entries(cats).map(([c, arr]) => { const cur = arr[0]; const hist = arr.slice(1, winsAvail); const mean = hist.length ? acSum(hist) / hist.length : 0; const sd = hist.length > 1 ? Math.sqrt(hist.reduce((s, v) => s + (v - mean) ** 2, 0) / (hist.length - 1)) : 0; return { c, cur, mean, z: hist.length >= 2 ? (cur - mean) / Math.max(sd, Math.sqrt(mean), 1) : null }; })   // Poisson floor on σ.sort((a, b) => ((b.z ?? -1e9) - (a.z ?? -1e9)) || b.cur - a.cur);
+  // Emerging terms: places (loc) + capitalised tokens, scored by current 6 h vs average 6-h window
+  const terms = {};
+  const bump = (t, b, srcName, isPlace) => { if (!t) return; const e = terms[t] = terms[t] || { arr: Array(nWin).fill(0), srcs: new Set(), place: isPlace }; e.arr[b]++; e.srcs.add(srcName || '?'); };
+  items.forEach(i => {
+    const b = bucket(i._ts);
+    if (i.loc && i.geo !== 'none' && !/national|unlocated|^philippines$|global|pacific|markets/i.test(i.loc)) bump(i.loc.replace(/\s*\(.*?\)\s*/g, '').trim(), b, i.source, true);
+    (i.title || '').replace(/[^A-Za-z\s'-]/g, ' ').split(/\s+/).forEach(w => { if (/^[A-Z][a-zA-Z'-]{4,}$/.test(w) && !AC_STOP.has(w.toLowerCase())) bump(w, b, i.source, false); });
+  });
+  // A headline token only counts when at least two different sources use it; places need no corroboration.
+  const emerging = winsAvail < 3 ? [] : Object.entries(terms).filter(([, e]) => e.place || e.srcs.size >= 2)
+    .map(([t, e]) => { const cur = e.arr[0]; const avg = acSum(e.arr.slice(1, winsAvail)) / Math.max(1, winsAvail - 1); return { t, cur, avg, srcs: e.srcs.size, score: cur / (avg + 1) }; })
+    .filter(e => e.cur >= 2).sort((a, b) => b.score - a.score || b.cur - a.cur).slice(0, 8);
+  const zColor = z => z >= 3 ? 'var(--red)' : z >= 2 ? 'var(--orange)' : z >= 1 ? 'var(--yellow)' : z <= -1 ? 'var(--t3)' : 'var(--green-hi)';
+  el.innerHTML = `<div class="ac-sub">CATEGORY ACTIVITY · Z-SCORE, LAST 6 H</div>` +
+    (catRows.length ? catRows.map(r => r.z == null
+        ? `<div class="ac-row"><span class="lbl">${escHtml(r.c)}</span><span class="bar"><i style="left:0;width:${Math.min(100, r.cur * 2)}%;background:rgba(200,168,75,0.35)"></i></span><span class="val" style="color:var(--t3)">n/a</span><span class="val" style="color:var(--t3)">${r.cur} now</span></div>`
+        : `<div class="ac-row"><span class="lbl">${escHtml(r.c)}</span><span class="bar"><i style="left:50%;width:${Math.min(50, Math.abs(r.z) * 12)}%;${r.z < 0 ? 'left:auto;right:50%;' : ''}background:${zColor(r.z)}"></i></span><span class="val" style="color:${zColor(r.z)}">${r.z >= 0 ? '+' : ''}${r.z.toFixed(1)}σ</span><span class="val" style="color:var(--t3)">${r.cur} / ${r.mean.toFixed(1)}</span></div>`).join('') : '<div class="ac-empty">No history yet.</div>') +
+    `<div class="ac-sub">EMERGING · MENTIONS NOW VS 6-H AVERAGE</div>` +
+    (winsAvail < 3 ? '<div class="ac-empty">Needs 12 h of recorded history to tell acceleration from arrival.</div>' : emerging.length ? emerging.map(e => `<div class="ac-row"><span class="lbl" title="${escAttr(e.t)} — ${e.srcs} source${e.srcs > 1 ? 's' : ''}">${escHtml(e.t)}</span><span class="bar"><i style="left:0;width:${Math.min(100, e.score * 25)}%;background:var(--amber)"></i></span><span class="val" style="color:var(--amber)">${e.score.toFixed(1)}×</span><span class="val" style="color:var(--t3)">${e.cur} / ${e.avg.toFixed(1)}</span></div>`).join('') : '<div class="ac-empty">Nothing accelerating.</div>') +
+    `<div class="ac-note">Baselines use ${winsAvail - 1} prior 6-hour windows${winsAvail < 3 ? ' — z-scores start after 12 h of recorded history' : winsAvail < 8 ? ' (thin — firms up after ~2 days of history)' : ''}. z ≥ 2σ is unusual; ≥ 3σ is a spike. Emerging = mentions in the current window divided by the window average + 1; places come from geolocated items, names from capitalised headline terms.</div>`;
+}
+
+let _acGen = 0;
+async function renderAnalytics(force) {
+  const gen = ++_acGen;                                      // a newer call supersedes this one after any await
+  Object.values(analyticsCharts).forEach(c => { try { c.destroy(); } catch(e) {} });
+  analyticsCharts = {};
+  const stamp = document.getElementById('analytics-stamp');
+  if (stamp) stamp.textContent = 'COMPUTING…';
+  let history = [];
+  try { history = await loadFeedsFromHistoryDB(168); } catch(e) { history = []; }
+  if (gen !== _acGen) return;
+  const feeds = allFeeds || [];
+  renderThreatProjection();                                  // needs no I/O
+  const hs = buildHourlySeries(history, feeds);
+  renderRateNowcast(hs);
+  renderAnomalies(history, feeds);
+  const wx = await fetchRegionForecast(!!force);
+  if (gen !== _acGen) return;
+  const hz = computeHazards(wx, feeds, history);
+  renderHazardTable(hz);
+  renderRainChart(hz);
+  window._lastHazards = hz;                                  // for JARVIS / OSINT reuse
+  if (stamp) stamp.textContent = `${wx ? 'FORECAST ' + new Date(_wxCache.t).toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit' }) : 'FORECAST OFFLINE'} · HISTORY ${hs.coverageH} H · ${history.length} ITEMS`;
 }
 
 // ─── 11. QUICK CHART GENERATOR ────────────────────────────────────────────
@@ -16384,6 +16639,7 @@ async function fetchNASA_FIRMS() {
       };
     });
     firmsCache = { data: items, timestamp: now };
+    window._firmsSpots = spots.map(f => ({ lat: f.lat, lng: f.lng, frp: f.frp }));   // v5.7: full set for the regional hazard count
     setSourceStatus('NASA_FIRMS', 'ok');
     return items;
   } catch(e) {
@@ -18683,16 +18939,19 @@ document.addEventListener('click', function resumeAudio() {
 <!-- ANALYTICS MODAL -->
 <div id="analytics-modal" role="dialog" aria-modal="true" aria-labelledby="analytics-title">
   <div id="analytics-header">
-    <h2 id="analytics-title" class="a11y-h">◈ INTELLIGENCE ANALYTICS DASHBOARD</h2>
-    <button id="analytics-close" onclick="document.getElementById('analytics-modal').classList.remove('show')">✕</button>
+    <h2 id="analytics-title" class="a11y-h">◈ PREDICTIVE ANALYTICS — 72H OUTLOOK</h2>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span id="analytics-stamp" style="font-family:var(--mono);font-size:8px;color:var(--t3);letter-spacing:1px"></span>
+      <button class="log-btn" onclick="renderAnalytics(true).catch(e => console.warn('[ANALYTICS]', e.message))" title="Re-fetch forecast and recompute">↻ REFRESH</button>
+      <button id="analytics-close" onclick="document.getElementById('analytics-modal').classList.remove('show')">✕</button>
+    </div>
   </div>
   <div id="analytics-grid">
-    <div class="analytics-cell"><div class="analytics-cell-title">▸ Events by Category</div><canvas id="ac-category"></canvas></div>
-    <div class="analytics-cell"><div class="analytics-cell-title">▸ Severity Distribution</div><canvas id="ac-severity"></canvas></div>
-    <div class="analytics-cell"><div class="analytics-cell-title">▸ Source Activity</div><canvas id="ac-sources"></canvas></div>
-    <div class="analytics-cell"><div class="analytics-cell-title">▸ Threat Score Trend</div><canvas id="ac-trend"></canvas></div>
-    <div class="analytics-cell"><div class="analytics-cell-title">▸ Category Timeline</div><canvas id="ac-timeline"></canvas></div>
-    <div class="analytics-cell"><div class="analytics-cell-title">▸ Source Reliability</div><canvas id="ac-reliability"></canvas></div>
+    <div class="analytics-cell wide"><div class="analytics-cell-title">▸ Hazard outlook · next 72 h by region <span class="ac-basis">Open-Meteo rain/wind · USGS · PHIVOLCS · NASA FIRMS</span></div><div class="analytics-scroll" id="ac-hazard"><div class="ac-empty">Loading forecast…</div></div></div>
+    <div class="analytics-cell"><div class="analytics-cell-title">▸ Anomalies &amp; emerging <span class="ac-basis">last 6 h vs 7-day baseline</span></div><div class="analytics-scroll" id="ac-anomaly"><div class="ac-empty">Computing…</div></div></div>
+    <div class="analytics-cell"><div class="analytics-cell-title">▸ Rainfall forecast · mm/h, wettest regions <span class="ac-basis">Open-Meteo</span></div><canvas id="ac-rain"></canvas></div>
+    <div class="analytics-cell"><div class="analytics-cell-title">▸ Threat index · up to 24 h history + 6 h projection <span class="ac-basis">Holt trend on a 5-min grid, residual band</span></div><canvas id="ac-threat"></canvas></div>
+    <div class="analytics-cell"><div class="analytics-cell-title">▸ Event rate · items/hour, next 12 h nowcast <span class="ac-basis">hour-of-day baseline ±2σ</span></div><canvas id="ac-rate"></canvas></div>
   </div>
 </div>
 <!-- INCIDENT LOG MODAL -->
