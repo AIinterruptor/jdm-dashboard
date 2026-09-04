@@ -1,4 +1,5 @@
 /**
+ * Version: 1.1.0 (2026-09-04) — GMA feed moved to live /nation feed; ReliefWeb feed URL updated.
  * JDM Command Center Configuration
  * Edit this file to customize feeds and settings
  */
@@ -17,13 +18,13 @@ const JDM_CONFIG = {
     philippine: [
       { url: 'https://newsinfo.inquirer.net/feed', src: 'Inquirer', cat: 'news' },
       { url: 'https://www.philstar.com/rss/headlines', src: 'PhilStar', cat: 'news' },
-      { url: 'https://www.gmanetwork.com/news/rss/news/', src: 'GMA News', cat: 'news' },
+      { url: 'https://data.gmanetwork.com/gno/rss/news/nation/feed.xml', src: 'GMA News', cat: 'news' },
     ],
     international: [
       { url: 'https://feeds.bbci.co.uk/news/world/asia/rss.xml', src: 'BBC Asia', cat: 'news' },
     ],
     disaster: [
-      { url: 'https://reliefweb.int/crisis/country/ph/rss.xml', src: 'ReliefWeb PH', cat: 'disaster' },
+      { url: 'https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3Aphl', src: 'ReliefWeb PH', cat: 'disaster' },
     ],
   },
 

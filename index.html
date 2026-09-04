@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="JDM Command Center — Real-time Philippines intelligence dashboard aggregating GDELT, PAGASA, PHIVOLCS, news, social, and satellite feeds into a unified situational awareness platform.">
-<title>JDM · COMMAND CENTER v5.3</title>
+<title>JDM · COMMAND CENTER v5.4</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2782,6 +2782,10 @@ window.gm_authFailure = function() {
 };
 </script>
 <!-- Google Maps removed — Leaflet handles all map rendering. Shim at L3256 provides compatibility. -->
+<style id="jdm-darktiles-css">
+  /* v5.4: dark tactical basemap = OSM tiles inverted + desaturated (CARTO dark_all is API-key gated) */
+  .jdm-dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.72) contrast(1.05) saturate(.35); }
+</style>
 </head>
 <body>
 <h1 class="sr-only">JDM Command Center — Philippines Intelligence Dashboard</h1>
@@ -2814,7 +2818,7 @@ window.gm_authFailure = function() {
       <div class="hdr-logo-mark"></div>
       <div class="hdr-wordmark">
         <div class="hdr-brand">JDM</div>
-        <div class="hdr-tagline">COMMAND CENTER v5.0</div>
+        <div class="hdr-tagline">COMMAND CENTER v5.4</div>
       </div>
     </div>
   </div>
@@ -3777,7 +3781,7 @@ function getRSSFeeds(loc) {
     { key:'RSS_GNEWS_LOC', src:'Google News Local',tag:'news', url:`https://news.google.com/rss/search?q=${locQuery}+Philippines&hl=en-PH&gl=PH&ceid=PH:en` },
     // Major Philippine News Networks (working via direct fetch or proxy)
     { key:'RSS_INQ',  src:'Inquirer',  url:'https://newsinfo.inquirer.net/feed',                 tag:'news' },
-    { key:'RSS_GMA',  src:'GMA News',  url:'https://data.gmanetwork.com/gno/rss/news/feed.xml',  tag:'news' },
+    { key:'RSS_GMA',  src:'GMA News',  url:'https://data.gmanetwork.com/gno/rss/news/nation/feed.xml',  tag:'news' },
     { key:'RSS_RAP',  src:'Rappler',   url:'https://www.rappler.com/feed/',                       tag:'news' },
     { key:'RSS_STAR', src:'PhilStar',  url:'https://www.philstar.com/rss/headlines',              tag:'news' },
     { key:'RSS_PTV',  src:'PTV News',  url:'https://ptvnews.ph/feed/',                           tag:'gov' },
@@ -4045,6 +4049,8 @@ function isInActiveLoc(lat, lng) {
 function magToSeverity(m) { return m >= 6.0 ? 'critical' : m >= 5.0 ? 'high' : m >= 4.0 ? 'medium' : 'low'; }
 function timeAgo(ts) {
   const diff = (Date.now() - new Date(ts)) / 60000;
+  if (isNaN(diff)) return 'recent';
+  if (diff < -5) return 'recent';          // v5.4: future-dated (source stamps local time as UTC) — never show a negative age
   if (diff < 1) return 'just now';
   if (diff < 60) return Math.floor(diff) + 'm ago';
   if (diff < 1440) return Math.floor(diff/60) + 'h ago';
@@ -4415,7 +4421,7 @@ function gdeltThrottledFetch(url, sourceKey) {
       try {
         const base = getProxyBase() || LOCAL_PROXY_URL;
         const proxyUrl = `${base}/proxy?url=${encodeURIComponent(url)}`;
-        const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+        const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(30000) });   // v5.4: worker retries GDELT 429 once
         raw = await r.text();
       } catch(e) { /* fall through */ }
     }
@@ -4435,6 +4441,8 @@ function gdeltThrottledFetch(url, sourceKey) {
     } catch(e) {
       throw new Error(`not JSON: ${raw.substring(0, 80)}`);
     }
+    if (!d) throw new Error('GDELT empty response');          // v5.4: body "null"/empty is a failure, not zero articles
+    if (d.error) throw new Error(`GDELT ${d.error}`);          // v5.4: proxy error bodies are failures, not empty results
     return d.articles || [];
   }, sourceKey);
 }
@@ -4551,15 +4559,18 @@ function parseGdeltArticles(articles, sourceKey, category, loc, defaultSeverity=
     const tone   = extractTone(a);
     const src    = a.sourcecountry==='Philippines' ? (a.sourcecommonname||a.domain||'PH Media') : (a.sourcecommonname||a.domain||'GDELT');
     const seenMs = a.seendate ? new Date(a.seendate.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,'$1-$2-$3T$4:$5:$6Z')).getTime() : Date.now();
+    const extracted = extractLocationFromText(title);   // v5.4: place marker only where the headline names a place
     parsed.push({
       id: `gdelt-${sourceKey}-${i}-${a.seendate||i}`,
       source: src, tag:'news', category, severity: sev,
       title: title.substring(0,120),
       body: `${a.domain||''} · ${a.sourcecountry||''}`,
-      loc: loc.label.replace(/🇵🇭 /,''),
-      lat: loc.lat + (Math.random()-0.5)*0.6,
-      lng: loc.lng + (Math.random()-0.5)*0.6,
+      loc: extracted?.loc || loc.label.replace(/🇵🇭 /,''),
+      lat: extracted?.lat ?? null,
+      lng: extracted?.lng ?? null,
+      geo: extracted ? 'extracted' : 'none',
       time: timeAgo(seenMs), url: a.url,
+      timestamp: isNaN(seenMs) ? Date.now() : seenMs,   // v5.4: real age for the 7-day cutoff
       // Phase 1 enhancements
       cameo: cameo,
       credibility: cred,
@@ -4943,14 +4954,24 @@ async function fetchRSS(feed) {
         category: guessCategory(title+' '+desc),
         severity: guessGdeltSeverity(title+' '+desc),
         title: title.substring(0,120), body: desc.substring(0,200),
-        loc: extracted?.loc || ACTIVE_LOC.label.replace(/🇵🇭 /,''),
-        lat: extracted?.lat || ACTIVE_LOC.lat + (Math.random()-0.5)*0.3,
-        lng: extracted?.lng || ACTIVE_LOC.lng + (Math.random()-0.5)*0.3,
+        // v5.4: unlocated stories get NO coordinates (was: random jitter around ACTIVE_LOC, which put
+        // foreign wire stories on the PH map as if they were local incidents). Consumers already guard on f.lat && f.lng.
+        loc: extracted?.loc || (isPHStory(title + ' ' + desc) ? ACTIVE_LOC.label.replace(/🇵🇭 /,'') : 'International / unlocated'),
+        lat: extracted?.lat ?? null,
+        lng: extracted?.lng ?? null,
+        geo: extracted ? 'extracted' : 'none',
         time: pubDate ? timeAgo(pubDate) : 'recent', url: link,
+        // v5.4: numeric timestamp so the 7-day age cutoff in refreshAllFeeds actually applies
+        timestamp: (pubDate && !isNaN(new Date(pubDate))) ? new Date(pubDate).getTime() : Date.now(),
       };
     });
   }, feed.key);
 }
+
+// ── PH RELEVANCE CHECK (v5.4) ─────────────────────────────────────────────────
+// True when a headline/body is about the Philippines even without a specific place name.
+const PH_STORY_RE = /philippin|filipin|pilipinas|pinoy|\bmanila\b|\bpnp\b|pagasa|phivolcs|ndrrmc|comelec|malaca[nñ]ang|marcos|duterte|\bbsp\b|\bofw|barangay|\bdilg\b|\bdoh\b|\bdswd\b|\bbfp\b|luzon|visayas|mindanao|\bnpa\b|\bbarmm\b/i;
+function isPHStory(text) { return PH_STORY_RE.test(text || ''); }
 
 // ── EXTRACT LOCATION FROM TEXT ────────────────────────────────────────────────
 // Matches known Philippine locations from news headlines/content
@@ -5236,8 +5257,8 @@ async function fetchTavilyNews() {
         title: (item.title || 'Untitled').substring(0, 120),
         body: (item.content || item.description || '').substring(0, 200),
         loc: extracted?.loc || 'Philippines',
-        lat: extracted?.lat || ACTIVE_LOC.lat + (Math.random() - 0.5) * 0.3,
-        lng: extracted?.lng || ACTIVE_LOC.lng + (Math.random() - 0.5) * 0.3,
+        lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
+        lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
         time: item.published_date ? timeAgo(new Date(item.published_date).getTime()) : 'recent',
         url: item.url
       };
@@ -5285,8 +5306,8 @@ async function fetchNewsAPI() {
               title: a.title || 'Untitled',
               body: (a.description || '').substring(0, 200),
               loc: extracted?.loc || 'Philippines',
-              lat: extracted?.lat || ACTIVE_LOC.lat + (Math.random() - 0.5) * 0.3,
-              lng: extracted?.lng || ACTIVE_LOC.lng + (Math.random() - 0.5) * 0.3,
+              lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
+              lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
               time: a.publishedAt ? timeAgo(new Date(a.publishedAt).getTime()) : 'recent',
               url: a.url
             };
@@ -5317,8 +5338,8 @@ async function fetchNewsAPI() {
                 title: a.title || 'Untitled',
                 body: (a.description || '').substring(0, 200),
                 loc: extracted?.loc || 'Philippines',
-                lat: extracted?.lat || ACTIVE_LOC.lat + (Math.random() - 0.5) * 0.3,
-                lng: extracted?.lng || ACTIVE_LOC.lng + (Math.random() - 0.5) * 0.3,
+                lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
+                lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
                 time: a.publishedAt ? timeAgo(new Date(a.publishedAt).getTime()) : 'recent',
                 url: a.url
               };
@@ -5358,8 +5379,8 @@ async function fetchGNews() {
               title: a.title || 'Untitled',
               body: (a.description || '').substring(0, 200),
               loc: extracted?.loc || 'Philippines',
-              lat: extracted?.lat || ACTIVE_LOC.lat + (Math.random() - 0.5) * 0.3,
-              lng: extracted?.lng || ACTIVE_LOC.lng + (Math.random() - 0.5) * 0.3,
+              lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
+              lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
               time: a.publishedAt ? timeAgo(new Date(a.publishedAt).getTime()) : 'recent',
               url: a.url
             };
@@ -5398,8 +5419,8 @@ async function fetchMediaStack() {
               title: a.title || 'Untitled',
               body: (a.description || '').substring(0, 200),
               loc: extracted?.loc || 'Philippines',
-              lat: extracted?.lat || ACTIVE_LOC.lat + (Math.random() - 0.5) * 0.3,
-              lng: extracted?.lng || ACTIVE_LOC.lng + (Math.random() - 0.5) * 0.3,
+              lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
+              lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
               time: a.published_at ? timeAgo(new Date(a.published_at).getTime()) : 'recent',
               url: a.url
             };
@@ -5455,8 +5476,8 @@ async function fetchTavilyHeadlines() {
         title: (item.title || 'Untitled').substring(0, 120),
         body: (item.content || item.description || '').substring(0, 200),
         loc: extracted?.loc || 'Philippines',
-        lat: extracted?.lat || ACTIVE_LOC.lat + (Math.random() - 0.5) * 0.3,
-        lng: extracted?.lng || ACTIVE_LOC.lng + (Math.random() - 0.5) * 0.3,
+        lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
+        lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
         time: item.published_date ? timeAgo(new Date(item.published_date).getTime()) : 'recent',
         url: item.url
       };
@@ -5566,8 +5587,16 @@ async function fetchCrypto() {
 // 1. FRANKFURTER — Live PHP exchange rates (via worker proxy)
 async function fetchFXRates() {
   return fetchWithRetry(async () => {
-    const r = await fetch(`${CLOUDFLARE_WORKER_URL}/api/frankfurter?from=USD&to=PHP,SGD,EUR,JPY,SAR,AED,CNY,KRW,AUD,GBP,HKD,THB,MYR`, { signal: AbortSignal.timeout(10000) });
+    const FX_TO = 'PHP,SGD,EUR,JPY,SAR,AED,CNY,KRW,AUD,GBP,HKD,THB,MYR';
+    let r;
+    try {   // v5.4: Frankfurter is CORS-open, so direct first; worker /api/frankfurter is the fallback
+      r = await fetch(`https://api.frankfurter.app/latest?from=USD&to=${FX_TO}`, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error('direct ' + r.status);
+    } catch(e) {
+      r = await fetch(`${CLOUDFLARE_WORKER_URL}/api/frankfurter?from=USD&to=${FX_TO}`, { signal: AbortSignal.timeout(10000) });
+    }
     const d = await r.json();
+    if (!d || !d.rates) throw new Error('FX: no rates in response');
     const php = d.rates?.PHP || 0;
     const rates = Object.entries(d.rates||{}).map(([cur,rate]) => `1 ${cur} = ₱${(php/rate).toFixed(2)}`).join(' · ');
     return [{
@@ -6040,18 +6069,27 @@ async function initSystem() {
 async function refreshAllFeeds() {
   updateLastFetch('SYNCING');
   const prev = allFeeds.map(f=>f.id);
-  // Wave 1: Fast/reliable sources (CORS-open, no proxy needed)
-  const wave1 = await Promise.allSettled([
-    fetchEarthquakes(), fetchCrypto(), fetchFXRates(),
+  // v5.4: GDELT is throttled to one call per 6 s and rate-limited upstream, so its 5 queries take 30-90 s.
+  // Kick them off now but do NOT gate the first render on them — they are merged in at the end.
+  const gdeltPending = Promise.allSettled([
     fetchGdeltMain(), fetchGdeltDisaster(), fetchGdeltPolitics(), fetchGdeltSecurity(), fetchGdeltEconomy(),
   ]);
+  // Wave 1: fast sources — USGS, crypto, FX and the primary PH RSS feeds (worker-proxied)
+  const wave1 = await Promise.allSettled([
+    fetchEarthquakes(), fetchCrypto(), fetchFXRates(), fetchAllRSS(),
+  ]);
   // Render wave 1 immediately
-  { const flat1 = wave1.flatMap(r => r.status==='fulfilled' ? r.value : []);
-    if (flat1.length) { allFeeds = flat1; renderFeeds(flat1); } }
+  { const AGE_CUTOFF_1 = 7 * 24 * 60 * 60 * 1000, now1 = Date.now();
+    // v5.4: same 7-day cutoff as the final merge — some feeds (e.g. GMA's data feed) serve weeks-old items
+    const seen1 = new Set();
+    const flat1 = wave1.flatMap(r => r.status==='fulfilled' ? r.value : [])
+      .filter(f => f && f.title && !(f.timestamp && now1 - f.timestamp > AGE_CUTOFF_1))
+      .filter(f => { const k = f.url || f.title.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0, 40); if (seen1.has(k)) return false; seen1.add(k); return true; });
+    if (flat1.length) { allFeeds = flat1; renderFeeds(flat1); rebuildAlerts(flat1); updateMetrics(flat1); } }
 
   // Wave 2: Proxy/RSS sources
   const wave2 = await Promise.allSettled([
-    fetchAllRSS(), fetchGoogleNews(), fetchSocialFeeds(),
+    fetchGoogleNews(), fetchSocialFeeds(),
     fetchReddit('Philippines','social','REDDIT'),
     fetchReddit('PHnews','politics','REDDIT2'),
     fetchReddit('phinvest','economy','REDDIT3'),
@@ -6068,7 +6106,8 @@ async function refreshAllFeeds() {
     fetchNASA_FIRMS(), fetchNASA_EONET(),
   ]);
 
-  const results = [...wave1, ...wave2, ...wave3];
+  const gdeltWave = await gdeltPending;   // v5.4: usually settled by now; merged last
+  const results = [...wave1, ...gdeltWave, ...wave2, ...wave3];
   // Web scraper runs separately (only when local proxy available)
   setTimeout(() => { if (((proxyMode === "cloudflare" || proxyMode === "local"))) runScraperEngine(); }, 3000);
   const sevOrder = { critical:0, high:1, medium:2, low:3, info:4 };
@@ -6277,10 +6316,13 @@ const PH_EEZ_COORDS = [
 
 // Leaflet tile layers
 const TILE_LAYERS = {
-  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap © CARTO',
-    subdomains: 'abcd',
-    maxZoom: 19
+  // v5.4: CARTO basemaps are API-key gated as of 2026-09 (tiles render "API KEY REQUIRED").
+  // Dark tactical look = OpenStreetMap tiles through a CSS invert/desaturate filter (.jdm-dark-tiles).
+  dark: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    subdomains: 'abc',
+    maxZoom: 19,
+    className: 'jdm-dark-tiles'
   }),
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '© Esri',
@@ -7354,7 +7396,7 @@ function buildTicker(feeds) {
 
   const ph = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Manila'}));
   const dtg = `${String(ph.getDate()).padStart(2,'0')}${String(ph.getHours()).padStart(2,'0')}${String(ph.getMinutes()).padStart(2,'0')}H`;
-  const header = `<span class="ticker-item" style="color:var(--amber)">◆ DTG ${dtg} PHT ◆ THREAT INDEX: ${window.threatScoreCurrent || 0}/100 ◆</span>`;
+  const header = `<span class="ticker-item" style="color:var(--amber)">◆ DTG ${dtg} PHT ◆ THREAT INDEX: ${threatScoreCurrent || 0}/100 ◆</span>`;
 
   inner.innerHTML = header + [...items, ...items].map(f => {
     const icon  = f.severity==='critical'?'🔴':f.severity==='high'?'🟠':'◆';
@@ -7537,6 +7579,14 @@ const YT_PROXIES = [
 // every caller doing `(await fetchWithProxy(url)).text()` threw on a string.
 // That silently killed radio intel, the fetchRSS fallback path, and GDACS.
 async function fetchTextViaProxy(url) {
+  // v5.4: own Cloudflare worker first (youtube.com is on its allowlist); public proxies are fallback only
+  const base = (typeof getProxyBase === 'function') ? getProxyBase() : null;
+  if (base) {
+    try {
+      const resp = await fetch(`${base}/proxy-rss?feed=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(10000) });
+      if (resp.ok) { const t = await resp.text(); if (t && t.trim().startsWith('<')) return t; }
+    } catch(e) { /* fall through to public proxies */ }
+  }
   for (const mkUrl of YT_PROXIES) {
     try {
       const resp = await fetch(mkUrl(url), { signal: AbortSignal.timeout(8000) });
@@ -7608,7 +7658,9 @@ function escHtml(s) { const d = document.createElement('div'); d.textContent = s
 function timeAgo(dateStr) {
   if (!dateStr) return '';
   const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
+  if (isNaN(diff)) return 'recent';
+  if (diff < -5 * 60000) return 'recent';   // v5.4: future-dated (source stamps local time as UTC) — never show a negative age
+  const mins = Math.max(0, Math.floor(diff / 60000));
   if (mins < 60) return mins + 'm ago';
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return hrs + 'h ago';
@@ -8439,6 +8491,8 @@ let threatScoreHistory = [];
 let threatScoreCurrent = 0;
 
 function computeThreatScore(feeds) {
+  // v5.4: foreign wire stories (no PH place, no PH keyword) are excluded — they were pinning the NATIONAL index at 75+
+  feeds = (feeds || []).filter(f => f && f.loc !== 'International / unlocated');
   if (!feeds.length) return 0;
 
   const weights = { critical:25, high:10, medium:4, low:1, info:0 };
@@ -16339,10 +16393,11 @@ async function fetchGoogleNews() {
         severity: guessGdeltSeverity(title + ' ' + desc),
         title:    title.substring(0, 120),
         body:     desc.substring(0, 200),
-        loc:      loc.label.replace(/🇵🇭 /, ''),
-        lat:      loc.lat + (Math.random() - 0.5) * 0.5,
-        lng:      loc.lng + (Math.random() - 0.5) * 0.5,
+        loc:      (extractLocationFromText(title + ' ' + desc)?.loc) || loc.label.replace(/🇵🇭 /, ''),
+        lat:      extractLocationFromText(title + ' ' + desc)?.lat ?? null,   // v5.4: no fabricated coords
+        lng:      extractLocationFromText(title + ' ' + desc)?.lng ?? null,
         time:     pubDate ? timeAgo(new Date(pubDate)) : 'recent',
+        timestamp: (pubDate && !isNaN(new Date(pubDate))) ? new Date(pubDate).getTime() : Date.now(),
         url:      link,
       };
     });
@@ -16395,8 +16450,8 @@ async function fetchSocialFeeds() {
         title:    post.title.substring(0, 120),
         body:     post.selftext ? post.selftext.substring(0, 200) : `⬆ ${post.score.toLocaleString()} · 💬 ${post.num_comments}`,
         loc:      'Philippines',
-        lat:      loc.lat + (Math.random() - 0.5) * 0.8,
-        lng:      loc.lng + (Math.random() - 0.5) * 0.8,
+        lat:      null,   // v5.4: no fabricated coords — story is unlocated
+        lng:      null,   // v5.4: no fabricated coords — story is unlocated
         time:     timeAgo(post.created_utc * 1000),
         url:      `https://reddit.com${post.permalink}`,
       };
@@ -16414,9 +16469,9 @@ async function fetchSocialFeeds() {
     // ═══ PHILIPPINE NEWS (Reliable Sources) ═══
     { url:'https://newsinfo.inquirer.net/feed',               src:'Inquirer',        cat:'news'    },
     { url:'https://www.philstar.com/rss/headlines',           src:'PhilStar',        cat:'news'    },
-    { url:'https://www.gmanetwork.com/news/rss/news/',        src:'GMA News',        cat:'news'    },
+    { url:'https://data.gmanetwork.com/gno/rss/news/nation/feed.xml',        src:'GMA News',        cat:'news'    },
     // Government/Humanitarian (Working)
-    { url:'https://reliefweb.int/crisis/country/ph/rss.xml',  src:'ReliefWeb PH',    cat:'disaster'},
+    { url:'https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3Aphl',  src:'ReliefWeb PH',    cat:'disaster'},
     // International
     { url:'https://feeds.bbci.co.uk/news/world/asia/rss.xml', src:'BBC Asia',        cat:'news'    },
   ];
@@ -16438,8 +16493,8 @@ async function fetchSocialFeeds() {
         title:    (item.querySelector('title')?.textContent || 'No title').trim().substring(0, 120),
         body:     (item.querySelector('description')?.textContent || '').replace(/<[^>]+>/g, '').trim().substring(0, 200),
         loc:      loc.label.replace(/🇵🇭 /, ''),
-        lat:      loc.lat + (Math.random() - 0.5) * 0.6,
-        lng:      loc.lng + (Math.random() - 0.5) * 0.6,
+        lat:      null,   // v5.4: no fabricated coords — story is unlocated
+        lng:      null,   // v5.4: no fabricated coords — story is unlocated
         time:     timeAgo(item.querySelector('pubDate')?.textContent || Date.now()),
         url:      item.querySelector('link')?.textContent?.trim() || '',
       }));
@@ -16657,8 +16712,8 @@ async function fetchSocialMediaIntel() {
         body: (item.text?.substring(0, 250) || item.bio || '') + 
               `\n\n💬 ${item.likes || '0'} ❤️ · 📝 ${item.comments || '0'} 💬`,
         loc: loc.label.replace(/🇵🇭 /, ''),
-        lat: loc.lat + (Math.random() - 0.5) * 0.3,
-        lng: loc.lng + (Math.random() - 0.5) * 0.3,
+        lat: null,   // v5.4: no fabricated coords — story is unlocated
+        lng: null,   // v5.4: no fabricated coords — story is unlocated
         time: timeAgo(item._scraped_at || Date.now()),
         url: item.url || '',
       });
@@ -16861,7 +16916,7 @@ const PH_RADIO_STATIONS = [
     web:'https://www.teleradyoserbisyo.ph/' },
   { id:'dzbb',    name:'DZBB Super Radyo', freq:'594 AM',   city:'Manila',       type:'news',
     stream:null,
-    rss:'https://data.gmanetwork.com/gno/rss/news/feed.xml',
+    rss:'https://data.gmanetwork.com/gno/rss/news/nation/feed.xml',
     youtube:'https://www.youtube.com/@dzbb594am/live' },
   { id:'dwiz',    name:'DWIZ 882',         freq:'882 AM',   city:'Manila',       type:'news',
     stream:null,
@@ -16952,8 +17007,8 @@ async function fetchRadioFeeds() {
         title:    `📻 [${s.name}] ${(item.querySelector('title')?.textContent || '').trim().substring(0, 100)}`,
         body:     (item.querySelector('description')?.textContent || '').replace(/<[^>]+>/g,'').trim().substring(0, 200),
         loc:      s.city,
-        lat:      loc.lat + (Math.random() - 0.5) * 0.3,
-        lng:      loc.lng + (Math.random() - 0.5) * 0.3,
+        lat:      null,   // v5.4: no fabricated coords — story is unlocated
+        lng:      null,   // v5.4: no fabricated coords — story is unlocated
         time:     timeAgo(item.querySelector('pubDate')?.textContent || Date.now()),
         url:      item.querySelector('link')?.textContent?.trim() || '',
       }));
@@ -17236,60 +17291,58 @@ const NASA_SOURCES = {
 
 let firmsCache = { data: null, timestamp: 0 };
 async function fetchNASA_FIRMS() {
-  // NASA FIRMS provides RSS/KML feeds for fire alerts (no key required)
-  // For full API data: register at https://earthdata.nasa.gov/eosdis/daac
-  const loc = ACTIVE_LOC;
+  // v5.4: VIIRS SNPP NRT hotspots via the worker's /api/firms (CSV; key held server-side as FIRMS_KEY).
+  // The old RSS/KML endpoint has no CORS headers, so the direct browser fetch always failed.
+  // Hotspots are routine (agricultural burning), so they never rate 'critical' on their own — 'high' only for
+  // large fires (FRP >= 50 MW) — otherwise they would pin the threat index at 75+ every day.
   const now = Date.now();
   if (firmsCache.data && now - firmsCache.timestamp < 1800000) return firmsCache.data;
-  
+  const base = (typeof getProxyBase === 'function') ? getProxyBase() : null;
+  if (!base) { setSourceStatus('NASA_FIRMS', 'fail'); return []; }
   try {
-    // Use FIRMS RSS feed for Philippines region (free, no key needed)
-    // Alternative: Use the provided key for WMS visualization layer
-    const rssUrl = 'https://firms.modaps.eosdis.nasa.gov/rss/kml_fire_alerts.php?source=VIIRS&country=PHL';
-    const r = await fetch(rssUrl, { signal: AbortSignal.timeout(15000) });
-    
-    if (!r.ok) {
-      // Fallback: Use EONET for wildfire events
-      return await fetchNASA_EONET();
-    }
-    
-    const text = await r.text();
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(text, 'text/xml');
-    const items = xml.querySelectorAll('item');
-    
-    const fires = [];
-    items.forEach((item, i) => {
-      const title = item.querySelector('title')?.textContent || '';
-      const desc = item.querySelector('description')?.textContent || '';
-      const link = item.querySelector('link')?.textContent || '';
-      
-      // Extract coordinates from description or link
-      const coords = desc.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/) || [0, 12.8, 121.8];
-      const lat = parseFloat(coords[1]) || loc.lat + (Math.random() - 0.5) * 2;
-      const lng = parseFloat(coords[2]) || loc.lng + (Math.random() - 0.5) * 2;
-      
-      fires.push({
-        id: `firms-${i}-${Date.now()}`,
-        source: 'NASA FIRMS',
-        tag: 'disaster',
-        category: 'disaster',
-        severity: title.match(/extreme|severe|active/i) ? 'critical' : 'high',
-        title: `🔥 Fire Alert: ${title.substring(0, 80)}`,
-        body: `NASA VIIRS fire detection. ${desc.substring(0, 200)}`,
-        lat, lng,
-        loc: loc.label.replace(/🇵🇭 /, ''),
-        time: 'LIVE',
-        timestamp: now,
-        url: link || 'https://firms.modaps.eosdis.nasa.gov/map/',
-      });
+    const r = await fetch(`${base}/api/firms?area=116,4,127,21&days=2`, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(`HTTP ${r.status} ${t.slice(0, 80)}`); }
+    const csv = await r.text();
+    const lines = csv.trim().split(/\r?\n/);
+    if (lines.length < 1 || !/latitude/i.test(lines[0])) throw new Error('unexpected payload: ' + (lines[0] || '').slice(0, 60));
+    const cols = lines[0].split(',');
+    const ix = n => cols.indexOf(n);
+    const iLat = ix('latitude'), iLng = ix('longitude'), iDate = ix('acq_date'), iTime = ix('acq_time'),
+          iConf = ix('confidence'), iFrp = ix('frp'), iBright = ix('bright_ti4'), iDN = ix('daynight');
+    const rows = lines.slice(1).map(l => l.split(',')).filter(c => c.length >= cols.length);
+    const spots = rows.map(c => ({
+      lat: parseFloat(c[iLat]), lng: parseFloat(c[iLng]),
+      conf: String(c[iConf] || '').toLowerCase(), frp: parseFloat(c[iFrp]) || 0, bright: parseFloat(c[iBright]) || 0,
+      dn: c[iDN] || '', date: c[iDate] || '', time: String(c[iTime] || '').padStart(4, '0'),
+    })).filter(f => isFinite(f.lat) && isFinite(f.lng))
+      // The bbox also covers Sabah / North Borneo (lng < 119.3, lat < 7.4). Those fires are not PH incidents.
+      .filter(f => !(f.lng < 119.3 && f.lat < 7.4))
+      .sort((a, b) => b.frp - a.frp);
+    const locs = Object.entries(PH_LOCATIONS || {})
+      .filter(([k, l]) => k !== 'national' && isFinite(l.lat) && isFinite(l.lng)).map(([, l]) => l);
+    const nearest = f => {
+      let best = null, bd = Infinity;
+      for (const l of locs) { const d = (l.lat - f.lat) ** 2 + (l.lng - f.lng) ** 2; if (d < bd) { bd = d; best = l; } }
+      // > ~1.5° from any known place: do not pin it to a city name
+      return (best && bd <= 1.5 * 1.5) ? best.label.replace(/🇵🇭 /, '') : 'Philippines (remote / offshore)';
+    };
+    const items = spots.slice(0, 25).map((f, i) => {
+      const ts = f.date ? new Date(`${f.date}T${f.time.slice(0, 2)}:${f.time.slice(2)}:00Z`).getTime() : now;
+      const near = nearest(f);
+      return {
+        id: `firms-${f.date}-${f.time}-${f.lat.toFixed(3)}-${f.lng.toFixed(3)}`,
+        source: 'NASA FIRMS', tag: 'disaster', category: 'disaster',
+        severity: f.frp >= 50 ? 'high' : 'medium',
+        title: `🔥 VIIRS hotspot near ${near} · FRP ${f.frp.toFixed(1)} MW · conf ${f.conf || '?'}`,
+        body: `NASA VIIRS SNPP fire detection ${f.date} ${f.time.slice(0, 2)}:${f.time.slice(2)}Z · ${f.lat.toFixed(3)}, ${f.lng.toFixed(3)} · brightness ${f.bright} K · ${f.dn === 'D' ? 'day' : 'night'} pass. Total hotspots in PH bbox (48h): ${spots.length}.`,
+        lat: f.lat, lng: f.lng, loc: near, geo: 'sensor',
+        time: isNaN(ts) ? 'recent' : timeAgo(ts), timestamp: isNaN(ts) ? now : ts,
+        url: `https://firms.modaps.eosdis.nasa.gov/map/#d:24hrs;@${f.lng.toFixed(2)},${f.lat.toFixed(2)},9z`,
+      };
     });
-    
-    // Cache and return
-    firmsCache = { data: fires.slice(0, 10), timestamp: now };
+    firmsCache = { data: items, timestamp: now };
     setSourceStatus('NASA_FIRMS', 'ok');
-    return fires.slice(0, 10);
-    
+    return items;
   } catch(e) {
     setSourceStatus('NASA_FIRMS', 'fail');
     console.warn('[NASA_FIRMS]', e.message);
@@ -17376,8 +17429,8 @@ async function runScraperEngine() {
           title:    item.title,
           body:     `Scraped from ${source.name} · ${new Date().toLocaleTimeString('en-PH')}`,
           loc:      loc.label.replace(/🇵🇭 /, ''),
-          lat:      loc.lat + (Math.random() - 0.5) * 0.2,
-          lng:      loc.lng + (Math.random() - 0.5) * 0.2,
+          lat:      null,   // v5.4: no fabricated coords — story is unlocated
+          lng:      null,   // v5.4: no fabricated coords — story is unlocated
           time:     'live',
         });
       });
@@ -17484,8 +17537,8 @@ async function fetchWebSearch(query, type='news') {
       title:    (item.title || '').substring(0, 120),
       body:     (item.snippet || item.description || '').substring(0, 200),
       loc:      ACTIVE_LOC.label.replace(/🇵🇭 /, ''),
-      lat:      ACTIVE_LOC.lat + (Math.random()-0.5)*0.5,
-      lng:      ACTIVE_LOC.lng + (Math.random()-0.5)*0.5,
+      lat:      null,   // v5.4: no fabricated coords — story is unlocated
+      lng:      null,   // v5.4: no fabricated coords — story is unlocated
       time:     item.date ? timeAgo(new Date(item.date)) : 'recent',
       url:      item.url || '',
     }));
@@ -20655,8 +20708,8 @@ function initLGUMapLeaflet() {
   });
 
   // Dark tiles by default to match LGU command theme
-  lguBaseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd', maxZoom: 19,
+  lguBaseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    subdomains: 'abc', maxZoom: 19, className: 'jdm-dark-tiles', attribution: '© OpenStreetMap contributors',   // v5.4: CARTO is key-gated
   }).addTo(lguMap);
   lguCurrentLayer = 'dark';
   
@@ -20687,12 +20740,12 @@ function lguSetLayer(layer) {
   lguMap.removeLayer(lguBaseLayer);
 
   const layers = {
-    dark:    { url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subs:'abcd', maxZ:19 },
+    dark:    { url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:19, cls:'jdm-dark-tiles' },  // v5.4: CARTO is key-gated
     streets: { url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:19 },
     topo:    { url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:17 },
   };
   const cfg = layers[layer] || layers.dark;
-  lguBaseLayer = L.tileLayer(cfg.url, { subdomains:cfg.subs, maxZoom:cfg.maxZ }).addTo(lguMap);
+  lguBaseLayer = L.tileLayer(cfg.url, { subdomains:cfg.subs, maxZoom:cfg.maxZ, className: cfg.cls || '', attribution: '© OpenStreetMap contributors' }).addTo(lguMap);
   lguCurrentLayer = layer;
   ['lgu-btn-dark','lgu-btn-streets','lgu-btn-topo'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   const activeBtn = layer === 'dark' ? 'lgu-btn-dark' : layer === 'streets' ? 'lgu-btn-streets' : layer === 'topo' ? 'lgu-btn-topo' : null;
@@ -22506,12 +22559,12 @@ function pnpSetLayer(layer) {
   pnpMap.removeLayer(pnpBaseLayer);
 
   const layers = {
-    dark:    { url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subs:'abcd', maxZ:19 },
+    dark:    { url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:19, cls:'jdm-dark-tiles' },  // v5.4: CARTO is key-gated
     streets: { url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:19 },
     topo:    { url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subs:'abc', maxZ:17 },
   };
   const cfg = layers[layer] || layers.dark;
-  pnpBaseLayer = L.tileLayer(cfg.url, { subdomains:cfg.subs, maxZoom:cfg.maxZ }).addTo(pnpMap);
+  pnpBaseLayer = L.tileLayer(cfg.url, { subdomains:cfg.subs, maxZoom:cfg.maxZ, className: cfg.cls || '', attribution: '© OpenStreetMap contributors' }).addTo(pnpMap);
   pnpCurrentLayer = layer;
   ['pnp-btn-dark','pnp-btn-streets','pnp-btn-topo'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   const activeBtn = layer === 'dark' ? 'pnp-btn-dark' : layer === 'streets' ? 'pnp-btn-streets' : layer === 'topo' ? 'pnp-btn-topo' : null;
