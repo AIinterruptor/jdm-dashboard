@@ -8,7 +8,6 @@
  * Endpoints:
  *   GET  /health                          — liveness + route list
  *   GET  /proxy?url=ENCODED_URL           — generic GET proxy (allowlisted domains)
- *   POST /proxy                           — generic POST proxy (JSON body: {url, headers, body})
  *   GET  /proxy-rss?feed=URL              — RSS/Atom proxy (XML content-type)
  *   GET  /proxy-reddit?sub=NAME           — Reddit JSON with a Reddit-tolerated User-Agent
  *   GET  /proxy-gdelt?q=QUERY             — GDELT v2 DOC query
