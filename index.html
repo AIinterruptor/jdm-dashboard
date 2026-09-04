@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="JDM Command Center — Real-time Philippines intelligence dashboard aggregating GDELT, PAGASA, PHIVOLCS, news, social, and satellite feeds into a unified situational awareness platform.">
-<title>JDM · COMMAND CENTER v5.4</title>
+<title>JDM · COMMAND CENTER v5.5</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -383,6 +383,7 @@ body {
 .dot-ok   { background:var(--green-hi); box-shadow:0 0 4px var(--green-hi); }
 .dot-fail { background:var(--red); }
 .dot-load { background:var(--yellow); animation:pulse-mark 0.8s infinite; }
+.dot-stale { background:var(--amber); box-shadow:0 0 4px var(--amber); }   /* v5.5: served from worker cache */
 
 /* Filter strip */
 #source-filters {
@@ -1403,6 +1404,7 @@ body {
 .le-sev     { }
 .le-sev.critical { color:var(--red); }
 .le-sev.high { color:var(--orange); }
+.le-sev.note { color:var(--amber); }
 .le-src     { color:var(--t2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .le-title   { color:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .le-loc     { color:var(--amber-dim); text-align:right; }
@@ -2785,6 +2787,22 @@ window.gm_authFailure = function() {
 <style id="jdm-darktiles-css">
   /* v5.4: dark tactical basemap = OSM tiles inverted + desaturated (CARTO dark_all is API-key gated) */
   .jdm-dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.72) contrast(1.05) saturate(.35); }
+  /* v5.5: keyword watchlist */
+  #watch-panel { padding:6px 10px; border-bottom:1px solid var(--border); background:rgba(200,168,75,0.04); font-family:var(--mono); font-size:9px; }
+  #watch-panel input { flex:1; background:rgba(0,0,0,.35); border:1px solid var(--border); color:var(--t1); font-family:var(--mono); font-size:9px; padding:3px 6px; }
+  #watch-panel button { background:none; border:1px solid var(--border); color:var(--amber); font-family:var(--mono); font-size:8px; padding:2px 6px; cursor:pointer; letter-spacing:1px; }
+  #watch-chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:5px; }
+  .watch-chip { border:1px solid rgba(200,168,75,0.45); color:var(--amber); padding:1px 6px; border-radius:2px; }
+  .watch-chip b { cursor:pointer; margin-left:3px; color:var(--t3); font-weight:400; }
+  .watch-chip b:hover { color:var(--red); }
+  #watch-btn.watch-active { color:var(--amber); border-color:var(--amber); }
+  .feed-item.watch-hit { background:rgba(200,168,75,0.07); box-shadow:inset 3px 0 0 var(--amber); }
+  .watch-flag { color:var(--amber); font-size:10px; }
+  /* v5.5: operator notes in the incident log */
+  #op-note-row { display:flex; gap:4px; padding:4px 8px; border-bottom:1px solid var(--border); }
+  #op-note-row input { flex:1; background:rgba(0,0,0,.35); border:1px solid var(--border); color:var(--t1); font-family:var(--mono); font-size:9px; padding:3px 6px; }
+  #op-note-row button { background:none; border:1px solid var(--border); color:var(--amber); font-family:var(--mono); font-size:8px; padding:2px 6px; cursor:pointer; letter-spacing:1px; }
+  .log-entry.note { border-left:2px solid var(--amber); }
 </style>
 </head>
 <body>
@@ -2818,7 +2836,7 @@ window.gm_authFailure = function() {
       <div class="hdr-logo-mark"></div>
       <div class="hdr-wordmark">
         <div class="hdr-brand">JDM</div>
-        <div class="hdr-tagline">COMMAND CENTER v5.4</div>
+        <div class="hdr-tagline">COMMAND CENTER v5.5</div>
       </div>
     </div>
   </div>
@@ -2943,8 +2961,16 @@ window.gm_authFailure = function() {
       <div style="display:flex;gap:5px;align-items:center">
         <span id="last-fetch">--</span>
         <span class="panel-tag" id="feed-count">0 ITEMS</span>
-        <button class="map-ctrl-btn" onclick="refreshFeeds()" style="min-width:50px;padding:2px 6px">↻</button>
+        <button class="map-ctrl-btn" onclick="refreshFeeds()" title="Refresh feeds" style="min-width:30px;padding:2px 5px">↻</button>
+        <button class="map-ctrl-btn" id="watch-btn" onclick="toggleWatchPanel()" title="Keyword watchlist — flag and alert on matching items" style="min-width:30px;padding:2px 5px">⚑<span id="watch-count"></span></button>
       </div>
+    </div>
+    <div id="watch-panel" hidden>
+      <div style="display:flex;gap:4px;align-items:center">
+        <input id="watch-input" type="text" maxlength="40" placeholder="Add keyword, place or name… (Enter)" onkeydown="if(event.key==='Enter'){addWatchKeyword(this.value);this.value='';}">
+        <button onclick="const i=document.getElementById('watch-input');addWatchKeyword(i.value);i.value='';">ADD</button>
+      </div>
+      <div id="watch-chips"></div>
     </div>
     <div id="source-health"></div>
     <div id="source-filters">
@@ -3218,6 +3244,10 @@ window.gm_authFailure = function() {
         ▸ INCIDENT LOG
         <button onclick="exportLog()" style="background:none;border:1px solid var(--border);color:var(--t3);font-family:var(--mono);font-size:7px;padding:2px 6px;cursor:pointer;letter-spacing:1px">↓ CSV</button>
       </div>
+      <div id="op-note-row">
+        <input id="op-note-input" type="text" maxlength="200" placeholder="Operator note… (Enter to log)" onkeydown="if(event.key==='Enter'){addOperatorNote(this.value);this.value='';}">
+        <button onclick="const i=document.getElementById('op-note-input');addOperatorNote(i.value);i.value='';">LOG</button>
+      </div>
       <div class="alert-list" id="incident-log-list" role="log" aria-live="polite" aria-label="Incident log"></div>
     </div>
         <div class="right-pane" id="pane-sentinel">
@@ -3340,24 +3370,12 @@ const CONFIG = {
   STREETVIEW_KEY: '',   // Ground-level imagery at any coordinate
   // TIP: One key can cover all APIs — just enable each in Cloud Console
 
-  // ── ACLED Conflict Data ────────────────────────────────────────────────
-  ACLED_KEY:   '',
   
-  // ── NASA FIRMS (Fire Detection) — get key at earthdata.nasa.gov ───────
-  // Free: 10,000 requests/month — VIIRS active fire data
+  // ── NASA FIRMS — the key lives in the Cloudflare Worker secret FIRMS_KEY (v5.4); this field is unused ──
   FIRMS_KEY: '',
-  ACLED_EMAIL: '', // Required alongside ACLED_KEY — register at acleddata.com
 
-  // ── NewsAPI — get key at newsapi.org ───────────────────────────────────
-  NEWSAPI_KEY: '',
 
-  // ── GNews — get key at gnews.io ────────────────────────────────────────
-  // Free: 100 requests/day — excellent for breaking news
-  GNEWS_KEY: '', // Free 100 req/day at gnews.io — highly recommended for PH breaking news
 
-  // ── MediaStack — get key at mediastack.com ─────────────────────────────
-  // Free: 500 requests/month — good for categorized headlines
-  MEDIASTACK_KEY: '',
 
   // ── Tavily — AI-powered search API ──────────────────────────────────────
   // Free tier available at tavily.com — excellent for real-time news search
@@ -3774,53 +3792,20 @@ window.ACTIVE_LOC = ACTIVE_LOC;
 // Weather cities — populated dynamically based on active location
 // RSS feeds — national + region-specific
 function getRSSFeeds(loc) {
-  const locQuery = encodeURIComponent((loc.aliases?.[0] || loc.label).replace(/🇵🇭 /,''));
+  // v5.5: Google News RSS removed (503 from Cloudflare); Manila Bulletin, ABS-CBN, SunStar and PNA removed
+  // (403/404 from every egress tested 2026-09-04). Re-add a source only after it answers 200 via /proxy-rss.
   const national = [
-    // Google News RSS — confirmed working, no proxy, real-time PH news
-    { key:'RSS_GNEWS_PH',  src:'Google News PH',  tag:'news', url:`https://news.google.com/rss/search?q=Philippines+news&hl=en-PH&gl=PH&ceid=PH:en` },
-    { key:'RSS_GNEWS_LOC', src:'Google News Local',tag:'news', url:`https://news.google.com/rss/search?q=${locQuery}+Philippines&hl=en-PH&gl=PH&ceid=PH:en` },
-    // Major Philippine News Networks (working via direct fetch or proxy)
+    // Major Philippine News Networks (worker-proxied)
     { key:'RSS_INQ',  src:'Inquirer',  url:'https://newsinfo.inquirer.net/feed',                 tag:'news' },
     { key:'RSS_GMA',  src:'GMA News',  url:'https://data.gmanetwork.com/gno/rss/news/nation/feed.xml',  tag:'news' },
     { key:'RSS_RAP',  src:'Rappler',   url:'https://www.rappler.com/feed/',                       tag:'news' },
     { key:'RSS_STAR', src:'PhilStar',  url:'https://www.philstar.com/rss/headlines',              tag:'news' },
     { key:'RSS_PTV',  src:'PTV News',  url:'https://ptvnews.ph/feed/',                           tag:'gov' },
-    // Additional sources (may need proxy for some)
-    { key:'RSS_MB',   src:'Manila Bulletin', url:'https://mb.com.ph/feed',                     tag:'news' },
-    { key:'RSS_ABS',  src:'ABS-CBN',     url:'https://news.abs-cbn.com/rss/news',              tag:'news' },
-    { key:'RSS_SUNSTAR', src:'SunStar',   url:'https://www.sunstar.com.ph/rss.xml',              tag:'news' },
-    // Government sources (PTV working, PNA blocked by Cloudflare)
-    { key:'RSS_PNA_NAT', src:'PNA Gov', tag:'gov', url:'https://www.pna.gov.ph/rss/latest-news' },
   ];
   const regional = [];
 
-  // SunStar regional editions
-  const sunstarMap = {
-    'manila':'manila','cebu':'cebu','davao':'davao','bacolod':'bacolod',
-    'iloilo':'iloilo','western-visayas':'iloilo','cdo':'cagayan-de-oro',
-    'baguio':'baguio','car':'baguio','central-visayas':'cebu',
-    'davao-region':'davao','northern-mindanao':'cagayan-de-oro',
-  };
-  const ssSlug = sunstarMap[loc.key] || loc.sunstarSlug;
-  if (ssSlug) regional.push({ key:`RSS_SS_${ssSlug.toUpperCase()}`, src:`SunStar ${ssSlug}`, url:`https://www.sunstar.com.ph/${ssSlug}/rss.xml`, tag:'news' });
-
-  // PNA regional feed
-  if (loc.pnaRegion) regional.push({ key:`RSS_PNA_${loc.pnaRegion.toUpperCase().replace(/-/g,'_')}`, src:`PNA ${loc.region}`, url:`https://www.pna.gov.ph/rss/regions/${loc.pnaRegion}`, tag:'gov' });
-
-  // Dynamic Google News by location + category
-  const locQ = encodeURIComponent(getGdeltTerms(loc));
-  const gnews = [
-    { key:'GNEWS_DIS', src:'Google News', tag:'news', cat:'disaster',
-      url:`https://news.google.com/rss/search?q=${locQ}+typhoon+earthquake+flood+PAGASA+PHIVOLCS&hl=en-PH&gl=PH&ceid=PH:en` },
-    { key:'GNEWS_SEC', src:'Google News', tag:'news', cat:'crime',
-      url:`https://news.google.com/rss/search?q=${locQ}+crime+AFP+PNP+arrest+military+drug&hl=en-PH&gl=PH&ceid=PH:en` },
-    { key:'GNEWS_ECO', src:'Google News', tag:'news', cat:'economy',
-      url:`https://news.google.com/rss/search?q=${locQ}+economy+peso+inflation+BSP+OFW&hl=en-PH&gl=PH&ceid=PH:en` },
-    { key:'GNEWS_POL', src:'Google News', tag:'news', cat:'politics',
-      url:`https://news.google.com/rss/search?q=${locQ}+politics+congress+election+mayor+government&hl=en-PH&gl=PH&ceid=PH:en` },
-  ];
-
-  return [...national, ...regional, ...gnews];
+  // v5.5: SunStar/PNA regional editions and Google News category searches removed (dead upstreams).
+  return [...national, ...regional];
 }
 
 // Build GDELT query terms from location
@@ -4013,6 +3998,11 @@ let chatHistory = [], ctxFeed = true, ctxMap = true;
 let refreshInterval, lastFetchTime = null;
 let sourceStatus = {};
 let sourceLastGood = {};
+let sourceStaleAge = {};   // v5.5: seconds old when the worker served a stale cached copy
+const _pendingStale = {};  // v5.5: set by noteFreshness() during a fetch, consumed by fetchWithRetry()
+function noteFreshness(name, r) {
+  try { if (r && r.headers && r.headers.get('X-JDM-Cache') === 'stale') _pendingStale[name] = parseInt(r.headers.get('X-JDM-Age') || '0', 10) || 0; } catch(e) {}
+}
 
 // REGIONS dict for quick navigation (Iloilo-focused)
 const REGIONS = {
@@ -4047,15 +4037,6 @@ function isInActiveLoc(lat, lng) {
   return Math.abs(lat - ACTIVE_LOC.lat) < 2.5 && Math.abs(lng - ACTIVE_LOC.lng) < 2.5;
 }
 function magToSeverity(m) { return m >= 6.0 ? 'critical' : m >= 5.0 ? 'high' : m >= 4.0 ? 'medium' : 'low'; }
-function timeAgo(ts) {
-  const diff = (Date.now() - new Date(ts)) / 60000;
-  if (isNaN(diff)) return 'recent';
-  if (diff < -5) return 'recent';          // v5.4: future-dated (source stamps local time as UTC) — never show a negative age
-  if (diff < 1) return 'just now';
-  if (diff < 60) return Math.floor(diff) + 'm ago';
-  if (diff < 1440) return Math.floor(diff/60) + 'h ago';
-  return Math.floor(diff/1440) + 'd ago';
-}
 function guessCategory(txt) {
   const t = (txt||'').toLowerCase();
   if (/typhoon|supertyphoon|bagyo|earthquake|linog|flood|baha|storm|eruption|landslide|volcanic|tsunami|lahar|disaster|pagasa|ndrrmc|phivolcs|signal no|cyclone|bagyo|rain|weather/i.test(t)) return 'disaster';
@@ -4065,27 +4046,88 @@ function guessCategory(txt) {
   if (/crime|police|pnp|arrest|drug|shabu|shoot|kill|murder|pdea|cidg|soco|bfp|afp|military|npa|rebel|terror|bombing|holdup|robbery|carnap|encounter|firefight|asg|biff|wps|south china sea/i.test(t)) return 'crime';
   return 'social';
 }
-function setSourceStatus(name, status) {
+function setSourceStatus(name, status, ageSec) {
   sourceStatus[name] = status;
-  if (status === 'ok') sourceLastGood[name] = Date.now();
+  if (status === 'ok') { sourceLastGood[name] = Date.now(); delete sourceStaleAge[name]; }
+  else if (status === 'stale') sourceStaleAge[name] = ageSec || 0;   // v5.5: worker served cached data because upstream failed
   renderSourceHealth();
 }
+// ─── KEYWORD WATCHLIST (v5.5) ─────────────────────────────────────────────
+// Operator-defined terms. Matching items are flagged ⚑ in the feed; items that match for the first time raise
+// an in-page alert (and a browser notification when permitted). Persisted per browser in localStorage.
+const WATCHLIST_KEY = 'jdm_watchlist';
+const _watchSeen = new Set();
+let watchlist = [];
+try { watchlist = JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]'); } catch(e) { watchlist = []; }
+if (!Array.isArray(watchlist)) watchlist = [];
+function saveWatchlist() { try { localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watchlist)); } catch(e) {} renderWatchPanel(); }
+function watchKey(f) { return f.url || (f.title || '').toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 40); }
+function watchMatches(item) {
+  if (!watchlist.length || !item) return null;
+  const t = ((item.title || '') + ' ' + (item.body || '')).toLowerCase();
+  return watchlist.find(k => t.includes(k)) || null;
+}
+function addWatchKeyword(raw) {
+  const k = (raw || '').trim().toLowerCase().slice(0, 40);
+  if (!k || watchlist.includes(k)) return;
+  watchlist.push(k); saveWatchlist();
+  applyWatchlist(allFeeds, false); renderFeeds(allFeeds);
+}
+function removeWatchKeyword(k) {
+  watchlist = watchlist.filter(x => x !== k); saveWatchlist();
+  applyWatchlist(allFeeds, false); renderFeeds(allFeeds);
+}
+function toggleWatchPanel() {
+  const p = document.getElementById('watch-panel'); if (!p) return;
+  p.hidden = !p.hidden;
+  if (!p.hidden) { renderWatchPanel(); document.getElementById('watch-input')?.focus(); }
+}
+function renderWatchPanel() {
+  const chips = document.getElementById('watch-chips'), cnt = document.getElementById('watch-count'), btn = document.getElementById('watch-btn');
+  if (chips) chips.innerHTML = watchlist.length
+    ? watchlist.map(k => `<span class="watch-chip">${escHtml(k)} <b onclick="removeWatchKeyword(${JSON.stringify(k).replace(/"/g, '&quot;')})" title="Remove">✕</b></span>`).join('')
+    : '<span style="color:var(--t3)">No keywords yet. Matching items are flagged ⚑ and raise an alert the first time they appear.</span>';
+  const hits = (allFeeds || []).filter(f => f && f._watch).length;
+  if (cnt) cnt.textContent = hits ? ' ' + hits : '';
+  if (btn) btn.classList.toggle('watch-active', watchlist.length > 0);
+}
+// Flag matching items; when alertNew, raise alerts for items not seen before. Returns the new hits.
+function applyWatchlist(feeds, alertNew) {
+  const fresh = [];
+  (feeds || []).forEach(f => {
+    if (!f) return;
+    const k = watchMatches(f); f._watch = k || null;
+    // First-seen is keyed on URL / normalised title (ids are not stable across refreshes) and only recorded
+    // by the alerting pass, so the interim wave-1 render cannot swallow alerts.
+    if (k && alertNew) { const wk = watchKey(f); if (!_watchSeen.has(wk)) fresh.push(f); _watchSeen.add(wk); }
+  });
+  if (_watchSeen.size > 5000) _watchSeen.clear();
+  if (alertNew && fresh.length) {
+    fresh.slice(0, 3).forEach(f => notify({ severity: 'high', source: '⚑ WATCH', title: `[${f._watch}] ${f.title}` }));
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(`⚑ Watchlist: ${fresh[0]._watch}`, { body: (fresh[0].title || '').substring(0, 120) }); } catch(e) {}
+    }
+  }
+  renderWatchPanel();
+  return fresh;
+}
+
 function notify(feed) {
   const c = feed.severity === 'critical' ? 'var(--red)' : 'var(--orange)';
   const el = document.createElement('div');
   el.style.cssText = `position:fixed;top:62px;right:16px;background:rgba(8,8,7,0.97);border:1px solid ${c};padding:10px 16px;border-radius:2px;font-family:var(--mono);font-size:10px;color:${c};z-index:99999;max-width:320px;line-height:1.5;animation:fadeIn .3s ease;`;
-  el.innerHTML = `<strong>[${feed.severity.toUpperCase()}]</strong> ${feed.source}: ${feed.title.substring(0,80)}`;
+  el.innerHTML = `<strong>[${escHtml(String(feed.severity || '').toUpperCase())}]</strong> ${escHtml(feed.source || '')}: ${escHtml((feed.title || '').substring(0,80))}`;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 6000);
 }
 
-const SOURCE_NAMES = {
-  'USGS':'USGS','REDDIT':'REDDIT','GDACS':'GDACS','CRYPTO':'CRYPTO',
-  'REDDIT2':'PHnews','REDDIT3':'phinvest',
+const SOURCE_NAMES = {   // v5.5: retired sources removed, new keys added
+  'USGS':'USGS','REDDIT':'r/PH','GDACS':'GDACS','CRYPTO':'CRYPTO',
+  'REDDIT3':'phinvest','REDDIT5':'CryptoPH',
   'GDELT_MAIN':'GDELT','GDELT_DIS':'DIS','GDELT_POL':'POL','GDELT_SEC':'SEC','GDELT_ECO':'ECO',
-  'FX':'BSP/FX','WORLDBANK':'WBANK','RELIEFWEB':'RELIEFWEB','OVERPASS':'OSM','PAGASA':'PAGASA','NDRRMC':'NDRRMC','ACLED':'ACLED',
-  'RSS_PTV':'PTV','RSS_ABS':'ABS-CBN','RSS_GMA':'GMA','RSS_RAP':'RAPLER','RSS_STAR':'PSTAR','RSS_INQ':'INQ','RSS_MB':'MBULL','RSS_PNA_NAT':'PNA',
-  'TAVILY':'TAVILY','TAVILY_PH':'TAVILY-PH','NEWSAPI':'NEWSAPI','GNEWS':'GNEWS','MEDIASTACK':'MEDIASTACK',
+  'FX':'BSP/FX','WORLDBANK':'WBANK','RSS_RELIEFWEB':'RELIEFWB','RSS_BBCASIA':'BBC','OVERPASS':'OSM','NDCC':'NDRRMC','PHIVOLCS':'PHIVOLCS',
+  'RSS_PTV':'PTV','RSS_GMA':'GMA','RSS_RAP':'RAPPLER','RSS_STAR':'PSTAR','RSS_INQ':'INQ',
+  'TAVILY':'TAVILY','TAVILY_PH':'TAVILY-PH',
   'SOCIAL_X':'X(Twitter)','SOCIAL_FB':'Facebook','SOCIAL_IG':'Instagram','SOCIAL_SCRAPER':'SOCIAL',
   'NASA_FIRMS':'NASA Fires','NASA_EONET':'NASA Events',
 };
@@ -4096,7 +4138,7 @@ function renderSourceHealth() {
   if (!entries.length) return;
   // Build source dots with last-good timestamps for failed sources
   let html = entries.map(([name, status]) => {
-    const dotCls = status==='ok'?'dot-ok':status==='fail'?'dot-fail':'dot-load';
+    const dotCls = status==='ok'?'dot-ok':status==='fail'?'dot-fail':status==='stale'?'dot-stale':'dot-load';
     const label = SOURCE_NAMES[name] || name.replace(/RSS_/,'').substring(0,8);
     let titleText = `${name}: ${status}`;
     let lastGoodLabel = '';
@@ -4104,6 +4146,10 @@ function renderSourceHealth() {
       const ago = timeAgo(sourceLastGood[name]);
       titleText += ` — last OK: ${ago}`;
       lastGoodLabel = `<span style="color:var(--t3);font-size:6px;margin-left:2px">${ago}</span>`;
+    } else if (status === 'stale') {   // v5.5: upstream failed, worker served its cached copy
+      const a = sourceStaleAge[name] || 0, lbl = a >= 3600 ? Math.round(a/3600) + 'h' : Math.round(a/60) + 'm';
+      titleText += ` — STALE: upstream failed, showing worker cache ${lbl} old`;
+      lastGoodLabel = `<span style="color:var(--amber);font-size:6px;margin-left:2px">STALE ${lbl}</span>`;
     }
     return `<div class="src-health-dot" title="${titleText}"><div class="dot ${dotCls}"></div>${label}${lastGoodLabel}</div>`;
   }).join('');
@@ -4335,11 +4381,13 @@ function filterLocSearch(q) {
 
 // ─── LIVE DATA FETCHERS ───────────────────────────────────────────────────
 async function fetchWithRetry(fn, name, retries=1) {
+  delete _pendingStale[name];   // v5.5: never inherit a stale marker from a previous (failed) call
   setSourceStatus(name, 'loading');
   for (let i=0; i<=retries; i++) {
     try {
       const result = await fn();
-      setSourceStatus(name, 'ok');
+      if (_pendingStale[name] != null) { setSourceStatus(name, 'stale', _pendingStale[name]); delete _pendingStale[name]; }   // v5.5
+      else setSourceStatus(name, 'ok');
       return Array.isArray(result) ? result : (result || []);
     } catch(e) {
       if (i === retries) {
@@ -4422,6 +4470,7 @@ function gdeltThrottledFetch(url, sourceKey) {
         const base = getProxyBase() || LOCAL_PROXY_URL;
         const proxyUrl = `${base}/proxy?url=${encodeURIComponent(url)}`;
         const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(35000) });   // v5.4: worker retries GDELT 429 once (12+5.5+12 s budget)
+        noteFreshness('GDELT_' + String(sourceKey).toUpperCase(), r);   // v5.5
         raw = await r.text();
       } catch(e) { /* fall through */ }
     }
@@ -4809,14 +4858,7 @@ function renderGdeltFeedBadge(item) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── RSS feeds — dynamic per location ──
-// Multiple CORS proxies — rotates on failure
-const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?url=',
-  'https://cors.eu.org/',
-];
-let _corsProxyIdx = 0;
-const CORS_PROXY = CORS_PROXIES[0]; // backwards compat
+// v5.5: public CORS-proxy rotation removed (allorigins / corsproxy / codetabs answered 503 on every call).
 
 // ── PROXY LAYER — Cloudflare Worker (primary) → local proxy → CORS fallback ──
 // Deploy: cd jdm-cf-worker && npx wrangler deploy
@@ -4839,20 +4881,8 @@ async function checkProxy() {
     }
   } catch(e) { /* fall through */ }
 
-  // 2. Try local WSL2 proxy
-  try {
-    const r = await fetch(LOCAL_PROXY_URL + '/health', { signal: AbortSignal.timeout(2000) });
-    const d = await r.json();
-    if (d.status === 'ok') {
-      proxyMode = 'local';
-      updateProxyBadge();
-      if (d.playwright) console.info('[JDM] Local proxy ONLINE — Playwright available');
-      return true;
-    }
-  } catch(e) { /* fall through */ }
-
-  // 3. Fall back to public CORS proxies
-  proxyMode = 'cors';
+  // v5.5: local WSL2 proxy (retired OpenClaw stack) and public CORS rotation are gone. Worker or nothing.
+  proxyMode = 'none';
   updateProxyBadge();
   return false;
 }
@@ -4866,7 +4896,7 @@ function getProxyBase() {
 function proxify(url) {
   const base = getProxyBase();
   if (base) return `${base}/proxy?url=${encodeURIComponent(url)}`;
-  return CORS_PROXIES[_corsProxyIdx % CORS_PROXIES.length] + encodeURIComponent(url);
+  return url;   // v5.5: no public CORS rotation — direct fetch is the last resort
 }
 
 function proxifyRSS(feedUrl) {
@@ -4910,19 +4940,7 @@ async function fetchWithProxy(url, opts = {}) {
     if (r.ok) return r;
   } catch(e) {}
 
-  // 3. Rotate through public CORS proxies
-  for (let i = 0; i < CORS_PROXIES.length; i++) {
-    const proxyIdx = (_corsProxyIdx + i) % CORS_PROXIES.length;
-    const proxyUrl = CORS_PROXIES[proxyIdx] + encodeURIComponent(url);
-    try {
-      const r = await fetch(proxyUrl, { ...opts, signal: AbortSignal.timeout(8000) });
-      if (r.ok) {
-        _corsProxyIdx = proxyIdx; // remember working proxy
-        return r;
-      }
-    } catch(e) { continue; }
-  }
-  throw new Error('All proxies failed for: ' + url.substring(0, 60));
+  throw new Error('Fetch failed (worker + direct) for: ' + url.substring(0, 60));
 }
 
 async function fetchRSS(feed) {
@@ -4931,6 +4949,7 @@ async function fetchRSS(feed) {
     let r;
     if (((proxyMode === "cloudflare" || proxyMode === "local")) && proxifyRSS(feed.url)) {
       r = await fetch(proxifyRSS(feed.url), { signal: AbortSignal.timeout(12000) });
+      noteFreshness(feed.key, r);   // v5.5
     } else {
       r = await fetchWithProxy(feed.url, {});
     }
@@ -4949,7 +4968,7 @@ async function fetchRSS(feed) {
       const extracted = extractLocationFromText(title + ' ' + desc);
       
       return {
-        id: `${feed.key}-${i}-${Date.now()}`,
+        id: `${feed.key}-${simpleHash(link || title)}`,   // v5.5: stable per story (was Date.now(), so every refresh looked "new")
         source: feed.src, tag: feed.tag,
         category: guessCategory(title+' '+desc),
         severity: guessGdeltSeverity(title+' '+desc),
@@ -4972,26 +4991,24 @@ async function fetchRSS(feed) {
 // True when a headline/body is about the Philippines even without a specific place name.
 const PH_STORY_RE = /philippin|filipin|pilipinas|pinoy|\bmanila\b|\bpnp\b|pagasa|phivolcs|ndrrmc|comelec|malaca[nñ]ang|marcos|duterte|\bbsp\b|\bofw|barangay|\bdilg\b|\bdoh\b|\bdswd\b|\bbfp\b|luzon|visayas|mindanao|\bnpa\b|\bbarmm\b/i;
 function isPHStory(text) { return PH_STORY_RE.test(text || ''); }
+function simpleHash(s) { let h = 0; s = String(s || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
 
 // ── EXTRACT LOCATION FROM TEXT ────────────────────────────────────────────────
 // Matches known Philippine locations from news headlines/content
+let _locationMapCache = null;   // v5.5: built once — this runs for every ingested item
 function extractLocationFromText(text) {
   const t = (text || '').toLowerCase();
-  
-  // Build location lookup from PH_LOCATIONS and aliases
-  const locationMap = {};
-  Object.entries(PH_LOCATIONS).forEach(([key, loc]) => {
-    // Add main location
-    const cleanLabel = loc.label.replace(/🇵🇭 /, '').toLowerCase();
-    locationMap[cleanLabel] = { lat: loc.lat, lng: loc.lng, loc: loc.label.replace(/🇵🇭 /, '') };
-    
-    // Add aliases
-    if (loc.aliases) {
-      loc.aliases.forEach(alias => {
-        locationMap[alias.toLowerCase()] = { lat: loc.lat, lng: loc.lng, loc: loc.label.replace(/🇵🇭 /, '') };
+  if (!_locationMapCache) {
+    _locationMapCache = {};
+    Object.entries(PH_LOCATIONS).forEach(([key, loc]) => {
+      const cleanLabel = loc.label.replace(/🇵🇭 /, '').toLowerCase();
+      _locationMapCache[cleanLabel] = { lat: loc.lat, lng: loc.lng, loc: loc.label.replace(/🇵🇭 /, '') };
+      if (loc.aliases) loc.aliases.forEach(alias => {
+        _locationMapCache[alias.toLowerCase()] = { lat: loc.lat, lng: loc.lng, loc: loc.label.replace(/🇵🇭 /, '') };
       });
-    }
-  });
+    });
+  }
+  const locationMap = _locationMapCache;
   
   // Province/city keywords to look for
   const provinceKeywords = [
@@ -5115,37 +5132,14 @@ async function fetchGDACS() {
         return { id:`gdacs-${i}`, source:'GDACS', tag:'gov', category:'disaster',
           severity:/red/i.test(title)?'critical':/orange/i.test(title)?'high':'medium',
           title:title.substring(0,100), body:desc.substring(0,200), loc:'Philippines/Pacific',
-          lat:ACTIVE_LOC.lat+(Math.random()-0.5)*1.5, lng:ACTIVE_LOC.lng+(Math.random()-0.5)*1.5,
+          lat:null, lng:null,   // v5.5: no fabricated coords
           time:timeAgo(item.querySelector('pubDate')?.textContent||Date.now()) };
       });
   }, 'GDACS');
 }
 
-// ── PAGASA Weather RSS (Direct Government Feed) ────────────────────────
-async function fetchPAGASA() {
-  return fetchWithRetry(async () => {
-    // Try official PAGASA RSS feeds (bulletin, warnings)
-    const feeds = [];
-    try {
-      // Tropical cyclone warnings RSS
-      const r = await fetch('https://bagong.pagasa.dost.gov.ph/tropical-cyclone', { signal: AbortSignal.timeout(8000) });
-      if (r.ok) {
-        const html = await r.text();
-        // Parse cyclone bulletin data from PAGASA site
-        if (/signal|no|tropical|cyclone|wind/i.test(html)) {
-          feeds.push({
-            id:'pagasa-cyclone', source:'PAGASA', tag:'gov', category:'disaster', severity:'high',
-            title:'PAGASA Tropical Cyclone Bulletin',
-            body:'Tropical cyclone monitoring active. Check bagong.pagasa.dost.gov.ph for latest bulletins.',
-            loc:'Philippines', lat:ACTIVE_LOC.lat, lng:ACTIVE_LOC.lng, time:'live'
-          });
-        }
-      }
-    } catch(e) { /* non-fatal — no bulletin available */ }
-
-    return feeds;
-  }, 'PAGASA');
-}
+// (v5.5) fetchPAGASA removed: it emitted a synthetic 'Tropical Cyclone Bulletin' whenever the (now 404) page
+// contained the word 'no'. PAGASA has no machine-readable feed; PHIVOLCS/NDRRMC below are real.
 
 // ── PHIVOLCS Volcano & Earthquake Alerts (Direct Government Feed) ───────
 async function fetchPHIVOLCS() {
@@ -5154,7 +5148,7 @@ async function fetchPHIVOLCS() {
     // PHIVOLCS Volcano Observatory RSS/API
     try {
       // Fetch from PHIVOLCS volcano bulletin (taal, kanlaon, mayon, pinatubo)
-      const r = await fetch('https://www.phivolcs.dost.gov.ph/volcano/taal', { signal: AbortSignal.timeout(8000) });
+      const r = await fetch(proxify('https://www.phivolcs.dost.gov.ph/volcano/taal'), { signal: AbortSignal.timeout(8000) });
       if (r.ok) {
         const html = await r.text();
         // Check for alert levels
@@ -5174,7 +5168,7 @@ async function fetchPHIVOLCS() {
     
     // Try Kanlaon volcano
     try {
-      const r = await fetch('https://www.phivolcs.dost.gov.ph/volcano/kanlaon', { signal: AbortSignal.timeout(8000) });
+      const r = await fetch(proxify('https://www.phivolcs.dost.gov.ph/volcano/kanlaon'), { signal: AbortSignal.timeout(8000) });
       if (r.ok) {
         const html = await r.text();
         const alertMatch = html.match(/alert level\s*(\d+)/i) || html.match(/alert\s*(\d+)/i);
@@ -5198,7 +5192,7 @@ async function fetchPHIVOLCS() {
 async function fetchNDCC() {
   return fetchWithRetry(async () => {
     try {
-      const r = await fetch('https://ndrrmc.gov.ph/feed/', { signal: AbortSignal.timeout(5000) });
+      const r = await fetch(proxify('https://ndrrmc.gov.ph/feed/'), { signal: AbortSignal.timeout(5000) });
       if (r.ok) {
         const txt = await r.text();
         const xml = new DOMParser().parseFromString(txt, 'text/xml');
@@ -5207,8 +5201,9 @@ async function fetchNDCC() {
           severity: 'high',
           title: item.querySelector('title')?.textContent?.substring(0, 80) || 'NDRRMC Alert',
           body: (item.querySelector('description')?.textContent || '').replace(/<[^>]+>/g, '').substring(0, 150),
-          loc: 'Philippines', lat: ACTIVE_LOC.lat, lng: ACTIVE_LOC.lng,
-          time: timeAgo(item.querySelector('pubDate')?.textContent || Date.now())
+          loc: 'Philippines', lat: null, lng: null,   // v5.5: no fabricated coords
+          time: timeAgo(item.querySelector('pubDate')?.textContent || Date.now()),
+          timestamp: (item.querySelector('pubDate')?.textContent && !isNaN(new Date(item.querySelector('pubDate').textContent))) ? new Date(item.querySelector('pubDate').textContent).getTime() : Date.now()
         }));
       }
     } catch(e) {}
@@ -5278,161 +5273,7 @@ async function fetchTavilyNews() {
   }, 'TAVILY');
 }
 
-// ── NewsAPI — headlines & search for Philippines ──
-// Docs: https://newsapi.org/docs/get-started#search
-async function fetchNewsAPI() {
-  const key = CONFIG.NEWSAPI_KEY;
-  if (!key) return [];
-
-  return fetchWithRetry(async () => {
-    const articles = [];
-
-    // 1. Top headlines for Philippines
-    try {
-      const headlinesUrl = `https://newsapi.org/v2/top-headlines?category=business&pageSize=10&apiKey=${key}`;
-      const r = await fetch(proxify(headlinesUrl), { signal: AbortSignal.timeout(10000) });
-      if (r.ok) {
-        const d = await r.json();
-        if (d.articles) {
-          articles.push(...d.articles.map(a => {
-            // Extract location from title and description
-            const extracted = extractLocationFromText((a.title || '') + ' ' + (a.description || ''));
-            return {
-              id: `newsapi-${a.url?.hash || Math.random().toString(36).slice(2)}`,
-              source: a.source?.name || 'NewsAPI',
-              tag: 'news',
-              category: guessCategory(a.title + ' ' + (a.description || '')),
-              severity: 'medium',
-              title: a.title || 'Untitled',
-              body: (a.description || '').substring(0, 200),
-              loc: extracted?.loc || 'Philippines',
-              lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
-              lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
-              time: a.publishedAt ? timeAgo(new Date(a.publishedAt).getTime()) : 'recent',
-              url: a.url
-            };
-          }));
-        }
-      }
-    } catch(e) { /* Continue with search */ }
-
-    // 2. Search for Philippines-related news
-    try {
-      const searchUrl = `https://newsapi.org/v2/everything?q=Philippines&language=en&sortBy=publishedAt&pageSize=10&apiKey=${key}`;
-      const r = await fetch(proxify(searchUrl), { signal: AbortSignal.timeout(10000) });
-      if (r.ok) {
-        const d = await r.json();
-        if (d.articles) {
-          const existingUrls = new Set(articles.map(a => a.url));
-          articles.push(...d.articles
-            .filter(a => !existingUrls.has(a.url))
-            .map(a => {
-              // Extract location from title and description
-              const extracted = extractLocationFromText((a.title || '') + ' ' + (a.description || ''));
-              return {
-                id: `newsapi-${a.url?.hash || Math.random().toString(36).slice(2)}`,
-                source: a.source?.name || 'NewsAPI',
-                tag: 'news',
-                category: guessCategory(a.title + ' ' + (a.description || '')),
-                severity: 'medium',
-                title: a.title || 'Untitled',
-                body: (a.description || '').substring(0, 200),
-                loc: extracted?.loc || 'Philippines',
-                lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
-                lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
-                time: a.publishedAt ? timeAgo(new Date(a.publishedAt).getTime()) : 'recent',
-                url: a.url
-              };
-            }));
-        }
-      }
-    } catch(e) { /* Return what we have */ }
-
-    setSourceStatus('NEWSAPI', articles.length > 0 ? 'ok' : 'error');
-    return articles;
-  }, 'NEWSAPI');
-}
-
-// ── GNews — breaking news with Philippines coverage ──────────────────────────
-async function fetchGNews() {
-  const key = CONFIG.GNEWS_KEY;
-  if (!key) return [];
-
-  return fetchWithRetry(async () => {
-    const articles = [];
-
-    // Search Philippines news
-    try {
-      const url = `https://gnews.io/api/v4/search?q=Philippines&lang=en&country=ph&max=10&token=${key}`;
-      const r = await fetch(proxify(url), { signal: AbortSignal.timeout(10000) });
-      if (r.ok) {
-        const d = await r.json();
-        if (d.articles) {
-          articles.push(...d.articles.map(a => {
-            const extracted = extractLocationFromText((a.title || '') + ' ' + (a.description || ''));
-            return {
-              id: `gnews-${a.url?.hash || Math.random().toString(36).slice(2)}`,
-              source: a.source?.name || 'GNews',
-              tag: 'news',
-              category: guessCategory(a.title + ' ' + (a.description || '')),
-              severity: 'medium',
-              title: a.title || 'Untitled',
-              body: (a.description || '').substring(0, 200),
-              loc: extracted?.loc || 'Philippines',
-              lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
-              lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
-              time: a.publishedAt ? timeAgo(new Date(a.publishedAt).getTime()) : 'recent',
-              url: a.url
-            };
-          }));
-        }
-      }
-    } catch(e) { /* Continue */ }
-
-    setSourceStatus('GNEWS', articles.length > 0 ? 'ok' : 'error');
-    return articles;
-  }, 'GNEWS');
-}
-
-// ── MediaStack — categorized headlines ──────────────────────────────────────
-async function fetchMediaStack() {
-  const key = CONFIG.MEDIASTACK_KEY;
-  if (!key) return [];
-
-  return fetchWithRetry(async () => {
-    const articles = [];
-
-    try {
-      const url = `http://api.mediastack.com/v1/news?access_key=${key}&countries=ph&categories=general,business,technology&limit=10`;
-      const r = await fetch(proxify(url), { signal: AbortSignal.timeout(10000) });
-      if (r.ok) {
-        const d = await r.json();
-        if (d.data) {
-          articles.push(...d.data.map(a => {
-            const extracted = extractLocationFromText((a.title || '') + ' ' + (a.description || ''));
-            return {
-              id: `mediastack-${a.url?.hash || Math.random().toString(36).slice(2)}`,
-              source: a.source || 'MediaStack',
-              tag: 'news',
-              category: guessCategory(a.title + ' ' + (a.description || '')),
-              severity: 'medium',
-              title: a.title || 'Untitled',
-              body: (a.description || '').substring(0, 200),
-              loc: extracted?.loc || 'Philippines',
-              lat: extracted?.lat ?? null,   // v5.4: no fabricated coords
-              lng: extracted?.lng ?? null,   // v5.4: no fabricated coords
-              time: a.published_at ? timeAgo(new Date(a.published_at).getTime()) : 'recent',
-              url: a.url
-            };
-          }));
-        }
-      }
-    } catch(e) { /* Continue */ }
-
-    setSourceStatus('MEDIASTACK', articles.length > 0 ? 'ok' : 'error');
-    return articles;
-  }, 'MEDIASTACK');
-}
+// (v5.5) NewsAPI / GNews / MediaStack fetchers removed — keyed services that were never provisioned.
 
 // ── Tavily PH Headlines — nationwide news pull (via worker /api/tavily) ───
 // Replaces the retired CurrentsAPI feed (no key provisioned; route removed
@@ -5501,69 +5342,32 @@ async function fetchTavilyHeadlines() {
 
 // ── Reddit — national + location subreddit if available ──
 async function fetchReddit(sub, category, key) {
+  // v5.5: worker /proxy-rss only. Reddit's JSON API answers 403 to Cloudflare egress; the Atom feed works.
   const srcKey = key || 'REDDIT';
-  // Try multiple Reddit endpoints — direct JSON, then old.reddit, then RSS
-  // Build URL list — local proxy first (WSL2 bypasses Reddit's browser blocking)
-  const redditJsonUrl = `https://www.reddit.com/r/${sub}/hot.json?limit=8&raw_json=1`;
-  const redditRssUrl  = `https://www.reddit.com/r/${sub}/.rss`;
-  const tryUrls = [
-    // Local proxy: full internet access, proper User-Agent
-    ...(((proxyMode === "cloudflare" || proxyMode === "local")) ? [
-      { url:`${getProxyBase() || LOCAL_PROXY_URL}/proxy?url=${encodeURIComponent(redditJsonUrl)}`, type:'json' },
-      { url:`${getProxyBase() || LOCAL_PROXY_URL}/proxy-rss?feed=${encodeURIComponent(redditRssUrl)}`, type:'rss' },
-    ] : []),
-    // Direct attempts (may work in some network configs)
-    { url:redditJsonUrl, type:'json' },
-    { url:`https://old.reddit.com/r/${sub}/hot.json?limit=8&raw_json=1`, type:'json' },
-    // Public CORS proxies
-    { url:`${CORS_PROXIES[0]}${encodeURIComponent(redditJsonUrl)}`, type:'json' },
-    { url:`${CORS_PROXIES[1]}${encodeURIComponent(redditJsonUrl)}`, type:'json' },
-    { url:`${CORS_PROXIES[0]}${encodeURIComponent(redditRssUrl)}`, type:'rss' },
-  ];
-
-  for (const { url, type } of tryUrls) {
-    try {
-      const r = await fetch(url, {
-        headers: type === 'json' ? { Accept:'application/json', 'User-Agent':'PH Command Center/1.0' } : {},
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!r.ok) continue;
-
-      if (type === 'json') {
-        const d = await r.json();
-        const posts = d.data?.children || [];
-        if (!posts.length) continue;
-        setSourceStatus(srcKey, 'ok');
-        return posts.filter(p=>!p.data.stickied).map(p => {
-          const post = p.data;
-          return { id:post.id, source:`Reddit r/${sub}`, tag:'reddit', category,
-            severity: post.score>5000?'high':post.score>1000?'medium':'low',
-            title: post.title,
-            body: post.selftext ? post.selftext.substring(0,200) : `${post.score.toLocaleString()} upvotes · ${post.num_comments} comments`,
-            loc:'Philippines', lat:ACTIVE_LOC.lat+(Math.random()-0.5)*0.5, lng:ACTIVE_LOC.lng+(Math.random()-0.5)*0.5,
-            time: timeAgo(post.created_utc*1000), url:`https://reddit.com${post.permalink}` };
-        });
-      } else {
-        // RSS fallback
-        const txt = await r.text();
-        const xml = new DOMParser().parseFromString(txt, 'text/xml');
-        const items = [...xml.querySelectorAll('entry, item')].slice(0, 8);
-        if (!items.length) continue;
-        setSourceStatus(srcKey, 'ok');
-        return items.map((item, i) => {
-          const title = item.querySelector('title')?.textContent?.trim() || 'Reddit post';
-          const link  = item.querySelector('link')?.getAttribute('href') || item.querySelector('link')?.textContent?.trim() || '';
-          return { id:`reddit-rss-${sub}-${i}`, source:`Reddit r/${sub}`, tag:'reddit', category,
-            severity:'low', title: title.substring(0,120), body:'',
-            loc:'Philippines', lat:ACTIVE_LOC.lat+(Math.random()-0.5)*0.5, lng:ACTIVE_LOC.lng+(Math.random()-0.5)*0.5,
-            time:'recent', url: link };
-        });
-      }
-    } catch(e) { continue; }
+  const base = getProxyBase();
+  if (!base) { setSourceStatus(srcKey, 'fail'); return []; }
+  try {
+    const r = await fetch(`${base}/proxy-rss?feed=${encodeURIComponent(`https://www.reddit.com/r/${sub}/.rss`)}`, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    noteFreshness(srcKey, r);
+    const xml = new DOMParser().parseFromString(await r.text(), 'text/xml');
+    const items = [...xml.querySelectorAll('entry, item')].slice(0, 8);
+    if (!items.length) throw new Error('empty feed');
+    if (_pendingStale[srcKey] != null) { setSourceStatus(srcKey, 'stale', _pendingStale[srcKey]); delete _pendingStale[srcKey]; }
+    else setSourceStatus(srcKey, 'ok');
+    return items.map((item, i) => {
+      const title = item.querySelector('title')?.textContent?.trim() || 'Reddit post';
+      const link  = item.querySelector('link')?.getAttribute('href') || item.querySelector('link')?.textContent?.trim() || '';
+      const pub   = item.querySelector('updated, published, pubDate')?.textContent || '';
+      const ts    = (pub && !isNaN(new Date(pub))) ? new Date(pub).getTime() : Date.now();
+      return { id:`reddit-rss-${sub}-${i}-${ts}`, source:`Reddit r/${sub}`, tag:'reddit', category,
+        severity:'low', title: title.substring(0,120), body:'', loc:'Philippines', lat:null, lng:null,
+        time: timeAgo(ts), timestamp: ts, url: link };
+    });
+  } catch(e) {
+    setSourceStatus(srcKey, 'fail');
+    return [];
   }
-  setSourceStatus(srcKey, 'fail');
-  console.info(`[${srcKey}] Reddit unavailable — browser blocks direct access. Use local proxy for full Reddit feed.`);
-  return [];
 }
 
 // ── Crypto ──
@@ -5641,40 +5445,7 @@ async function fetchWorldBank() {
 }
 
 // 3. RELIEFWEB — UN humanitarian reports & disasters for Philippines (no key, CORS open)
-async function fetchReliefWeb() {
-  return fetchWithRetry(async () => {
-    const ctrl = AbortSignal.timeout(10000);
-    const [disRes, repRes] = await Promise.all([
-      fetch('https://api.reliefweb.int/v1/disasters?filter[field]=country&filter[value]=Philippines&limit=5&fields[include][]=name,date,status,glide,primary_type&sort[]=date:desc', { signal: ctrl }),
-      fetch('https://api.reliefweb.int/v1/reports?filter[field]=country&filter[value]=Philippines&limit=8&fields[include][]=title,date,source&sort[]=date:desc', { signal: ctrl }),
-    ]);
-    const disData = await disRes.json();
-    const repData = await repRes.json();
-
-    const disasters = (disData.data||[]).map((d,i) => ({
-      id: `rw-dis-${d.id}`, source: 'ReliefWeb/UN', tag: 'gov', category: 'disaster',
-      severity: d.fields?.status === 'current' ? 'high' : 'medium',
-      title: d.fields?.name || 'PH Disaster Alert',
-      body: `Status: ${d.fields?.status||'N/A'} · GLIDE: ${d.fields?.glide||'N/A'} · ${d.fields?.date?.created?.substring(0,10)||''}`,
-      loc: 'Philippines', lat: 12.88 + (Math.random()-0.5)*4, lng: 121.77 + (Math.random()-0.5)*4,
-      time: d.fields?.date?.created ? timeAgo(d.fields.date.created) : 'recent',
-      url: `https://reliefweb.int/disaster/${d.id}`,
-    }));
-
-    const reports = (repData.data||[]).map((r,i) => ({
-      id: `rw-rep-${r.id}`, source: r.fields?.source?.[0]?.name||'ReliefWeb', tag: 'gov',
-      category: guessCategory(r.fields?.title||''),
-      severity: 'medium',
-      title: r.fields?.title?.substring(0,120) || 'PH Humanitarian Report',
-      body: `UN ReliefWeb report — ${r.fields?.date?.created?.substring(0,10)||''}`,
-      loc: 'Philippines', lat: 12.88 + (Math.random()-0.5)*6, lng: 121.77 + (Math.random()-0.5)*6,
-      time: r.fields?.date?.created ? timeAgo(r.fields.date.created) : 'recent',
-      url: `https://reliefweb.int/report/${r.id}`,
-    }));
-
-    return [...disasters, ...reports];
-  }, 'RELIEFWEB');
-}
+// (v5.5) fetchReliefWeb removed — ReliefWeb API v1 is HTTP 410 and v2 requires an approved appname. The RSS feed in fetchSocialFeeds() covers it.
 
 // 4. OVERPASS / OSM — infrastructure near active location (no key, CORS open)
 async function fetchInfrastructure() {
@@ -5701,8 +5472,6 @@ async function fetchInfrastructure() {
   }, 'OVERPASS');
 }
 
-// 5. PAGASA advisories via CORS proxy
-// fetchPAGASA() defined above
 
 // 6. NDRRMC situation reports — government site often blocks automated access
 // Using ReliefWeb GDAC feed as primary disaster source instead
@@ -5713,29 +5482,6 @@ async function fetchNDRRMC() {
   return [];
 }
 
-// 7. ACLED conflict events — requires free key from acleddata.com
-async function fetchACLED() {
-  if (!CONFIG.ACLED_KEY || !CONFIG.ACLED_EMAIL) { setSourceStatus('ACLED','fail'); return []; }
-  return fetchWithRetry(async () => {
-    const r = await fetch(`https://api.acleddata.com/acled/read/?key=${CONFIG.ACLED_KEY}&email=${CONFIG.ACLED_EMAIL}&country=Philippines&limit=20&fields=event_date,event_type,sub_event_type,actor1,location,latitude,longitude,fatalities,notes&format=json`);
-    const d = await r.json();
-    if (!d.data?.length) return [];
-    return d.data.map((e, i) => {
-      const fatalities = parseInt(e.fatalities) || 0;
-      const sev = fatalities > 0 ? 'critical' : /Armed Clash|Attack|Explosion|Riot/i.test(e.event_type) ? 'high' : 'medium';
-      return {
-        id: `acled-${e.event_date}-${i}`, source: 'ACLED', tag: 'gov', category: 'crime', severity: sev,
-        title: `[${e.event_type}] ${e.sub_event_type} — ${e.location}`,
-        body: `${e.actor1} · Fatalities: ${fatalities} · ${e.notes?.substring(0,150)||''}`,
-        loc: e.location, lat: parseFloat(e.latitude)||ACTIVE_LOC.lat, lng: parseFloat(e.longitude)||ACTIVE_LOC.lng,
-        time: timeAgo(e.event_date), url: 'https://acleddata.com',
-      };
-    });
-  }, 'ACLED');
-}
-
-
-// ─── FEEDS HISTORY DATABASE (IndexedDB - 7 days retention) ───────────────
 const FEEDS_HISTORY_DB = 'jdm_feeds_history';
 const FEEDS_HISTORY_STORE = 'feeds';
 const FEEDS_HISTORY_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -6008,6 +5754,7 @@ async function initSystem() {
   const cached = await loadFeedsFromCache();
   if (cached && cached.feeds) {
     allFeeds = cached.feeds;
+    applyWatchlist(allFeeds, false);
     renderFeeds(allFeeds);
     rebuildAlerts(allFeeds);
     buildTicker(allFeeds);
@@ -6019,6 +5766,7 @@ async function initSystem() {
   // Clean up old feeds (7 days retention)
   cleanupFeedsHistory().catch(() => {});
   
+  restoreIncidentLog();   // v5.5
   // Initialize SENTINEL immediately (doesn't need map)
   initSentinel();
   injectSentinelCSS();
@@ -6044,14 +5792,12 @@ async function initSystem() {
   const proxyOn = await checkProxy();
   updateProxyBadge();
   const proxyStatus = proxyOn
-    ? '<span style="color:var(--green-hi)">● LOCAL PROXY ONLINE</span> (CORS bypass active · all sources enabled)'
-    : '<span style="color:#555">○ Local proxy offline</span> (run jdm_proxy_server.py for better data coverage)';
-  addJarvisMsg('jarvis', `J.A.R.V.I.S. Philippines National Intelligence Platform online.<br>Coverage: <strong>All 17 Regions · 82 Provinces · Key Cities</strong>.<br>Sources: <strong>Google News · GDELT · Inquirer · GMA · Rappler · PhilStar · PNA · PAGASA · NDRRMC · ReliefWeb · Reddit · USGS · Weather · GDACS · BSP/FX · World Bank · OpenStreetMap · Crypto</strong><br>Early Warning: <strong>18 crisis types · 72h ML forecast · 8 precursor chains · Z-score anomaly detection</strong>.<br><br>${proxyStatus}<br><br>Select a location using the <strong>◉ LOCATION</strong> button or search by city/province/region. Press <strong>?</strong> for keyboard shortcuts. Press <strong>F</strong> for a 72-hour early warning forecast.<br>${hasActiveKey() ? 'AI analysis <strong style="color:var(--green-hi)">ONLINE</strong> via <strong>' + (OPENROUTER_KEY ? 'OpenRouter' : GEMINI_KEY ? 'Google Gemini' : 'Anthropic Claude') + '</strong> · Model: <strong>' + ACTIVE_MODEL.split('/').pop().replace(':free','').substring(0,24) + '</strong>. Awaiting orders, Commander.' : '⚠ Set CONFIG.GROQ_KEY (free) or CONFIG.OPENROUTER_KEY (free) or CONFIG.GEMINI_KEY / CLAUDE_KEY to activate AI analysis.'}<br><br><span style="color:var(--t3)">📱 <strong>PWA Ready</strong> — Works offline with cached data. Type /offline for status.</span>`);
+    ? '<span style="color:var(--green-hi)">● CLOUDFLARE WORKER ONLINE</span> (feed proxy · 5-min cache · stale-on-failure)'
+    : '<span style="color:#555">○ Worker offline</span> (only CORS-open sources: USGS · CoinGecko · Frankfurter · World Bank)';
+  addJarvisMsg('jarvis', `J.A.R.V.I.S. Philippines National Intelligence Platform online.<br>Coverage: <strong>All 17 Regions · 82 Provinces · Key Cities</strong>.<br>Sources: <strong>Inquirer · GMA · Rappler · PhilStar · PTV · BBC Asia · ReliefWeb · GDELT · Reddit · USGS · NASA FIRMS/EONET · GDACS · PHIVOLCS · NDRRMC · Frankfurter FX · World Bank · CoinGecko · YouTube news</strong><br>Early Warning: <strong>18 crisis types · 72h ML forecast · 8 precursor chains · Z-score anomaly detection</strong>.<br><br>${proxyStatus}<br><br>Select a location using the <strong>◉ LOCATION</strong> button or search by city/province/region. Press <strong>?</strong> for keyboard shortcuts. Press <strong>F</strong> for a 72-hour early warning forecast.<br>${hasActiveKey() ? 'AI analysis <strong style="color:var(--green-hi)">ONLINE</strong> via <strong>' + (OPENROUTER_KEY ? 'OpenRouter' : GEMINI_KEY ? 'Google Gemini' : 'Anthropic Claude') + '</strong> · Model: <strong>' + ACTIVE_MODEL.split('/').pop().replace(':free','').substring(0,24) + '</strong>. Awaiting orders, Commander.' : '⚠ Set CONFIG.GROQ_KEY (free) or CONFIG.OPENROUTER_KEY (free) or CONFIG.GEMINI_KEY / CLAUDE_KEY to activate AI analysis.'}<br><br><span style="color:var(--t3)">📱 <strong>PWA Ready</strong> — Works offline with cached data. Type /offline for status.</span>`);
   
   setTimeout(injectRadioPanel, 1000);
   setTimeout(() => loadYTGrid('all'), 2000);
-  setTimeout(runScraperEngine, 5000);
-  setTimeout(() => { checkSocialBridge(); startSocialScraperPolling(); }, 8000);
   initMLEngine().catch(e => console.warn("ML Engine:", e.message));
   // Build initial EW forecasts after feeds load (non-blocking)
   setTimeout(async () => {
@@ -6085,31 +5831,28 @@ async function refreshAllFeeds() {
     const flat1 = wave1.flatMap(r => r.status==='fulfilled' ? r.value : [])
       .filter(f => f && f.title && !(f.timestamp && now1 - f.timestamp > AGE_CUTOFF_1))
       .filter(f => { const k = f.url || f.title.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0, 40); if (seen1.has(k)) return false; seen1.add(k); return true; });
-    if (flat1.length) { allFeeds = flat1; renderFeeds(flat1); rebuildAlerts(flat1); updateMetrics(flat1); } }
+    if (flat1.length) { allFeeds = flat1; applyWatchlist(flat1, false); renderFeeds(flat1); rebuildAlerts(flat1); updateMetrics(flat1); } }
 
   // Wave 2: Proxy/RSS sources
   const wave2 = await Promise.allSettled([
-    fetchGoogleNews(), fetchSocialFeeds(),
-    fetchReddit('Philippines','social','REDDIT'),
-    fetchReddit('PHnews','politics','REDDIT2'),
+    fetchSocialFeeds(),
+    fetchReddit('Philippines','social','REDDIT'),      // r/PHnews dropped (403 from Cloudflare)
     fetchReddit('phinvest','economy','REDDIT3'),
     fetchReddit('CryptoPH','economy','REDDIT5'),
-    fetchGDACS(), fetchReliefWeb(), fetchPAGASA(), fetchPHIVOLCS(), fetchNDCC(),
+    fetchGDACS(), fetchPHIVOLCS(), fetchNDCC(),           // fetchReliefWeb dropped: API v1 is HTTP 410, v2 needs an approved appname; RSS covers it
     fetchWorldBank(), fetchRadioFeeds(),
-    // News APIs (key-based)
-    fetchNewsAPI(), fetchGNews(), fetchMediaStack(), fetchTavilyHeadlines(), fetchTavilyNews(),
+    fetchTavilyHeadlines(), fetchTavilyNews(),          // fail quietly while TAVILY_KEY is quota-exhausted
   ]);
 
   // Wave 3: Slow/optional sources + NASA satellite
   const wave3 = await Promise.allSettled([
-    fetchACLED(), fetchInfrastructure(),
+    fetchInfrastructure(),
     fetchNASA_FIRMS(), fetchNASA_EONET(),
   ]);
 
   const gdeltWave = await gdeltPending;   // v5.4: usually settled by now; merged last
   const results = [...wave1, ...gdeltWave, ...wave2, ...wave3];
   // Web scraper runs separately (only when local proxy available)
-  setTimeout(() => { if (((proxyMode === "cloudflare" || proxyMode === "local"))) runScraperEngine(); }, 3000);
   const sevOrder = { critical:0, high:1, medium:2, low:3, info:4 };
   const flat = results.flatMap(r => r.status==='fulfilled' ? r.value : []);
   const seen = new Set();
@@ -6184,6 +5927,7 @@ async function refreshAllFeeds() {
   
   const newCrits = allFeeds.filter(f=>f.severity==='critical'&&!prev.includes(f.id));
   newCrits.slice(0,2).forEach(f=>notify(f));
+  applyWatchlist(allFeeds, true);   // v5.5: keyword watchlist alerts on first appearance
 }
 
 function updateLastFetch(status) {
@@ -7186,7 +6930,7 @@ function renderFeeds(feeds) {
   // Render up to 200 items for performance
   f.slice(0, 200).forEach(item => {
     const div = document.createElement('div');
-    div.className = `feed-item${item.severity==='critical'?' feed-critical':item.severity==='high'?' feed-high':''}`;
+    div.className = `feed-item${item.severity==='critical'?' feed-critical':item.severity==='high'?' feed-high':''}${item._watch ? ' watch-hit' : ''}`;
     div.id = `feed-item-${item.id}`;
     div.setAttribute('role', 'button');   // a11y: keyboard-activatable via global Enter/Space handler
     div.tabIndex = 0;
@@ -7213,6 +6957,7 @@ function renderFeeds(feeds) {
         <span class="feed-src-tag tag-${item.tag}">${tagIcon} ${(item.source||'').substring(0,18)}</span>
         <span class="feed-time">${item.time||''}</span>
         ${sevBadge ? `<span style="font-size:10px">${sevBadge}</span>` : ''}
+        ${item._watch ? `<span class="watch-flag" title="Watchlist: ${escAttr(item._watch)}">⚑</span>` : ''}
         ${renderGdeltFeedBadge(item)}
         <span class="feed-actions" style="margin-left:auto;display:flex;gap:3px">
           ${hasUrl ? `<a href="${item.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--t3);font-size:9px;text-decoration:none" title="Open source">↗</a>` : ''}
@@ -7338,7 +7083,7 @@ function updateMetrics(feeds) {
   const social= feeds.filter(f=>f.tag==='social'||f.tag==='reddit').length;
 
   const totalSources = Object.keys(sourceStatus).length;
-  const liveSources  = Object.values(sourceStatus).filter(s=>s==='ok').length;
+  const liveSources  = Object.values(sourceStatus).filter(s=>s==='ok'||s==='stale').length;
 
   // Track history
   metricHistory.critical.push(crit); if (metricHistory.critical.length > METRIC_HISTORY_MAX) metricHistory.critical.shift();
@@ -7654,6 +7399,7 @@ function playYT(videoId, card) {
 }
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escAttr(s) { return escHtml(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }   // v5.5: for quoted attributes
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -8651,6 +8397,27 @@ function correlateFeed(feeds) {
 let incidentLog = [];
 const MAX_LOG = 500;
 
+// v5.5: the incident log now survives reloads (localStorage) and accepts operator notes.
+const INCIDENT_LOG_KEY = 'jdm_incident_log';
+function persistIncidentLog() { try { localStorage.setItem(INCIDENT_LOG_KEY, JSON.stringify(incidentLog.slice(0, MAX_LOG))); } catch(e) {} }
+function restoreIncidentLog() {
+  try {
+    const s = JSON.parse(localStorage.getItem(INCIDENT_LOG_KEY) || '[]');
+    if (Array.isArray(s) && s.length) { incidentLog = s.slice(0, MAX_LOG); renderIncidentLogList(); }
+  } catch(e) {}
+}
+function addOperatorNote(text) {
+  const t = (text || '').trim();
+  if (!t) return;
+  incidentLog.unshift({
+    id: 'note-' + Date.now(),
+    time: new Date().toLocaleString('en-US',{timeZone:'Asia/Manila',hour12:false}).replace(',',''),
+    severity: 'note', source: 'OPERATOR', title: t.substring(0, 200),
+    loc: ((typeof ACTIVE_LOC !== 'undefined' && ACTIVE_LOC?.label) || '—').replace(/🇵🇭 /, ''), cat: 'note',
+  });
+  if (incidentLog.length > MAX_LOG) incidentLog.pop();
+  persistIncidentLog(); renderIncidentLogList();
+}
 function logEvent(feed) {
   const entry = {
     id: feed.id, time: new Date().toLocaleString('en-US',{timeZone:'Asia/Manila',hour12:false}).replace(',',''),
@@ -8659,6 +8426,7 @@ function logEvent(feed) {
   };
   incidentLog.unshift(entry);
   if (incidentLog.length > MAX_LOG) incidentLog.pop();
+  persistIncidentLog();
   renderIncidentLogList();
 }
 
@@ -8673,7 +8441,7 @@ function renderIncidentLogList() {
       <span class="le-time">${e.time.split(' ')[1]||e.time}</span>
       <span class="le-sev ${e.severity}">${e.severity.toUpperCase()}</span>
       <span class="le-src">${e.source}</span>
-      <span class="le-title">${e.title}</span>
+      <span class="le-title">${escHtml(e.title || '')}</span>
       <span class="le-loc">${e.loc}</span>
     </div>`).join('');
 
@@ -8686,9 +8454,9 @@ function renderIncidentLogList() {
     if (mini) mini.innerHTML = recent.slice(0,20).map(e => `
       <div class="alert-item" style="cursor:default">
         <div class="alert-sev as-${e.severity === 'critical' ? 'critical' : e.severity === 'high' ? 'warning' : 'info'}"></div>
-        <div class="alert-icon">${e.severity === 'critical' ? '⚠' : e.severity === 'high' ? '⚑' : '◎'}</div>
+        <div class="alert-icon">${e.severity === 'critical' ? '⚠' : e.severity === 'high' ? '⚑' : e.severity === 'note' ? '✎' : '◎'}</div>
         <div class="alert-body">
-          <div class="a-title">${e.title}</div>
+          <div class="a-title">${escHtml(e.title || '')}</div>
           <div class="a-meta">${e.source} · ${e.time.split(' ')[1]||''}</div>
         </div>
       </div>`).join('');
@@ -8703,7 +8471,9 @@ function exportLog(format = 'csv') {
     mime = 'application/json'; ext = 'json';
   } else {
     const headers = 'Time,Severity,Source,Title,Location,Category';
-    const rows = incidentLog.map(e => `"${e.time}","${e.severity}","${e.source}","${e.title}","${e.loc}","${e.cat}"`);
+    // v5.5: RFC-4180 quoting + neutralise spreadsheet formula prefixes (operator notes are free text)
+    const cell = v => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+    const rows = incidentLog.map(e => [e.time, e.severity, e.source, e.title, e.loc, e.cat].map(cell).join(','));
     content = [headers, ...rows].join('\n');
     mime = 'text/csv'; ext = 'csv';
   }
@@ -8712,7 +8482,7 @@ function exportLog(format = 'csv') {
   a.click();
 }
 
-function clearLog() { if (confirm('Clear incident log?')) { incidentLog = []; renderIncidentLogList(); } }
+function clearLog() { if (confirm('Clear incident log?')) { incidentLog = []; persistIncidentLog(); renderIncidentLogList(); } }
 
 // ─── 5. VOICE INTERFACE ───────────────────────────────────────────────────
 let voiceActive  = false;
@@ -8917,7 +8687,7 @@ const SLASH_COMMANDS = [
   { cmd:'/who',      desc:'/who [name/org] — entity lookup',         fn:(arg) => arg ? osintWhois(arg) : addJarvisMsg('jarvis','Usage: /who [person or organization]') },
   { cmd:'/predict',  desc:'Run predictive intelligence analysis',     fn:() => osintRun('predict') },
   { cmd:'/status',   desc:'System status — all sources and AI',      fn:() => { 
-    const sources = Object.entries(sourceStatus).map(([k,v]) => `${k}:<span style="color:${v==='ok'?'var(--green-hi)':v==='loading'?'var(--yellow)':'var(--red)'}">${v}</span>`).join(' · ');
+    const sources = Object.entries(sourceStatus).map(([k,v]) => `${k}:<span style="color:${v==='ok'?'var(--green-hi)':v==='stale'?'var(--amber)':v==='loading'?'var(--yellow)':'var(--red)'}">${v}</span>`).join(' · ');
     addJarvisMsg('jarvis', `<strong>SYSTEM STATUS</strong><br>AI: ${hasActiveKey()?'<span style="color:var(--green-hi)">ONLINE</span>':'<span style="color:var(--red)">OFFLINE</span>'} · Model: <strong>${ACTIVE_MODEL.split('/').pop()}</strong><br>Proxy: ${proxyMode === 'cloudflare' ? '<span style="color:var(--green-hi)">CLOUDFLARE</span>' : ((proxyMode === 'local') ? '<span style="color:var(--green-hi)">LOCAL</span>' : '<span style="color:var(--red)">OFFLINE</span>')}<br>Feeds: <strong>${allFeeds.length}</strong> items<br>${sources}`);
   }},
 ];
@@ -9542,7 +9312,7 @@ async function showOfflineStatus() {
     ? '<span style="color:var(--green-hi)">🟢 Cloudflare</span>'
     : (proxyMode === 'local')
       ? '<span style="color:var(--green-hi)">🟢 Local</span>'
-      : '<span style="color:var(--amber)">🟡 CORS Fallback</span>';
+      : '<span style="color:var(--red)">🔴 Worker offline</span>';
 
   const cacheAge = stats.total > 0
     ? `Oldest: ${stats.oldest}<br> Newest: ${stats.newest}` 
@@ -12355,15 +12125,18 @@ let mlReady        = false;
 let tfLoaded       = false;
 
 // Load TensorFlow.js dynamically
+let _tfLoadPromise = null;
 async function loadTensorFlow() {
   if (tfLoaded || window.tf) { tfLoaded = true; return true; }
-  return new Promise(resolve => {
+  if (_tfLoadPromise) return _tfLoadPromise;   // v5.5: one <script> tag per attempt, shared by concurrent callers
+  _tfLoadPromise = new Promise(resolve => {
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js';
     s.onload = () => { tfLoaded = true; resolve(true); };
-    s.onerror = () => resolve(false);
+    s.onerror = () => { s.remove(); _tfLoadPromise = null; resolve(false); };
     document.head.appendChild(s);
   });
+  return _tfLoadPromise;
 }
 
 // Build the neural network architecture (UPGRADED: Dual-Head)
@@ -13503,18 +13276,18 @@ async function initMLEngine() {
     await seedTrainingData(); // Seed historical crisis events
     mlReady = true;
 
-    // Load TensorFlow.js in background
-    const loaded = await loadTensorFlow();
-    tfLoaded = loaded;
-
-    if (loaded) {
-      // Try to load saved model weights
-      const modelLoaded = await loadModelWeights();
-      if (modelLoaded) {
-        updateMLStatus(`Model loaded — ${trainingSamples} samples · ${(modelAccuracy*100).toFixed(1)}% accuracy`);
-      } else {
-        updateMLStatus('Collecting training data — will auto-train after 20+ events');
-      }
+    // v5.5: TensorFlow.js (~1.3 MB) is downloaded at boot ONLY if a trained model is already saved (so the 72h
+    // forecast keeps its model); on a fresh install it loads on demand (ML panel / auto-train).
+    const savedModel = (await dbGet('model', 'crisis_classifier_quad_head').catch(() => null))
+      || (await dbGet('model', 'crisis_classifier_dual_head').catch(() => null))
+      || (await dbGet('model', 'crisis_classifier').catch(() => null));
+    if (savedModel?.weights?.length && await loadTensorFlow()) {
+      const modelLoaded = await loadModelWeights().catch(() => false);
+      updateMLStatus(modelLoaded
+        ? `Model loaded — ${trainingSamples} samples · ${(modelAccuracy*100).toFixed(1)}% accuracy`
+        : 'Saved model could not be loaded — collecting training data');
+    } else {
+      updateMLStatus('ML standby — collecting events · TensorFlow loads on demand');
     }
 
     // Load baselines from DB
@@ -13531,10 +13304,11 @@ async function initMLEngine() {
       // Auto-train periodically
       const eventCount = await dbCount('events');
       const hoursSinceTrain = (Date.now() - lastTrainTime) / 3600000;
-      if (eventCount >= 20 && !modelTrained) {
-        await trainCrisisModel();
-      } else if (eventCount >= 50 && hoursSinceTrain > 0.5) {
-        await trainCrisisModel();
+      if ((eventCount >= 20 && !modelTrained) || (eventCount >= 50 && hoursSinceTrain > 0.5)) {
+        if (await loadTensorFlow()) {                       // v5.5: lazy TF
+          if (!modelTrained) await loadModelWeights().catch(() => {});
+          await trainCrisisModel();
+        }
       }
     }, 5 * 60000); // every 5 minutes
 
@@ -13545,8 +13319,8 @@ async function initMLEngine() {
         await updateBaselines();
         updateMLStatus();
         const eventCount = await dbCount('events');
-        if (eventCount >= 20 && !modelTrained && tfLoaded) {
-          setTimeout(trainCrisisModel, 3000);
+        if (eventCount >= 20 && !modelTrained) {
+          setTimeout(async () => { if (await loadTensorFlow()) trainCrisisModel(); }, 3000);   // v5.5: lazy TF
         }
       }
     }, 8000);
@@ -13568,6 +13342,9 @@ function openMLDashboard() {
   const modal = document.getElementById('ml-modal');
   if (!modal) return;
   modal.classList.add('show');
+  if (!tfLoaded) {   // v5.5: TF loads on first open, then the saved model (if any) and a re-render
+    loadTensorFlow().then(ok => { if (ok) loadModelWeights().then(() => renderMLDashboard()).catch(() => {}); });
+  }
   renderMLDashboard();
 }
 
@@ -14445,7 +14222,7 @@ async function osintSources() {
   });
 
   osintBlank();
-  osintPrint(`  Total sources: <span style="color:#00ff41">${sorted.length}</span>  Active feeds: <span style="color:#00ff41">${Object.values(sourceStatus).filter(s=>s==='ok').length}</span>  Failed: <span style="color:#ff3333">${Object.values(sourceStatus).filter(s=>s==='fail').length}</span>`);
+  osintPrint(`  Total sources: <span style="color:#00ff41">${sorted.length}</span>  Active feeds: <span style="color:#00ff41">${Object.values(sourceStatus).filter(s=>s==='ok'||s==='stale').length}</span>  Failed: <span style="color:#ff3333">${Object.values(sourceStatus).filter(s=>s==='fail').length}</span>`);
 }
 
 // ─── 7. GEO MAP ───────────────────────────────────────────────────────────
@@ -14947,7 +14724,7 @@ async function osintSitrep() {
   osintPrint('  <span style="color:#00aaff;font-weight:700">1. SITUATION</span>');
   const tiColor = threatIdx >= 60 ? '#ff3333' : threatIdx >= 30 ? '#ffaa00' : '#00ff41';
   osintPrint(`     Threat Index: <span style="color:${tiColor};font-weight:700">${threatIdx}/100</span>`);
-  osintPrint(`     Corpus: ${allFeeds.length} items | Sources: ${Object.keys(sourceStatus).length} | Active: ${Object.values(sourceStatus).filter(s => s === 'ok').length}`);
+  osintPrint(`     Corpus: ${allFeeds.length} items | Sources: ${Object.keys(sourceStatus).length} | Active: ${Object.values(sourceStatus).filter(s => s === 'ok' || s === 'stale').length}`);
 
   // Category breakdown
   const catCount = {};
@@ -16362,539 +16139,21 @@ document.addEventListener('keydown', e => {
 // Web scraper feeds · Social media · Radio broadcasts · Deep OSINT sources
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ─── GOOGLE NEWS RSS — most reliable, no key needed ──────────────────────
-async function fetchGoogleNews() {
-  const loc     = ACTIVE_LOC;
-  const terms   = getGdeltTerms(loc);
-  const queries = [
-    `${terms} site:inquirer.net OR site:gmanetwork.com OR site:rappler.com OR site:philstar.com`,
-    `${terms} (typhoon OR earthquake OR flood OR crime OR government OR AFP OR PNP)`,
-    `${terms} (economy OR OFW OR peso OR Marcos OR NDRRMC OR PAGASA OR disaster)`,
-  ];
+// (v5.5) Google News RSS fetchers removed — news.google.com answers 503 to Cloudflare egress on every call.
 
-  const feeds = await Promise.allSettled(queries.map(async (q, i) => {
-    const rssFeed = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-PH&gl=PH&ceid=PH:en`;
-    const r = await fetchWithProxy(rssFeed, {});
-    const txt = await r.text();
-    if (!txt.includes('<rss') && !txt.includes('<?xml')) throw new Error('Not RSS');
-    const xml   = new DOMParser().parseFromString(txt, 'text/xml');
-    const items = [...xml.querySelectorAll('item')].slice(0, 10);
-    return items.map((item, idx) => {
-      const title   = item.querySelector('title')?.textContent?.trim() || 'No title';
-      const pubDate = item.querySelector('pubDate')?.textContent || '';
-      const src     = item.querySelector('source')?.textContent?.trim() || 'Google News';
-      const link    = item.querySelector('link')?.textContent?.trim() || '';
-      const desc    = (item.querySelector('description')?.textContent || '').replace(/<[^>]+>/g, '').trim();
-      return {
-        id:       `gnews-${i}-${idx}-${Date.now()}`,
-        source:   src,
-        tag:      'news',
-        category: i === 1 ? guessCategory(title) : i === 2 ? 'economy' : guessCategory(title),
-        severity: guessGdeltSeverity(title + ' ' + desc),
-        title:    title.substring(0, 120),
-        body:     desc.substring(0, 200),
-        loc:      (extractLocationFromText(title + ' ' + desc)?.loc) || loc.label.replace(/🇵🇭 /, ''),
-        lat:      extractLocationFromText(title + ' ' + desc)?.lat ?? null,   // v5.4: no fabricated coords
-        lng:      extractLocationFromText(title + ' ' + desc)?.lng ?? null,
-        time:     pubDate ? timeAgo(new Date(pubDate)) : 'recent',
-        timestamp: (pubDate && !isNaN(new Date(pubDate))) ? new Date(pubDate).getTime() : Date.now(),
-        url:      link,
-      };
-    });
-  }));
-
-  return feeds.flatMap(r => r.status === 'fulfilled' ? r.value : []);
-}
-
-// ─── PHILIPPINES SOCIAL MEDIA AGGREGATOR ─────────────────────────────────
-// Multiple social/community feeds: Reddit PH, Pinoy Exchange, local FB pages
+// ─── SUPPLEMENTARY RSS (humanitarian + international) ────────────────────
+// v5.5: formerly the "social aggregator". Reddit JSON (403 from Cloudflare) and the OpenClaw bridge are gone;
+// Reddit now comes via fetchReddit() (.rss). Only feeds NOT already in getRSSFeeds() live here.
 async function fetchSocialFeeds() {
-  const loc    = ACTIVE_LOC;
-  const locKey = loc.label.replace(/🇵🇭 /, '').toLowerCase().replace(/\s+/g, '+');
-  const results = [];
-
-  // 1. Reddit Philippines subreddits via JSON API
-  // Pick subs relevant to active location
-  const locCity = ACTIVE_LOC.label.replace(/🇵🇭 /,'').split(' ')[0];
-  const phSubs = [
-    { sub:'Philippines',   cat:'social'   },
-    { sub:'PHnews',        cat:'politics' },
-    { sub:'phinvest',      cat:'economy'  },
-    { sub:'phclassifieds', cat:'social'   },
-    { sub:'CryptoPH',      cat:'economy'  },
-    { sub:'Iloilo',        cat:'social'   },
-    { sub:'Cebu',          cat:'social'   },
-    { sub:'DavaoPH',       cat:'social'   },
-    { sub:'ManilaPH',      cat:'social'   },
-    { sub:'MindanaoPH',    cat:'social'   },
-  ].filter(s => {
-    // Always include national subs, add local ones if relevant
-    const national = ['Philippines','PHnews','phinvest','phclassifieds','CryptoPH'];
-    if (national.includes(s.sub)) return true;
-    return s.sub.toLowerCase().includes(locCity.toLowerCase()) ||
-           locCity.toLowerCase().includes(s.sub.toLowerCase().replace('PH',''));
-  });
-
-  const subFeeds = await Promise.allSettled(phSubs.map(async ({ sub, cat }) => {
-    const url = `https://www.reddit.com/r/${sub}/hot.json?limit=5&raw_json=1`;
-    const r   = await fetchWithProxy(url, {});
-    const d   = await r.json();
-    return (d.data?.children || []).filter(p => !p.data.stickied).slice(0, 5).map(p => {
-      const post = p.data;
-      return {
-        id:       `reddit-${sub}-${post.id}`,
-        source:   `Reddit r/${sub}`,
-        tag:      'social',
-        category: cat,
-        severity: post.score > 3000 ? 'high' : post.score > 800 ? 'medium' : 'low',
-        title:    post.title.substring(0, 120),
-        body:     post.selftext ? post.selftext.substring(0, 200) : `⬆ ${post.score.toLocaleString()} · 💬 ${post.num_comments}`,
-        loc:      'Philippines',
-        lat:      null,   // v5.4: no fabricated coords — story is unlocated
-        lng:      null,   // v5.4: no fabricated coords — story is unlocated
-        time:     timeAgo(post.created_utc * 1000),
-        url:      `https://reddit.com${post.permalink}`,
-      };
-    });
-  }));
-  subFeeds.filter(r => r.status === 'fulfilled').forEach(r => results.push(...r.value));
-
-  // 2. Nitter/Twitter — disabled on static hosting (all public nitter instances are dead/unreliable)
-  // To re-enable: deploy a self-hosted nitter instance and update nitterInstances array
-
-  // 3. Philippine news social engagement via RSS aggregators
-  const socialRss = [
-    // Philippine news outlets
-    { url:'https://www.rappler.com/feed/',                    src:'Rappler',         cat:'news'    },
-    // ═══ PHILIPPINE NEWS (Reliable Sources) ═══
-    { url:'https://newsinfo.inquirer.net/feed',               src:'Inquirer',        cat:'news'    },
-    { url:'https://www.philstar.com/rss/headlines',           src:'PhilStar',        cat:'news'    },
-    { url:'https://data.gmanetwork.com/gno/rss/news/nation/feed.xml',        src:'GMA News',        cat:'news'    },
-    // Government/Humanitarian (Working)
-    { url:'https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3Aphl',  src:'ReliefWeb PH',    cat:'disaster'},
-    // International
-    { url:'https://feeds.bbci.co.uk/news/world/asia/rss.xml', src:'BBC Asia',        cat:'news'    },
+  const extraRss = [
+    { key:'RSS_RELIEFWEB', src:'ReliefWeb PH', tag:'news', url:'https://reliefweb.int/updates/rss.xml?search=primary_country.iso3%3Aphl' },
+    { key:'RSS_BBCASIA',   src:'BBC Asia',     tag:'news', url:'https://feeds.bbci.co.uk/news/world/asia/rss.xml' },
   ];
-
-  const rssFeeds = await Promise.allSettled(socialRss.map(async f => {
-    try {
-      const r   = await fetchWithProxy(f.url, {});
-      if (!r || typeof r.text !== 'function') throw new Error('Invalid response');
-      const txt = await r.text();
-      if (txt.startsWith('<!DOCTYPE') || txt.startsWith('<html')) throw new Error('HTML');
-      const xml   = new DOMParser().parseFromString(txt, 'text/xml');
-      const items = [...xml.querySelectorAll('item')].slice(0, 6);
-      return items.map((item, i) => ({
-        id:       `rss-ext-${f.src.replace(/\s/g,'')}-${i}-${Date.now()}`,
-        source:   f.src,
-        tag:      'news',
-        category: f.cat,
-        severity: guessGdeltSeverity(item.querySelector('title')?.textContent || ''),
-        title:    (item.querySelector('title')?.textContent || 'No title').trim().substring(0, 120),
-        body:     (item.querySelector('description')?.textContent || '').replace(/<[^>]+>/g, '').trim().substring(0, 200),
-        loc:      loc.label.replace(/🇵🇭 /, ''),
-        lat:      null,   // v5.4: no fabricated coords — story is unlocated
-        lng:      null,   // v5.4: no fabricated coords — story is unlocated
-        time:     timeAgo(item.querySelector('pubDate')?.textContent || Date.now()),
-        url:      item.querySelector('link')?.textContent?.trim() || '',
-      }));
-    } catch(e) {
-      console.warn(`[RSS_${f.src.replace(/\s/g,'')}] failed: ${e.message}`);
-      return [];
-    }
-  }));
-  rssFeeds.filter(r => r.status === 'fulfilled').flatMap(r => r.value).forEach(item => results.push(item));
-
-  // 4. Social Media Scraper — X/Twitter, Facebook, Instagram via bridge
-  try {
-    const socialData = await fetchSocialMediaIntel();
-    if (socialData.length) results.push(...socialData);
-  } catch(e) { /* social scraper errors are non-fatal */ }
-
-  return results;
+  const results = await Promise.allSettled(extraRss.map(f => fetchRSS(f)));
+  return results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
 }
 
-// ─── SOCIAL MEDIA SCRAPER BRIDGE ────────────────────────────────────────────────
-// Inline social media scraper — no dashboard needed
-// Connects to HTTP bridge on port 8765 for live scraping
-
-const SOCIAL_SCRAPER_CONFIG = {
-  bridgeUrl: 'http://localhost:8765',
-  enabled: true,
-  pollInterval: 300000, // 5 minutes
-  lastRun: 0,
-  
-  // ═══════════════════════════════════════════════════════════════════
-  // INTELLIGENCE MONITORING TARGETS
-  // Rotates through targets every 5 minutes
-  // Categories: disaster, crime, security, health, economy, social, politics
-  // ═══════════════════════════════════════════════════════════════════
-  targets: [
-    // ─── DISASTER / EMERGENCY ─────────────────────────────────────────
-    { platform: 'x', action: 'search', target: 'Philippines typhoon OR bagyo OR storm', max: 10, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'Philippines earthquake OR linog OR lindol', max: 10, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'Philippines flood OR baha OR pagbaha', max: 10, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'Philippines landslide OR sinkhole', max: 8, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'Philippines fire OR sunog OR nasusunog', max: 8, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'PAGASA weather advisory OR signal number', max: 10, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'PHIVOLCS earthquake OR volcanic OR eruption', max: 10, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'NDRRMC alert OR advisory OR warning', max: 8, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'PCG maritime advisory OR rough seas', max: 8, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'Philippines tsunami alert OR storm surge', max: 8, category: 'disaster' },
-    
-    // ─── CRIME / SECURITY ───────────────────────────────────────────────
-    { platform: 'x', action: 'search', target: 'Philippines shooting OR patayan OR barilan', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines murder OR pagpaslang OR homicide', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines kidnapping OR hostage OR kidnapper', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines robbery OR holdup OR nakaw', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines carnapping OR carjacking', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines drug bust OR shabu OR PDEA', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines illegal drugs OR poso OR drug den', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines cybercrime OR scam OR online scam', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines hacking OR data breach OR leak', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines corruption OR plunder OR graft', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines gambling OR jueteng OR illegal gambling', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines human trafficking OR smuggling', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines terrorism OR bomb threat OR explosive', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines Abu Sayyaf OR NPA OR Maute', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines Abu Sayyaf OR ASG OR terrorist group', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines ambush OR attack OR assault', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'PNP arrest OR raid OR operation', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'AFP operation OR encounter OR clash', max: 8, category: 'crime' },
-    
-    // ─── TERRORISM / THREATS ─────────────────────────────────────────────
-    { platform: 'x', action: 'search', target: 'Philippines bomb threat OR explosive device', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines extremist OR radicalization', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines IED OR improvised explosive', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines suicide bombing OR attack', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines mosque attack OR church attack', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines school threat OR campus safety', max: 8, category: 'crime' },
-    
-    // ─── HEALTH EMERGENCIES ──────────────────────────────────────────────
-    { platform: 'x', action: 'search', target: 'Philippines outbreak OR epidemic OR disease', max: 10, category: 'health' },
-    { platform: 'x', action: 'search', target: 'Philippines dengue OR malaria OR cholera', max: 8, category: 'health' },
-    { platform: 'x', action: 'search', target: 'Philippines COVID OR vaccine OR pandemic', max: 8, category: 'health' },
-    { platform: 'x', action: 'search', target: 'Philippines food poisoning OR contamination', max: 8, category: 'health' },
-    { platform: 'x', action: 'search', target: 'DOH advisory OR health warning', max: 8, category: 'health' },
-    
-    // ─── ILLEGAL MINING / ENVIRONMENTAL ───────────────────────────────────
-    { platform: 'x', action: 'search', target: 'Philippines illegal mining OR logging', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines environmental damage OR pollution', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines oil spill OR chemical spill', max: 8, category: 'disaster' },
-    
-    // ─── WEST PHILIPPINE SEA / TERRITORIAL ─────────────────────────────────
-    { platform: 'x', action: 'search', target: 'West Philippine Sea OR WPS OR South China Sea', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines maritime dispute OR territorial', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines coast guard OR PCG OR AFP', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines China confrontation OR standoff', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines EEZ OR exclusive economic zone', max: 8, category: 'crime' },
-    
-    // ─── INFRASTRUCTURE / SECURITY ────────────────────────────────────────
-    { platform: 'x', action: 'search', target: 'Philippines power outage OR blackout OR brownout', max: 8, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'Philippines water interruption OR supply', max: 8, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'Philippines bridge collapse OR road damage', max: 8, category: 'disaster' },
-    { platform: 'x', action: 'search', target: 'Philippines infrastructure damage OR failure', max: 8, category: 'disaster' },
-    
-    // ─── LOCAL MONITORING — MAJOR CITIES ──────────────────────────────────
-    { platform: 'x', action: 'search', target: 'Metro Manila crime OR accident OR incident', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Metro Manila traffic OR accident OR collision', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Cebu crime OR incident OR news', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Davao crime OR incident OR security', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Iloilo crime OR incident OR news', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Cagayan de Oro crime OR incident', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Zamboanga crime OR security OR conflict', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Basilan OR Sulu OR Tawi-Tawi security', max: 8, category: 'crime' },
-    
-    // ─── CRIMINAL INTENT / THREAT INDICATORS ─────────────────────────────────
-    { platform: 'x', action: 'search', target: 'Philippines NPA OR New People Army OR communist', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines ISIS OR Daesh OR Maute Group', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines bomb making OR explosive tutorial', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines weapon OR firearms OR loose firearm', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines assassin OR hitman OR contract killer', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines vigilante OR death squad OR DDS', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines drug lord OR supplier OR pusher', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines corruption OR bribe OR payola', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines cyber attack OR hacking group', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines ransom OR ransomware OR extortion', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines wanted OR fugitive OR suspect', max: 10, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines most wanted OR criminal suspect', max: 8, category: 'crime' },
-    { platform: 'x', action: 'search', target: 'Philippines surveillance OR reconnaissance OR monitoring', max: 8, category: 'crime' },
-    
-    // ─── HASHTAG MONITORING ───────────────────────────────────────────────
-    { platform: 'x', action: 'search', target: '#Philippines', max: 15, category: 'social' },
-    { platform: 'x', action: 'search', target: '#PinoyNews OR #Balita', max: 10, category: 'social' },
-    { platform: 'x', action: 'search', target: '#PrayForPhilippines OR #StaySafePH', max: 8, category: 'disaster' },
-    { platform: 'x', action: 'search', target: '#Iloilo OR #Cebu OR #Davao', max: 10, category: 'social' },
-    { platform: 'x', action: 'search', target: '#AFP OR #PNP OR #PCG', max: 8, category: 'security' },
-    
-    // ─── FACEBOOK — OFFICIAL PAGES ─────────────────────────────────────────
-    { platform: 'facebook', action: 'posts', target: 'pagasa.dost.gov.ph', max: 5, category: 'disaster' },
-    { platform: 'facebook', action: 'posts', target: 'NDRRMC', max: 5, category: 'disaster' },
-    { platform: 'facebook', action: 'posts', target: 'PhilippineCoastGuard', max: 5, category: 'crime' },
-    { platform: 'facebook', action: 'posts', target: 'PAGASA-DOST', max: 5, category: 'disaster' },
-    { platform: 'facebook', action: 'posts', target: 'PHIVOLCS', max: 5, category: 'disaster' },
-    { platform: 'facebook', action: 'posts', target: 'DOHgov', max: 5, category: 'health' },
-    { platform: 'facebook', action: 'posts', target: 'PNPPIO', max: 5, category: 'crime' },
-    { platform: 'facebook', action: 'posts', target: 'teamAFP', max: 5, category: 'crime' },
-    { platform: 'facebook', action: 'posts', target: 'OfficialPCG', max: 5, category: 'crime' },
-    
-    // ─── INSTAGRAM — GROUND-LEVEL ──────────────────────────────────────────
-    { platform: 'instagram', action: 'hashtag', target: 'philippines', max: 10, category: 'social' },
-    { platform: 'instagram', action: 'hashtag', target: 'iloilocity', max: 5, category: 'social' },
-    { platform: 'instagram', action: 'hashtag', target: 'cebu', max: 5, category: 'social' },
-    { platform: 'instagram', action: 'hashtag', target: 'davaocity', max: 5, category: 'social' },
-    { platform: 'instagram', action: 'hashtag', target: 'philippinesdisaster', max: 8, category: 'disaster' },
-    { platform: 'instagram', action: 'hashtag', target: 'pinoynews', max: 5, category: 'social' },
-  ],
-
-  // Status tracking
-  stats: { posts: 0, profiles: 0, jobs: 0, errors: 0 },
-  connected: false,
-};
-
-// Check if social scraper bridge is available (requires local Node.js bridge)
-let socialBridgeAvailable = false;
-async function checkSocialBridge() {
-  if (window.location.hostname.includes('github.io') || window.location.protocol === 'file:') {
-    socialBridgeAvailable = false;
-    SOCIAL_SCRAPER_CONFIG.connected = false;
-    return false;
-  }
-  try {
-    const r = await fetch(`${SOCIAL_SCRAPER_CONFIG.bridgeUrl}/status`, {
-      signal: AbortSignal.timeout(2000)
-    });
-    if (r.ok) {
-      const status = await r.json();
-      socialBridgeAvailable = true;
-      SOCIAL_SCRAPER_CONFIG.connected = true;
-      SOCIAL_SCRAPER_CONFIG.stats = status.stats || SOCIAL_SCRAPER_CONFIG.stats;
-      return true;
-    }
-  } catch(e) {}
-  socialBridgeAvailable = false;
-  SOCIAL_SCRAPER_CONFIG.connected = false;
-  return false;
-}
-
-// Fetch posts from social scraper bridge
-async function fetchSocialMediaIntel() {
-  const loc = ACTIVE_LOC;
-  const results = [];
-  
-  // Check if bridge is running
-  if (!socialBridgeAvailable) {
-    // Try to check once
-    if (!await checkSocialBridge()) {
-      // Bridge not available — generate simulated intel based on trends
-      return generateSimulatedSocialIntel();
-    }
-  }
-
-  // Get recent results from bridge
-  try {
-    const r = await fetch(`${SOCIAL_SCRAPER_CONFIG.bridgeUrl}/results?limit=50`, {
-      signal: AbortSignal.timeout(5000)
-    });
-    if (!r.ok) return results;
-    
-    const data = await r.json();
-    
-    data.forEach(item => {
-      results.push({
-        id: `social-${item.platform}-${item._id}`,
-        source: `SOCIAL_${item.platform.toUpperCase()}`,
-        tag: item.platform,
-        category: item.category || guessCategory(item.text || item.username || ''),
-        severity: 'low',
-        title: (item.text?.substring(0, 100) || `Profile: ${item.username || item.author}`) + 
-               (item.platform === 'x' ? ' [𝕏]' : item.platform === 'facebook' ? ' [FB]' : ' [IG]'),
-        body: (item.text?.substring(0, 250) || item.bio || '') + 
-              `\n\n💬 ${item.likes || '0'} ❤️ · 📝 ${item.comments || '0'} 💬`,
-        loc: loc.label.replace(/🇵🇭 /, ''),
-        lat: null,   // v5.4: no fabricated coords — story is unlocated
-        lng: null,   // v5.4: no fabricated coords — story is unlocated
-        time: timeAgo(item._scraped_at || Date.now()),
-        url: item.url || '',
-      });
-    });
-    
-    setSourceStatus('SOCIAL_SCRAPER', 'ok');
-  } catch(e) { 
-    setSourceStatus('SOCIAL_SCRAPER', 'fail');
-  }
-
-  return results;
-}
-
-// Simulated social intel when bridge is offline (demo mode)
-function generateSimulatedSocialIntel() {
-  const loc = ACTIVE_LOC;
-  const results = [];
-  
-  // ═══════════════════════════════════════════════════════════════════
-  // PHILIPPINES CRISIS & CRIMINAL INTEL — SIMULATION DATABASE
-  // Used when live bridge is offline
-  // ═══════════════════════════════════════════════════════════════════
-  
-  // DISASTER / EMERGENCY
-  const disasterPosts = [
-    { text: '🔴 PAGASA Weather Advisory: Tropical Depression "AMBO" intensifying. Signal #1 raised over Eastern Visayas. Residents advised to prepare.', platform: 'x', category: 'disaster', severity: 'critical' },
-    { text: '🚨 PHIVOLCS: Magnitude 5.2 earthquake detected 45km SW of General Santos City at 3:42 AM. Depth: 12km. No tsunami warning.', platform: 'x', category: 'disaster', severity: 'high' },
-    { text: '⚠️ NDRRMC: Landslide risk elevated in Benguet and Mountain Province due to continuous rains. Avoid mountain roads.', platform: 'x', category: 'disaster', severity: 'high' },
-    { text: '🌊 PCG Maritime Advisory: Rough seas (3-4m waves) expected over Northern Luzon coastal waters until Friday. Fishing boats stay in port.', platform: 'x', category: 'disaster', severity: 'medium' },
-    { text: '🔥 Fire alert: 3-hour fire contained in Quezon City commercial area. 15 shops affected. Investigation ongoing.', platform: 'x', category: 'disaster', severity: 'medium' },
-    { text: 'Flooding reported in parts of Marikina and Pasig. MMDA advises motorists to take alternate routes.', platform: 'x', category: 'disaster', severity: 'medium' },
-    { text: 'PAGASA: Southwest Monsoon (Habagat) enhanced. Heavy rainfall expected over Metro Manila this afternoon.', platform: 'x', category: 'disaster', severity: 'high' },
-  ];
-  
-  // CRIME / SECURITY
-  const crimePosts = [
-    { text: '🚨 PNP: Drug bust in Tondo yields ₱4.5M worth of shabu. Two suspects arrested, one identified as "pusher ng Maynila".', platform: 'x', category: 'crime', severity: 'high' },
-    { text: '⚠️ PNP Region 7 reports significant drop in index crimes. Theft cases down 23% compared to Q1 2025.', platform: 'x', category: 'crime', severity: 'low' },
-    { text: 'Manila Police District arrests 3 suspects in connection with string of bank robberies in Metro Manila.', platform: 'x', category: 'crime', severity: 'high' },
-    { text: '🔴 AFP confirms encounter with NPA rebels in Quezon Province. 2 rebels killed, 1 soldier wounded. No civilian casualties.', platform: 'x', category: 'crime', severity: 'high' },
-    { text: 'Cybercrime warning: New phishing scam targeting BPI and BDO users circulating. Never click suspicious links.', platform: 'x', category: 'crime', severity: 'medium' },
-    { text: 'PCG intercepts vessel carrying smuggled fuel off Batanes. Estimated value ₱15M. Coast Guard on alert.', platform: 'x', category: 'crime', severity: 'medium' },
-    { text: 'NBI arrests wanted rape suspect in Davao del Sur after 3-year manhunt. Victim was 14-year-old minor.', platform: 'x', category: 'crime', severity: 'high' },
-    { text: 'PNP-CIDG dismantles illegal gambling den in Tarlac. 47 individuals apprehended, equipment seized.', platform: 'x', category: 'crime', severity: 'medium' },
-    { text: 'Motorcycle-riding gunmen shoot 2 in Pasay. Investigation ongoing, suspects at large. Police advise caution.', platform: 'x', category: 'crime', severity: 'high' },
-    { text: 'PDEA reports largest drug haul in 2026: ₱120M shabu seized in San Juan raid. 4 foreign nationals among arrested.', platform: 'x', category: 'crime', severity: 'critical' },
-  ];
-  
-  // TERRORISM / THREATS
-  const threatPosts = [
-    { text: '🔴 SECURITY ALERT: Bomb threat reported at SM Mall of Asia. Police K9 unit conducting sweep. Public advised to avoid area.', platform: 'x', category: 'crime', severity: 'critical' },
-    { text: 'AFP confirms Abu Sayyaf Group leader killed in Sulu operations. 3 soldiers wounded in 4-hour firefight.', platform: 'x', category: 'crime', severity: 'high' },
-    { text: 'Maute Group remnants spotted in Lanao del Sur. Military conducting pursuit operations.', platform: 'x', category: 'crime', severity: 'high' },
-    { text: 'Philippine Army neutralizes IED factory in Maguindanao. Explosives and bomb-making materials seized.', platform: 'x', category: 'crime', severity: 'high' },
-    { text: 'Police heighten security at transportation hubs after receiving unspecified threat information.', platform: 'x', category: 'crime', severity: 'medium' },
-  ];
-  
-  // WEST PHILIPPINE SEA
-  const wpsPosts = [
-    { text: '🇵🇭 PCG reports Chinese Coast Guard vessel shadowing Filipino fishing boats near Panatag Shoal. DFA alerted.', platform: 'x', category: 'crime', severity: 'high' },
-    { text: 'WPS Patrol: AFP identifies 7 Chinese vessels within Philippine EEZ. Maritime protest to be filed.', platform: 'x', category: 'crime', severity: 'high' },
-    { text: 'Philippine Navy conducts sovereignty patrols in West Philippine Sea. All units on standby.', platform: 'x', category: 'crime', severity: 'medium' },
-    { text: 'Satellite imagery shows new structures on Mabini Reef. DND expresses grave concern over illegal reclamation.', platform: 'x', category: 'crime', severity: 'high' },
-  ];
-  
-  // HEALTH / INFRASTRUCTURE
-  const healthPosts = [
-    { text: 'DOH: Dengue cases surge 45% in CALABARZON. Public urged to destroy mosquito breeding sites.', platform: 'x', category: 'health', severity: 'medium' },
-    { text: 'Meralco: Scheduled power interruption in parts of Makati and Mandaluyong tomorrow (8AM-5PM) for maintenance.', platform: 'x', category: 'disaster', severity: 'low' },
-    { text: 'Maynila: Water service interruption in 10 barangays due to pipe rehabilitation. Tanker trucks deployed.', platform: 'x', category: 'disaster', severity: 'low' },
-    { text: 'DOH warns against undas food poisoning. Practice proper food handling during cemetery visits.', platform: 'x', category: 'health', severity: 'low' },
-  ];
-  
-  // FACEBOOK / INSTAGRAM POSTS
-  const fbPosts = [
-    { text: 'PAGASA has posted an updated weather bulletin. Please share with your community.', platform: 'facebook', category: 'disaster', severity: 'medium' },
-    { text: 'NDRRMC Emergency Preparedness Guide now available in Filipino and English translations.', platform: 'facebook', category: 'disaster', severity: 'low' },
-    { text: 'PNP reminds public to secure homes during Undas break. Crime prevention tips posted.', platform: 'facebook', category: 'crime', severity: 'low' },
-  ];
-  
-  const igPosts = [
-    { text: '📸 Behind the scenes at local government disaster response training.', platform: 'instagram', category: 'social', severity: 'low' },
-    { text: '📸 Community resilience: Photos from recent coastal cleanup drive.', platform: 'instagram', category: 'social', severity: 'low' },
-    { text: '📸 Emergency kit essentials for Filipino households. Swipe for checklist.', platform: 'instagram', category: 'disaster', severity: 'low' },
-  ];
-  
-  const allPosts = [...disasterPosts, ...crimePosts, ...threatPosts, ...wpsPosts, ...healthPosts, ...fbPosts, ...igPosts];
-  const now = Date.now();
-  
-  // Pick diverse items from different categories
-  const selected = [
-    ...allPosts.filter(p => p.severity === 'critical').sort(() => Math.random() - 0.5).slice(0, 3),
-    ...allPosts.filter(p => p.severity === 'high').sort(() => Math.random() - 0.5).slice(0, 4),
-    ...allPosts.filter(p => p.severity === 'medium').sort(() => Math.random() - 0.5).slice(0, 3),
-    ...allPosts.filter(p => p.severity === 'low').sort(() => Math.random() - 0.5).slice(0, 2),
-  ].slice(0, 12);
-  
-  selected.forEach((post, i) => {
-    const idHash = Math.random().toString(36).substring(2, 10);
-    results.push({
-      id: `social-demo-${post.platform}-${idHash}-${i}`,
-      source: post.platform === 'x' ? 'SOCIAL_X' : post.platform === 'facebook' ? 'SOCIAL_FB' : 'SOCIAL_IG',
-      tag: post.platform,
-      category: post.category,
-      severity: post.severity,
-      title: (post.text.substring(0, 80) + (post.text.length > 80 ? '...' : '')) +
-             (post.platform === 'x' ? ' [𝕏]' : post.platform === 'facebook' ? ' [FB]' : ' [IG]'),
-      body: post.text + `\n\n💬 ${Math.floor(Math.random() * 5000)} ❤️ · 📝 ${Math.floor(Math.random() * 500)} 💬`,
-      loc: loc.label.replace(/🇵🇭 /, ''),
-      lat: loc.lat + (Math.random() - 0.5) * 0.4,
-      lng: loc.lng + (Math.random() - 0.5) * 0.4,
-      time: timeAgo(now - Math.random() * 3600000),
-      url: `https://${post.platform === 'x' ? 'x.com' : post.platform === 'facebook' ? 'facebook.com' : 'instagram.com'}`,
-    });
-  });
-
-  return results;
-}
-
-// Start automatic social scraping on interval
-let socialScraperInterval = null;
-function startSocialScraperPolling() {
-  if (socialScraperInterval) clearInterval(socialScraperInterval);
-  
-  // Check bridge status and queue scraping jobs
-  const poll = async () => {
-    const available = await checkSocialBridge();
-    
-    if (available && SOCIAL_SCRAPER_CONFIG.targets.length > 0) {
-      // Queue rotating targets to avoid overwhelming
-      const targetIndex = Math.floor(Date.now() / 60000) % SOCIAL_SCRAPER_CONFIG.targets.length;
-      const target = SOCIAL_SCRAPER_CONFIG.targets[targetIndex];
-      
-      try {
-        await fetch(`${SOCIAL_SCRAPER_CONFIG.bridgeUrl}/scrape`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(target),
-          signal: AbortSignal.timeout(3000)
-        });
-        SOCIAL_SCRAPER_CONFIG.stats.jobs++;
-        setSourceStatus('SOCIAL_SCRAPER', 'ok');
-      } catch(e) {
-        SOCIAL_SCRAPER_CONFIG.stats.errors++;
-        setSourceStatus('SOCIAL_SCRAPER', 'fail');
-      }
-    }
-    
-    SOCIAL_SCRAPER_CONFIG.lastRun = Date.now();
-  };
-
-  // Run immediately then on interval
-  poll();
-  socialScraperInterval = setInterval(poll, SOCIAL_SCRAPER_CONFIG.pollInterval);
-}
-
-// Manual trigger for social scraper from UI
-async function triggerSocialScrape(platform, action, target, max = 20) {
-  if (!socialBridgeAvailable) {
-    addJarvisMsg('jarvis', `<span style="color:var(--orange)">⚠ Social scraper bridge offline. Run: <code>node ~/.openclaw/workspace/scripts/social_scraper/jdm-bridge.js &</code></span>`);
-    return { error: 'Bridge offline' };
-  }
-
-  try {
-    const r = await fetch(`${SOCIAL_SCRAPER_CONFIG.bridgeUrl}/scrape`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform, action, target, max }),
-      signal: AbortSignal.timeout(5000)
-    });
-    
-    if (r.ok) {
-      const result = await r.json();
-      addJarvisMsg('jarvis', `<span style="color:var(--green-hi)">✓ Social scrape queued: ${platform}/${action}/${target}</span>`);
-      return result;
-    }
-  } catch(e) {
-    addJarvisMsg('jarvis', `<span style="color:var(--red)">✗ Social scrape failed: ${e.message}</span>`);
-    return { error: e.message };
-  }
-}
+// (v5.5) The OpenClaw social-media scraper bridge (port 8765) was removed — that stack is decommissioned.
 
 // ─── RADIO BROADCAST FEEDS ────────────────────────────────────────────────
 // Philippine radio stations with RSS/online feeds
@@ -17153,112 +16412,8 @@ function radioMute() {
   if (btn) btn.textContent = radioState.muted ? '🔇' : '🔊';
 }
 
-// ─── WEB SCRAPER ENGINE (via local proxy) ────────────────────────────────
-// Uses the local jdm_proxy_server.py to scrape pages with full HTTP headers
-const SCRAPER_SOURCES = [
-  {
-    id: 'pagasa_live',
-    name: 'PAGASA Live',
-    url: 'https://bagong.pagasa.dost.gov.ph/weather-forecast-and-warning',
-    interval: 300000, // 5 min
-    parse: (html) => {
-      const doc   = new DOMParser().parseFromString(html, 'text/html');
-      const items = [];
-      doc.querySelectorAll('h3, h4, .alert, .warning, .advisory, [class*="alert"], [class*="warning"]').forEach(el => {
-        const text = el.textContent.trim();
-        if (text.length > 20 && text.length < 300) {
-          items.push({ title:`PAGASA: ${text.substring(0,100)}`, sev: /signal|warning|red/i.test(text)?'critical':/advisory/i.test(text)?'high':'medium' });
-        }
-      });
-      return items;
-    }
-  },
-  {
-    id: 'ndrrmc_live',
-    name: 'NDRRMC Live',
-    url: 'https://ndrrmc.gov.ph/index.php/component/content/?view=category&id=86',
-    interval: 300000,
-    parse: (html) => {
-      const doc   = new DOMParser().parseFromString(html, 'text/html');
-      const items = [];
-      doc.querySelectorAll('a[href*="situation-report"], a[href*="sitrep"], .article-title a, h2 a, h3 a').forEach(el => {
-        const text = el.textContent.trim();
-        if (text.length > 15) {
-          items.push({ title:`NDRRMC: ${text.substring(0,100)}`, sev: /casualties|dead|missing/i.test(text)?'high':'medium' });
-        }
-      });
-      return items;
-    }
-  },
-  {
-    id: 'phivolcs_live',
-    name: 'PHIVOLCS Live',
-    url: 'https://www.phivolcs.dost.gov.ph/',
-    interval: 600000, // 10 min
-    parse: (html) => {
-      const doc   = new DOMParser().parseFromString(html, 'text/html');
-      const items = [];
-      doc.querySelectorAll('a, td, li').forEach(el => {
-        const text = el.textContent.trim();
-        if (/earthquake|linog|M[0-9]\.[0-9]|eruption|alert level|volcanic/i.test(text) && text.length < 200) {
-          items.push({ title:`PHIVOLCS: ${text.substring(0,100)}`, sev: /M[5-9]|eruption|alert level [3-5]/i.test(text)?'critical':'high' });
-        }
-      });
-      return [...new Map(items.map(i=>[i.title,i])).values()].slice(0,5);
-    }
-  },
-  {
-    id: 'pcg_live',
-    name: 'PCG / WPS',
-    url: 'https://coastguard.gov.ph/index.php/20-announcements',
-    interval: 600000,
-    parse: (html) => {
-      const doc   = new DOMParser().parseFromString(html, 'text/html');
-      const items = [];
-      doc.querySelectorAll('h2 a, h3 a, .article-title a').forEach(el => {
-        const text = el.textContent.trim();
-        if (text.length > 10) {
-          items.push({ title:`PCG: ${text.substring(0,100)}`, sev: /distress|missing|capsized|collision|wps|south china/i.test(text)?'high':'medium' });
-        }
-      });
-      return items.slice(0,5);
-    }
-  },
-  {
-    id: 'bsp_live',
-    name: 'BSP / Bangko Sentral',
-    url: 'https://www.bsp.gov.ph/SitePages/MediaAndResearch/Advisories.aspx',
-    interval: 900000, // 15 min
-    parse: (html) => {
-      const doc   = new DOMParser().parseFromString(html, 'text/html');
-      const items = [];
-      doc.querySelectorAll('td a, li a, .item-title a').forEach(el => {
-        const text = el.textContent.trim();
-        if (text.length > 15 && text.length < 200) {
-          items.push({ title:`BSP Advisory: ${text.substring(0,100)}`, sev:'medium' });
-        }
-      });
-      return items.slice(0,4);
-    }
-  },
-  {
-    id: 'doh_live',
-    name: 'DOH Philippines',
-    url: 'https://doh.gov.ph/node/6946', // Health alerts
-    interval: 600000,
-    parse: (html) => {
-      const doc   = new DOMParser().parseFromString(html, 'text/html');
-      const items = [];
-      doc.querySelectorAll('h3, h4, article h2, .views-field-title a').forEach(el => {
-        const text = el.textContent.trim();
-        if (text.length > 10) {
-          items.push({ title:`DOH: ${text.substring(0,100)}`, sev: /outbreak|epidemic|alert/i.test(text)?'high':'medium' });
-        }
-      });
-      return items.slice(0,4);
-    }
-  },
-];
+// (v5.5) The HTML scraper engine for gov pages was removed: it needed the retired local proxy, its target URLs
+// were 403/404, and scraping <h3>s off landing pages produced fabricated 'alerts'.
 
 // ─── NASA SATELLITE INTEGRATION ─────────────────────────────────────────────
 // NASA FIRMS (Fire Information for Resource Management System)
@@ -17398,54 +16553,6 @@ const RADIO_KEYWORDS = {
   weather: ['typhoon', 'storm', 'flood', 'rain', 'signal', 'pagasa'],
 };
 
-let scraperLastRun   = {};
-let scraperResults   = {};
-
-async function runScraperEngine() {
-  if (!proxyMode || proxyMode === 'cors' || proxyMode === 'none') return; // Needs proxy for full HTTP access
-  const loc = ACTIVE_LOC;
-  const now = Date.now();
-  const newItems = [];
-
-  for (const source of SCRAPER_SOURCES) {
-    const last = scraperLastRun[source.id] || 0;
-    if (now - last < source.interval) continue;
-    scraperLastRun[source.id] = now;
-
-    try {
-      const url = `${getProxyBase() || LOCAL_PROXY_URL}/proxy?url=${encodeURIComponent(source.url)}`;
-      const r   = await fetch(url, { signal: AbortSignal.timeout(12000) });
-      if (!r.ok) continue;
-      const html   = await r.text();
-      const parsed = source.parse(html);
-
-      parsed.forEach((item, i) => {
-        newItems.push({
-          id:       `scraper-${source.id}-${i}-${now}`,
-          source:   source.name,
-          tag:      'gov',
-          category: guessCategory(item.title),
-          severity: item.sev || 'medium',
-          title:    item.title,
-          body:     `Scraped from ${source.name} · ${new Date().toLocaleTimeString('en-PH')}`,
-          loc:      loc.label.replace(/🇵🇭 /, ''),
-          lat:      null,   // v5.4: no fabricated coords — story is unlocated
-          lng:      null,   // v5.4: no fabricated coords — story is unlocated
-          time:     'live',
-        });
-      });
-    } catch(e) { /* scraper errors are non-fatal */ }
-  }
-
-  if (newItems.length) {
-    allFeeds = [...newItems, ...allFeeds].slice(0, 600);
-    renderFeeds(allFeeds);
-  }
-  return newItems;
-}
-
-// refreshAllFeeds injection handled below in base function
-
 // ─── WIRE RADIO PANEL INTO RIGHT PANEL ───────────────────────────────────
 function injectRadioPanel() {
   const sentinelPane = document.getElementById('pane-sentinel');
@@ -17548,7 +16655,7 @@ async function fetchWebSearch(query, type='news') {
 // ─── JARVIS WEB SEARCH COMMAND ────────────────────────────────────────────
 async function jarvisWebSearch(query) {
   if (!proxyMode || proxyMode === 'cors' || proxyMode === 'none') {
-    addJarvisMsg('jarvis', '⚠ Web search requires local proxy (jdm_intel_server.py) running on port 8082.');
+    addJarvisMsg('jarvis', '⚠ Web search needs the Cloudflare worker proxy, which is offline.');
     return;
   }
   addJarvisMsg('user', `🔍 Search: ${query}`);
