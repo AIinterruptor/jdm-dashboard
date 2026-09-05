@@ -12,7 +12,8 @@ Philippines situational-awareness dashboard for government operations: live feed
 - **Command screen** — the Intelligence Director's brief (anchor lead, analysis, developments with source refs, director's orders, 24-h outlook, gaps), generated at 06:00 and 18:00 PHT, plus a video news tab
 - **OUTLOOK** — predictive analytics: 72-h hazard table per region (Open-Meteo rain/gust, USGS, PHIVOLCS, FIRMS), rainfall chart, threat-index projection, items/hour nowcast, anomaly z-scores and emerging terms
 - **Keyword watchlist** with alerts, **operator notes** in a persisted incident log
-- **SENTINEL** early warning, Palantir correlation overlay, **4 sub-modes:** LGU Commander, PNP Watch, Home Security, Business Edge
+- **Disaster zones** on the map — the Intelligence Director names where floods, fires, conflict, storms, quakes, volcano alerts and outbreaks are happening; the worker geocodes each place through a gazetteer (nothing is placed by guess)
+- **SENTINEL** early warning and Palantir correlation overlay
 - **OSINT terminal** and JARVIS chat (bring your own model key)
 
 ## Architecture
@@ -22,8 +23,8 @@ Single-page static app (no build step). The Cloudflare Worker proxies feeds (dom
 | Component | Stack |
 |---|---|
 | Frontend | `index.html` on Cloudflare Pages (`scripts/deploy-pages.sh`), mirrored on GitHub Pages |
-| Proxy / collector / curator | Cloudflare Worker `jdm-proxy.josed-jdm.workers.dev` (`worker/`), KV `JDM_KV`, crons `*/30`, `0 22`, `0 10` UTC |
-| Curator model | Claude Haiku 4.5 via the Messages API (secret `ANTHROPIC_KEY`) |
+| Proxy / collector / curator | Cloudflare Worker `jdm-proxy.josed-jdm.workers.dev` (`worker/`), KV `JDM_KV`, crons `*/30` (collect), `5 22` and `5 10` UTC (brief + zones) |
+| Curator + zones model | Claude Haiku 4.5 via the Messages API (secret `ANTHROPIC_KEY`), two calls every 12 h |
 | Weather | Open-Meteo (keyless) |
 
 ## Deploy
