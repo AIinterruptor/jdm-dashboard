@@ -1606,6 +1606,65 @@ body {
 
 
 
+
+/* Duty forecaster's reading — sits above the hazard table it interprets. Every
+   judgement is shown next to the figure that produced it, so a reader checks
+   rather than trusts, the same rule the news page applies to sources. */
+.ac-reading{ border:1px solid var(--line); border-left:3px solid var(--amber); padding:11px 13px; margin-bottom:12px; background:#0d0f0d; }
+.ac-read-head{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+.ac-read-title{ font-size:9px; letter-spacing:.16em; color:var(--amber); font-weight:600; }
+.ac-read-meta{ font-size:8px; letter-spacing:.06em; color:var(--t3); }
+.ac-read-body{ font-size:12px; line-height:1.65; color:var(--t1); margin:0 0 10px; }
+.ac-read-quiet{ font-size:11px; color:var(--t3); margin:0 0 8px; }
+.ac-read-watch{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+.ac-watch-row{ display:grid; grid-template-columns:130px 118px 1fr; gap:10px; align-items:baseline;
+  padding:5px 0; border-top:1px dotted var(--line); font-size:11px; }
+@media(max-width:760px){ .ac-watch-row{ grid-template-columns:1fr; gap:2px; } }
+.ac-watch-reg{ color:var(--t1); font-weight:600; }
+.ac-watch-fig{ color:var(--amber); font-variant-numeric:tabular-nums; }
+.ac-watch-why{ color:var(--t2); line-height:1.5; }
+.ac-read-drivers{ margin:0; padding-left:15px; }
+.ac-read-drivers li{ font-size:11px; line-height:1.55; color:var(--t2); margin-bottom:4px; }
+
+/* Seven-day weather — same newsroom shell as the news page, its own table. */
+#weather-page{
+  --nw-ink:#12100e; --nw-paper:#faf7f2; --nw-red:#c8102e; --nw-navy:#0a2647;
+  --nw-grey:#6b6560; --nw-rule:#d9d2c7;
+  display:none; position:fixed; inset:0; z-index:9200;
+  background:var(--nw-paper); color:var(--nw-ink);
+  font-family:'Source Serif 4',Georgia,serif; overflow-y:auto;
+}
+#weather-page.show{ display:block; }
+#weather-page .nw-wrap{ padding-top:84px; }
+.wx-lede{ border-bottom:1px solid var(--nw-rule); padding-bottom:18px; margin-bottom:22px; }
+.wx-lede-k{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--nw-red); display:block; margin-bottom:9px; }
+.wx-lede p{ margin:0; font-size:18px; line-height:1.55; color:#2b2622; max-width:74ch; }
+.wx-scroll{ overflow-x:auto; }
+.wx-table{ border-collapse:collapse; width:100%; min-width:820px; }
+.wx-table th{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--nw-grey); font-weight:600; text-align:center; padding:0 6px 8px; border-bottom:2px solid var(--nw-ink); }
+.wx-table th:first-child{ text-align:left; }
+.wx-reg{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--nw-ink);
+  white-space:nowrap; padding:9px 12px 9px 0; border-bottom:1px solid var(--nw-rule); }
+.wx-cell{ text-align:center; padding:8px 5px; border-bottom:1px solid var(--nw-rule);
+  border-left:1px solid #ece6db; line-height:1.35; }
+.wx-cell.watch{ background:#f7f0dc; } .wx-cell.warning{ background:#f6e3d2; } .wx-cell.severe{ background:#f2d5d3; }
+.wx-rain{ display:block; font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:600;
+  font-variant-numeric:tabular-nums; color:var(--nw-ink); }
+.wx-rain i{ font-style:normal; font-size:8.5px; color:var(--nw-grey); margin-left:1px; }
+.wx-pop{ display:block; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--nw-navy); }
+.wx-t{ display:block; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--nw-grey); }
+.wx-desc{ display:block; font-size:9.5px; color:var(--nw-grey); margin-top:2px; }
+.wx-key{ display:flex; gap:20px; flex-wrap:wrap; margin-top:16px;
+  font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.06em; color:var(--nw-grey); }
+.wx-key span{ display:inline-flex; align-items:center; gap:6px; }
+.wx-sw{ width:13px; height:13px; display:inline-block; border:1px solid var(--nw-rule); }
+.wx-sw.normal{background:#faf7f2} .wx-sw.watch{background:#f7f0dc}
+.wx-sw.warning{background:#f6e3d2} .wx-sw.severe{background:#f2d5d3}
+.wx-foot{ margin-top:18px; padding-top:14px; border-top:1px solid var(--nw-rule);
+  font-family:'IBM Plex Mono',monospace; font-size:10px; line-height:1.8; color:var(--nw-grey); max-width:88ch; }
+
 /* ═══ NEWSROOM — the public-facing news page ═══
    A deliberately different visual world from the terminal dashboard behind it:
    this is the read surface, not the instrument panel. Newsprint ground, flag
@@ -1707,6 +1766,8 @@ body {
 .nw-cite-n{ color:var(--nw-red); font-weight:600; }
 .nw-unsourced{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:#a8452e;
   letter-spacing:.05em; margin-top:8px; }
+.nw-signal{ font-size:14px; line-height:1.6; color:#3a352f; margin:0 0 8px; }
+.nw-signal-base{ font-family:'IBM Plex Mono',monospace; font-size:10px; line-height:1.7; color:var(--nw-grey); margin:0; }
 /* outlook + gaps footer */
 .nw-foot{ display:grid; grid-template-columns:1.6fr 1fr; gap:38px; padding-top:8px; }
 @media(max-width:860px){ .nw-foot,.nw-lead{grid-template-columns:1fr} .nw-rail{border-left:none;padding-left:0} }
@@ -3031,6 +3092,7 @@ window.gm_authFailure = function() {
     <button class="hdr-btn" onclick="openMLDashboard()" title="ML Engine">ML</button>
     <button class="hdr-btn" onclick="openAnalytics()" title="Predictive analytics — 72 h outlook">OUTLOOK</button>
     <button class="hdr-btn" onclick="openNews()" title="News — the twice-daily bulletin">NEWS</button>
+    <button class="hdr-btn" onclick="openWeather()" title="Seven-day regional forecast">WEATHER</button>
 
     <div class="hdr-sep"></div>
 
@@ -7264,6 +7326,112 @@ function toggleJarvis() {
 }
 
 
+// ─── OUTLOOK INTERPRETATION + 7-DAY WEATHER ───────────────────────────────
+// Both read the cron-generated /api/outlook record. Nothing here calls a model:
+// an unauthenticated page that could trigger a Haiku call would be a way for any
+// visitor to spend our tokens. The reading is written twice daily and cached.
+let _outlookRec = null;
+
+async function fetchOutlook(){
+  if (_outlookRec && Date.now() - _outlookRec._t < 5 * 60000) return _outlookRec;
+  let base = getProxyBase();
+  for (let i = 0; i < 20 && !base; i++) { await new Promise(r => setTimeout(r, 250)); base = getProxyBase(); }
+  if (!base) base = 'https://jdm-proxy.josed-jdm.workers.dev';
+  const r = await fetch(`${base}/api/outlook`, { signal: AbortSignal.timeout(15000) });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const d = await r.json();
+  d._t = Date.now(); _outlookRec = d; return d;
+}
+
+// The reading that sits above the hazard table it interprets. Every judgement
+// carries the figure that produced it — the same checkable property the news
+// page gives claims with their sources.
+async function renderOutlookReading(){
+  const el = document.getElementById('ac-reading'); if (!el) return;
+  el.innerHTML = '<div class="ac-note">Loading the duty forecaster&rsquo;s reading&hellip;</div>';
+  try{
+    const rec = await fetchOutlook();
+    const o = rec.outlook || {};
+    const w = Array.isArray(o.watch_regions) ? o.watch_regions : [];
+    const dr = Array.isArray(o.drivers) ? o.drivers : [];
+    el.innerHTML = `
+      <div class="ac-read-head">
+        <span class="ac-read-title">DUTY FORECASTER &mdash; READING</span>
+        <span class="ac-read-meta">${escHtml(rec.generated_pht||'')} &middot; ${rec.regions_with_forecast||0}/17 regions &middot; confidence ${escHtml(o.confidence||'—')}</span>
+      </div>
+      <p class="ac-read-body">${escHtml(o.assessment||'No reading available.')}</p>
+      ${w.length ? `<div class="ac-read-watch">${w.map(x=>`
+        <div class="ac-watch-row">
+          <span class="ac-watch-reg">${escHtml(x.region)}</span>
+          <span class="ac-watch-fig">${escHtml(x.figure)}</span>
+          <span class="ac-watch-why">${escHtml(x.why)}</span>
+        </div>`).join('')}</div>` : '<p class="ac-read-quiet">No region is above threshold in this reading.</p>'}
+      ${dr.length ? `<ul class="ac-read-drivers">${dr.map(x=>`<li>${escHtml(x)}</li>`).join('')}</ul>` : ''}
+      <div class="ac-note">Written by Claude Haiku from the figures in the table below and nothing else &mdash; no storm tracks or pressure data are available to it, so it does not name weather systems. Regenerated with the 06:00 and 18:00 PHT briefs.</div>`;
+  }catch(e){
+    el.innerHTML = `<div class="ac-note" style="color:var(--red)">Reading unavailable (${escHtml(e.message)}).</div>`;
+  }
+}
+
+// ─── 7-DAY WEATHER PAGE ───────────────────────────────────────────────────
+const WX_CODE = {0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Rime fog',
+  51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',
+  66:'Freezing rain',67:'Freezing rain',71:'Snow',80:'Light showers',81:'Showers',82:'Violent showers',
+  95:'Thunderstorm',96:'Thunderstorm, hail',99:'Thunderstorm, hail'};
+function wxLabel(c){ return WX_CODE[c] || '—'; }
+// Bands are the PAGASA daily thresholds the worker also scores against, so the
+// colour a reader sees matches the number beside it.
+function wxBand(mm){ return mm >= 200 ? 'severe' : mm >= 100 ? 'warning' : mm >= 50 ? 'watch' : 'normal'; }
+
+async function openWeather(){
+  const el = document.getElementById('weather-page');
+  el.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  const body = document.getElementById('wx-body');
+  body.innerHTML = '<div class="nw-empty">Loading the seven-day forecast&hellip;</div>';
+  try{
+    const rec = await fetchOutlook();
+    const rows = (rec.rows||[]).filter(r => r.week && r.week.length);
+    if(!rows.length){ body.innerHTML = '<div class="nw-empty">No forecast available in this edition.</div>'; return; }
+    const days = rows[0].week.map(d => d.d);
+    const fmt = s => { const dt = new Date(s+'T00:00:00'); return dt.toLocaleDateString('en-PH',{weekday:'short'}) + ' ' + s.slice(8) + '/' + s.slice(5,7); };
+
+    document.getElementById('wx-meta').innerHTML =
+      escHtml(rec.generated_pht||'') + '<br>' + rows.length + ' regions &middot; 7 days';
+
+    const o = rec.outlook || {};
+    const lede = o.week_ahead
+      ? `<div class="wx-lede"><span class="wx-lede-k">THE WEEK AHEAD</span><p>${escHtml(o.week_ahead)}</p></div>` : '';
+
+    const table = `<div class="wx-scroll"><table class="wx-table">
+      <thead><tr><th>Region</th>${days.map(d=>`<th>${escHtml(fmt(d))}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td class="wx-reg">${escHtml(r.short)}</td>
+        ${r.week.map(d=>`<td class="wx-cell ${wxBand(d.rain)}">
+            <span class="wx-rain">${d.rain.toFixed(0)}<i>mm</i></span>
+            <span class="wx-pop">${d.pop}%</span>
+            <span class="wx-t">${d.tmin.toFixed(0)}&ndash;${d.tmax.toFixed(0)}&deg;</span>
+            <span class="wx-desc">${escHtml(wxLabel(d.code))}</span>
+          </td>`).join('')}
+      </tr>`).join('')}</tbody></table></div>`;
+
+    body.innerHTML = lede + table + `
+      <div class="wx-key">
+        <span><i class="wx-sw normal"></i>under 50 mm</span>
+        <span><i class="wx-sw watch"></i>50&ndash;99 mm &middot; watch</span>
+        <span><i class="wx-sw warning"></i>100&ndash;199 mm &middot; warning</span>
+        <span><i class="wx-sw severe"></i>200 mm+ &middot; severe</span>
+      </div>
+      <div class="wx-foot">Daily totals and probabilities from Open-Meteo at each regional anchor point, refreshed with the 06:00 and 18:00 PHT editions. Bands are PAGASA daily rainfall thresholds. A forecast beyond three days carries real uncertainty &mdash; treat the later columns as a trend, not a commitment, and check PAGASA for official warnings.</div>`;
+  }catch(e){
+    body.innerHTML = `<div class="nw-empty">Could not load the forecast (${escHtml(e.message)}).</div>`;
+  }
+}
+function closeWeather(){
+  document.getElementById('weather-page').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
 // ─── NEWSROOM ─────────────────────────────────────────────────────────────
 // The public read surface. It renders the SAME twice-daily Haiku brief the
 // dashboard already generates on cron and caches in KV — so opening this page
@@ -7357,7 +7525,10 @@ function nwRender(rec){
         ${b.confidence?`<p style="margin-top:14px"><span class="nw-conf">Assessed confidence: ${nwEsc(b.confidence)}</span></p>`:''}
       </div>
       <div class="nw-gaps">
-        <div class="nw-sec-h">What we don't know</div>
+        ${b.signal_read ? `<div class="nw-sec-h">Reading the coverage</div>
+          <p class="nw-signal">${nwEsc(b.signal_read)}</p>
+          ${rec.signals && rec.signals.ok ? `<p class="nw-signal-base">Volume today ${rec.signals.volume_today} against a ${rec.signals.days_compared-1}-day average of ${rec.signals.volume_baseline}. Counts measure reporting, not events.</p>` : ''}` : ''}
+        <div class="nw-sec-h" style="margin-top:22px">What we don't know</div>
         ${gaps.length?`<ul>${gaps.map(g=>`<li>${nwEsc(g)}</li>`).join('')}</ul>`:'<p class="nw-why">No material gaps flagged.</p>'}
       </div>
     </div>`;
@@ -10000,6 +10171,7 @@ function computeHazards(wx, feeds, history) {
 
 function renderHazardTable(hz) {
   const el = document.getElementById('ac-hazard'); if (!el) return;
+  void renderOutlookReading();   // the reading sits above the table it reads
   const rows = hz.slice().sort((a, b) => b.overall - a.overall || b.rain72 - a.rain72);
   const anyWx = hz.some(h => h.hasWx);
   el.innerHTML = `<table class="ac-table"><thead><tr>
@@ -19316,7 +19488,7 @@ document.addEventListener('click', function resumeAudio() {
     </div>
   </div>
   <div id="analytics-grid">
-    <div class="analytics-cell wide"><div class="analytics-cell-title">▸ Hazard outlook · next 72 h by region <span class="ac-basis">Open-Meteo rain/wind · USGS · PHIVOLCS · NASA FIRMS</span></div><div class="analytics-scroll" id="ac-hazard"><div class="ac-empty">Loading forecast…</div></div></div>
+    <div class="analytics-cell wide"><div id="ac-reading" class="ac-reading"></div><div class="analytics-cell-title">▸ Hazard outlook · next 72 h by region <span class="ac-basis">Open-Meteo rain/wind · USGS · PHIVOLCS · NASA FIRMS</span></div><div class="analytics-scroll" id="ac-hazard"><div class="ac-empty">Loading forecast…</div></div></div>
     <div class="analytics-cell"><div class="analytics-cell-title">▸ Anomalies &amp; emerging <span class="ac-basis">last 6 h vs 7-day baseline</span></div><div class="analytics-scroll" id="ac-anomaly"><div class="ac-empty">Computing…</div></div></div>
     <div class="analytics-cell"><div class="analytics-cell-title">▸ Rainfall forecast · mm/h, wettest regions <span class="ac-basis">Open-Meteo</span></div><canvas id="ac-rain"></canvas></div>
     <div class="analytics-cell"><div class="analytics-cell-title">▸ Threat index · up to 24 h history + 6 h projection <span class="ac-basis">Holt trend on a 5-min grid, residual band</span></div><canvas id="ac-threat"></canvas></div>
@@ -19442,6 +19614,20 @@ document.addEventListener('click', function resumeAudio() {
   </div>
 </div>
 
+
+<!-- 7-DAY WEATHER — daily totals from the same cron-generated outlook record -->
+<div id="weather-page" role="dialog" aria-modal="true" aria-labelledby="wx-title">
+  <div class="nw-wrap">
+    <div class="nw-mast">
+      <h1 id="wx-title">Seven <em>Days</em></h1>
+      <div style="display:flex;align-items:flex-end;gap:18px">
+        <div class="nw-mast-meta" id="wx-meta"></div>
+        <button class="nw-close" onclick="closeWeather()" aria-label="Close the weather page">CLOSE &#215;</button>
+      </div>
+    </div>
+    <div id="wx-body"><div class="nw-empty">Loading&hellip;</div></div>
+  </div>
+</div>
 
 <!-- NEWSROOM — public news view of the twice-daily Haiku brief -->
 <div id="news-page" role="dialog" aria-modal="true" aria-labelledby="nw-title">
@@ -20635,6 +20821,7 @@ setTimeout(() => clearInterval(waitForMap), 30000);
   /* ── 2. Modal dialogs: focus trap, focus restore, Escape ────────────── */
   var MODALS = [
     { id: 'news-page',           cls: 'show',   esc: true  },
+    { id: 'weather-page',        cls: 'show',   esc: true  },
     { id: 'brief-modal',         cls: 'show',   esc: true  },
     { id: 'analytics-modal',     cls: 'show',   esc: true  },
     { id: 'threat-matrix-modal', cls: 'show',   esc: true  },
