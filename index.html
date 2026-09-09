@@ -1693,6 +1693,20 @@ body {
 .nw-cat{ color:var(--nw-grey); }
 .nw-why-m{ font-size:13px; font-style:italic; color:var(--nw-grey); line-height:1.45; }
 
+
+/* Per-claim citations. The brief already records which source items back each
+   development and each order; without showing them the page asks to be trusted
+   instead of letting the reader check. Numbered superscripts keep the prose
+   readable, and each one is the publisher's own link. */
+.nw-cites{ margin-top:8px; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.04em; line-height:1.9; color:var(--nw-grey); }
+.nw-cites .nw-cl{ display:inline-block; margin-right:6px; }
+.nw-cites a{ color:var(--nw-navy); text-decoration:none; border-bottom:1px solid var(--nw-rule); padding-bottom:1px; }
+.nw-cites a:hover{ border-bottom-color:var(--nw-navy); color:var(--nw-red); }
+.nw-cites a:focus-visible{ outline:2px solid var(--nw-red); outline-offset:2px; }
+.nw-cite-n{ color:var(--nw-red); font-weight:600; }
+.nw-unsourced{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:#a8452e;
+  letter-spacing:.05em; margin-top:8px; }
 /* outlook + gaps footer */
 .nw-foot{ display:grid; grid-template-columns:1.6fr 1fr; gap:38px; padding-top:8px; }
 @media(max-width:860px){ .nw-foot,.nw-lead{grid-template-columns:1fr} .nw-rail{border-left:none;padding-left:0} }
@@ -7257,6 +7271,28 @@ function toggleJarvis() {
 // stays what it is: data gathering that feeds this bulletin.
 function nwEsc(x){ return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// Render the sources backing one claim. `nums` are 1-based indices into the
+// brief's own refs list — the same numbering the model was given and cited
+// against, so a reader can check any statement against the publisher directly.
+// A claim with no usable citation is LABELLED as such rather than shown bare:
+// silence would read as "sourced" when it is the opposite.
+function nwCites(nums, refs){
+  if(!Array.isArray(nums) || !nums.length) return '<div class="nw-unsourced">Uncited — treat as unverified</div>';
+  const seen = new Set();
+  const links = nums.map(n=>{
+    const i = parseInt(n,10)-1;
+    const r = (i>=0 && i<refs.length) ? refs[i] : null;
+    if(!r || seen.has(i)) return '';
+    seen.add(i);
+    const label = nwEsc(r.s || 'source');
+    return r.l
+      ? `<span class="nw-cl"><span class="nw-cite-n">${i+1}</span> <a href="${nwEsc(r.l)}" target="_blank" rel="noopener noreferrer" title="${nwEsc(r.t||'')}">${label}</a></span>`
+      : `<span class="nw-cl"><span class="nw-cite-n">${i+1}</span> ${label}</span>`;
+  }).filter(Boolean).join('');
+  return links ? `<div class="nw-cites">Sources ${links}</div>`
+               : '<div class="nw-unsourced">Uncited — treat as unverified</div>';
+}
+
 function nwRender(rec){
   const b = rec && rec.brief;
   const body = document.getElementById('nw-body');
@@ -7283,6 +7319,7 @@ function nwRender(rec){
         <h2>${nwEsc(b.headline)}</h2>
         ${b.anchor_lead ? `<p class="nw-anchor">${nwEsc(b.anchor_lead)}</p>` : ''}
         ${b.situation ? `<p class="nw-situation">${nwEsc(b.situation)}</p>` : ''}
+        ${devs[0] ? nwCites(devs[0].refs, refs) : ''}
       </div>
       <aside class="nw-rail">
         <h3>Priority Actions</h3>
@@ -7291,6 +7328,7 @@ function nwRender(rec){
             <span class="nw-order-n">${String(i+1).padStart(2,'0')}</span>
             <p>${nwEsc(o.order)}</p>
             ${o.rationale ? `<p class="nw-why">${nwEsc(o.rationale)}</p>` : ''}
+            ${nwCites(o.refs, refs)}
           </div>`).join('') : '<p class="nw-why">None issued this edition.</p>'}
       </aside>
     </div>`;
@@ -7306,6 +7344,7 @@ function nwRender(rec){
           <div class="nw-tags"><span class="nw-sev ${sev}">${nwEsc(sev)}</span><span class="nw-cat">${nwEsc(d.category||'')}</span></div>
           <p>${nwEsc(d.what)}</p>
           ${d.why_it_matters ? `<p class="nw-why-m">${nwEsc(d.why_it_matters)}</p>` : ''}
+          ${nwCites(d.refs, refs)}
         </article>`;
       }).join('')}
     </div>` : '';
@@ -7328,7 +7367,13 @@ function nwRender(rec){
   const srcNames = [...new Set(refs.map(r=>r && r.s).filter(Boolean))];
   const src = refs.length ? `<div class="nw-src">
       <strong>Compiled from ${refs.length} reports</strong> &middot; ${srcNames.slice(0,14).map(nwEsc).join(' &middot; ')}
-      <br>Written by Claude Haiku from the feeds listed, twice daily at 06:00 and 18:00 PHT. Verify before operational use.
+      <br><br><strong>How this bulletin is made.</strong> Every statement above is written from the
+      numbered reports listed with it &mdash; nothing is generated from outside them. Claude Haiku
+      compiles the edition twice daily at 06:00 and 18:00 PHT from ${nwEsc(String(rec.items_considered||refs.length))}
+      reports gathered across ${srcNames.length} sources; it does not gather or verify the reports itself.
+      <br><strong>Its limits.</strong> No person reviews an edition before it publishes. Accuracy is
+      inherited from the publishers cited &mdash; an error in a source becomes an error here. Follow the
+      citations and confirm with the issuing agency before acting operationally.
     </div>` : '';
 
   body.innerHTML = lead + devHtml + foot + src;
