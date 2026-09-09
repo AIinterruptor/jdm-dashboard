@@ -3791,11 +3791,21 @@ function getRSSFeeds(loc) {
   // (403/404 from every egress tested 2026-09-04). Re-add a source only after it answers 200 via /proxy-rss.
   const national = [
     // Major Philippine News Networks (worker-proxied)
-    { key:'RSS_INQ',  src:'Inquirer',  url:'https://newsinfo.inquirer.net/feed',                 tag:'news' },
+    // Inquirer removed 2026-09-10: newsinfo.inquirer.net answers 403 to Cloudflare
+    // egress specifically (200 from a residential IP, 61KB of valid RSS), and the
+    // news.google.com fallback route 503s from the same egress. Not fixable from a
+    // Worker — re-add only if it answers 200 via /proxy-rss.
     { key:'RSS_GMA',  src:'GMA News',  url:'https://data.gmanetwork.com/gno/rss/news/nation/feed.xml',  tag:'news' },
+    { key:'RSS_GMA2', src:'GMA Wire',  url:'https://data.gmanetwork.com/gno/rss/news/feed.xml',   tag:'news' },
     { key:'RSS_RAP',  src:'Rappler',   url:'https://www.rappler.com/feed/',                       tag:'news' },
+    { key:'RSS_RAP2', src:'Rappler PH',url:'https://www.rappler.com/nation/feed/',                tag:'news' },
     { key:'RSS_STAR', src:'PhilStar',  url:'https://www.philstar.com/rss/headlines',              tag:'news' },
+    { key:'RSS_STAR2',src:'PStar Nat', url:'https://www.philstar.com/rss/nation',                 tag:'news' },
     { key:'RSS_PTV',  src:'PTV News',  url:'https://ptvnews.ph/feed/',                           tag:'gov' },
+    // Verified 2026-09-10 via /proxy-rss: all answer 200 with current items.
+    { key:'RSS_GDACS_A', src:'GDACS',  url:'https://www.gdacs.org/xml/rss.xml',                   tag:'disaster' },
+    { key:'RSS_RW_DIS',  src:'ReliefWeb Dis', url:'https://reliefweb.int/disasters/rss.xml',      tag:'disaster' },
+    { key:'RSS_USGS_W',  src:'USGS M4.5+',    url:'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.atom', tag:'disaster' },
   ];
   const regional = [];
 
@@ -4121,7 +4131,9 @@ const SOURCE_NAMES = {   // v5.5: retired sources removed, new keys added
   'REDDIT3':'phinvest','REDDIT5':'CryptoPH',
   'GDELT_MAIN':'GDELT','GDELT_DIS':'DIS','GDELT_POL':'POL','GDELT_SEC':'SEC','GDELT_ECO':'ECO',
   'FX':'BSP/FX','WORLDBANK':'WBANK','RSS_RELIEFWEB':'RELIEFWB','RSS_BBCASIA':'BBC','OVERPASS':'OSM','NDCC':'NDRRMC','PHIVOLCS':'PHIVOLCS',
-  'RSS_PTV':'PTV','RSS_GMA':'GMA','RSS_RAP':'RAPPLER','RSS_STAR':'PSTAR','RSS_INQ':'INQ',
+  'RSS_PTV':'PTV','RSS_GMA':'GMA','RSS_RAP':'RAPPLER','RSS_STAR':'PSTAR',
+  'RSS_GMA2':'GMA-W','RSS_RAP2':'RAPPLER-PH','RSS_STAR2':'PSTAR-N',
+  'RSS_GDACS_A':'GDACS-A','RSS_RW_DIS':'RW-DIS','RSS_USGS_W':'USGS-W',
   'TAVILY':'TAVILY','TAVILY_PH':'TAVILY-PH',
   'SOCIAL_X':'X(Twitter)','SOCIAL_FB':'Facebook','SOCIAL_IG':'Instagram','SOCIAL_SCRAPER':'SOCIAL',
   'NASA_FIRMS':'NASA Fires','NASA_EONET':'NASA Events',
