@@ -12,6 +12,10 @@ cp "$ROOT/_headers" "$DIST/"
 # Link-preview image. Facebook/Twitter fetch this by absolute URL, so it must be
 # published at the site root or the preview card renders with no image.
 cp "$ROOT/og-image.png" "$DIST/"
+# Service worker. MUST be served from the site root as a real same-origin
+# file: browsers refuse to register one from a blob: URL, and its scope
+# cannot be broader than its own path.
+cp "$ROOT/sw.js" "$DIST/"
 cp "$ROOT/config/"*.js "$DIST/config/"
 VERSION="$(grep -o 'COMMAND CENTER v[0-9.]*</title>' "$ROOT/index.html" | grep -o 'v[0-9.]*')"
 echo "Deploying $VERSION from $DIST"

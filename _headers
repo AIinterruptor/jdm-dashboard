@@ -16,3 +16,9 @@
 
 /config/*
   Cache-Control: public, max-age=300
+
+# The service worker must always be revalidated. A cached copy would pin every
+# visitor to an old worker, which then serves an old shell from ITS cache - a
+# stale site that no amount of reloading clears.
+/sw.js
+  Cache-Control: no-cache

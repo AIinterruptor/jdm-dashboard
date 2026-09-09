@@ -4,7 +4,7 @@ compatibility_date = "2024-09-01"
 
 [vars]
 # Comma-separated list of allowed browser origins (prefix match). First entry is the fallback.
-ALLOWED_ORIGINS = "https://state-of-the-nationph.pages.dev,https://aiinterruptor.github.io,https://josed.github.io,http://localhost,http://127.0.0.1"
+ALLOWED_ORIGINS = "https://state-of-the-nationph.pages.dev,https://newsph.jdmaisolutions.com,https://aiinterruptor.github.io,https://josed.github.io,http://localhost,http://127.0.0.1"
 # Soft per-IP limit per minute. One dashboard refresh is ~130 requests over 2 minutes.
 RATE_LIMIT = "300"
 MAX_RESPONSE_SIZE = "5242880"

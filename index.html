@@ -4419,6 +4419,12 @@ const GDELT_VOLUME_MAX = 48; // keep 48 data points for spread analysis
 // GDELT requires 1 req per 5 seconds. Queue serializes all 5 category calls.
 const GDELT_QUEUE = [];
 let GDELT_QUEUE_RUNNING = false;
+// Time of the last GDELT request, across ALL cycles. The per-item wait
+// below only spaced calls WITHIN one drain of the queue: when a refresh
+// emptied the queue and the next cycle refilled it, the first call could
+// fire immediately after the previous cycle's last one, breaking GDELT's
+// 5s floor and earning a 429.
+let _gdeltLastCallAt = 0;
 
 function gdeltEnqueue(fetchFn, sourceKey) {
   return new Promise((resolve) => {
@@ -4432,6 +4438,12 @@ async function gdeltProcessQueue() {
   GDELT_QUEUE_RUNNING = true;
   while (GDELT_QUEUE.length > 0) {
     const { fetchFn, sourceKey, resolve } = GDELT_QUEUE.shift();
+    // Respect the floor against the last call of ANY cycle.
+    const sinceLast = Date.now() - _gdeltLastCallAt;
+    if (_gdeltLastCallAt && sinceLast < GDELT_MIN_INTERVAL) {
+      await new Promise(r => setTimeout(r, GDELT_MIN_INTERVAL - sinceLast));
+    }
+    _gdeltLastCallAt = Date.now();
     _gdeltCallCount++;
     try {
       const arts = await fetchFn();
@@ -4447,10 +4459,8 @@ async function gdeltProcessQueue() {
       console.warn(`[GDELT ${sourceKey}] failed: ${e.message}`);
       resolve([]);
     }
-    // Wait 6s before next GDELT request
-    if (GDELT_QUEUE.length > 0) {
-      await new Promise(r => setTimeout(r, GDELT_MIN_INTERVAL));
-    }
+    // No trailing wait: the pre-call gate above already enforces the interval,
+    // and sleeping here as well would double the spacing.
   }
   GDELT_QUEUE_RUNNING = false;
 }
@@ -4950,10 +4960,25 @@ async function fetchRSS(feed) {
       r = await fetchWithProxy(feed.url, {});
     }
     const txt = await r.text();
-    if (txt.trim().startsWith('<!DOCTYPE') || txt.trim().startsWith('<html')) throw new Error('Not XML — got HTML page');
+    // Bot walls (Inquirer sits behind one) answer with an HTML challenge page
+    // instead of the feed. The old check only caught a leading <!DOCTYPE/<html,
+    // so a page with leading whitespace or a comment slipped through and was
+    // reported as "RSS parse error" — which reads like OUR bug rather than a
+    // blocked fetch. Sniff the first real markup instead, and say which it was.
+    const head = txt.slice(0, 400).replace(/^﻿/, '').trim();
+    // The proxy reports an upstream refusal as JSON ({"error":"Upstream HTTP 403"}).
+    // Feeding that to the XML parser produced a bare "RSS parse error", which
+    // reads like a broken feed rather than a publisher blocking the fetch.
+    if (head.startsWith('{')) {
+      let j = null; try { j = JSON.parse(txt); } catch {}
+      if (j && j.error) throw new Error(String(j.error) + (j.host ? ' (' + j.host + ')' : ''));
+    }
+    if (/^<!DOCTYPE\s+html|^<html[\s>]/i.test(head) || /cf-error|Just a moment|Attention Required|403 Forbidden/i.test(txt.slice(0, 2000))) {
+      throw new Error('blocked: publisher refused the fetch, not a feed');
+    }
     const xml = new DOMParser().parseFromString(txt,'text/xml');
     const parseErr = xml.querySelector('parsererror');
-    if (parseErr) throw new Error('RSS parse error');
+    if (parseErr) throw new Error('RSS parse error: ' + (parseErr.textContent||'').slice(0,80));
     return [...xml.querySelectorAll('item')].slice(0,8).map((item,i) => {
       const title   = item.querySelector('title')?.textContent?.trim()||'Untitled';
       const desc    = (item.querySelector('description')?.textContent||'').replace(/<[^>]+>/g,'').trim();
@@ -8829,172 +8854,11 @@ async function registerServiceWorker() {
   }
 
   try {
-    // Create service worker inline (embedded)
-    const swCode = `
-// JDM Intel Dashboard - Service Worker v1.0
-const CACHE_NAME = 'jdm-cache-v1';
-const STATIC_CACHE = 'jdm-static-v2';   // v5.8: bumped so the old cache-first shell copy is dropped
-const MAP_CACHE = 'jdm-maps-v1';
-
-// Files to cache immediately
-const STATIC_FILES = [
-  '/',
-  '/index.html',
-  'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js',
-  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css',
-  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css'
-];
-
-// Map tile domains to cache
-const MAP_TILE_DOMAINS = [
-  'tile.openstreetmap.org',
-  'a.tile.openstreetmap.org',
-  'b.tile.openstreetmap.org',
-  'c.tile.openstreetmap.org',
-  'server.arcgisonline.com',
-  'stamen-tiles.a.ssl.fastly.net'
-];
-
-// Install - cache static files
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      console.log('[SW] Caching static files');
-      return cache.addAll(STATIC_FILES).catch(() => {
-        // Ignore failures for external resources
-        console.log('[SW] Some external resources failed to cache');
-      });
-    })
-  );
-  self.skipWaiting();
-});
-
-// Activate - cleanup old caches
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== STATIC_CACHE && name !== MAP_CACHE && name !== CACHE_NAME)
-          .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
-            return caches.delete(name);
-          })
-      );
-    })
-  );
-  self.clients.claim();
-});
-
-// Fetch - serve from cache, fallback to network
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  
-  // Skip non-GET requests
-  if (event.request.method !== 'GET') {
-    return;
-  }
-  
-  // Handle map tiles - cache first
-  if (MAP_TILE_DOMAINS.some(domain => url.hostname.includes(domain))) {
-    event.respondWith(
-      caches.open(MAP_CACHE).then((cache) => {
-        return cache.match(event.request).then((cached) => {
-          if (cached) {
-            return cached;
-          }
-          return fetch(event.request).then((response) => {
-            if (response.ok) {
-              cache.put(event.request, response.clone());
-            }
-            return response;
-          }).catch(() => {
-            // Return offline tile placeholder if available
-            return caches.match('/offline-tile.png').catch(() => new Response('', { status: 408 }));
-          });
-        });
-      })
-    );
-    return;
-  }
-  
-  // v5.8: the app shell (same-origin HTML) is NETWORK-FIRST with cache fallback, so a deploy is live on the
-  // first load and the cached copy only serves offline. Third-party CDN assets stay cache-first below.
-  const isShell = url.origin === self.location.origin && (url.pathname.endsWith('/') || url.pathname.endsWith('/index.html'));
-  if (isShell) {
-    event.respondWith(
-      fetch(event.request, { cache: 'no-cache' }).then((response) => {
-        if (response.ok) caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, response.clone())).catch(() => {});
-        return response;
-      }).catch(() => caches.match(event.request).then((cached) => cached || new Response('<!doctype html><title>Offline</title><p style="font-family:monospace;padding:2em">JDM Command Center is offline and no cached copy exists yet.</p>', { status: 503, headers: { 'Content-Type': 'text/html' } })))
-    );
-    return;
-  }
-  // Static CDN assets - cache first, refresh in background
-  if (STATIC_FILES.some(file => url.href.includes(file))) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => {
-        if (cached) {
-          fetch(event.request).then((response) => {
-            if (response.ok) caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, response));
-          }).catch(() => {});
-          return cached;
-        }
-        return fetch(event.request);
-      })
-    );
-    return;
-  }
-  
-  // Handle API calls - network first, cache fallback
-  if (url.hostname.includes('api.') || url.hostname.includes('openclaw') || url.hostname.includes('tavily')) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-          return response;
-        })
-        .catch(() => {
-          return caches.match(event.request);
-        })
-    );
-    return;
-  }
-  
-  // Default - network first, cache fallback
-  event.respondWith(
-    fetch(event.request)
-      .catch(() => {
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          // Return offline page for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
-          return new Response('', { status: 408 });
-        });
-      })
-  );
-});
-
-// Background sync for offline actions
-self.addEventListener('sync', (event) => {
-  console.log('[SW] Background sync:', event.tag);
-});
-
-console.log('[SW] Service Worker loaded');
-`;
-
-    const blob = new Blob([swCode], { type: 'application/javascript' });
-    const swUrl = URL.createObjectURL(blob);
-    
-    const reg = await navigator.serviceWorker.register(swUrl, { scope: '/' });
+    // The worker is served from a REAL path (/sw.js), not a blob: URL.
+    // Browsers refuse to register a service worker from blob: — registration
+    // threw on every domain, so offline mode had never actually worked. A
+    // service worker must also be same-origin, which a blob can never satisfy.
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
     serviceWorkerRegistration = reg;
     console.log('[PWA] Service Worker registered:', reg.scope);
     return true;
