@@ -9,6 +9,9 @@ DIST="${TMPDIR:-/tmp}/jdm-pages-dist"
 rm -rf "$DIST" && mkdir -p "$DIST/config"
 cp "$ROOT/index.html" "$DIST/"
 cp "$ROOT/_headers" "$DIST/"
+# Link-preview image. Facebook/Twitter fetch this by absolute URL, so it must be
+# published at the site root or the preview card renders with no image.
+cp "$ROOT/og-image.png" "$DIST/"
 cp "$ROOT/config/"*.js "$DIST/config/"
 VERSION="$(grep -o 'COMMAND CENTER v[0-9.]*</title>' "$ROOT/index.html" | grep -o 'v[0-9.]*')"
 echo "Deploying $VERSION from $DIST"
