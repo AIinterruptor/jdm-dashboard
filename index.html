@@ -33,6 +33,7 @@
 <link rel="dns-prefetch" href="https://earthquake.usgs.gov">
 <link rel="dns-prefetch" href="https://api.coingecko.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <!-- Leaflet OpenStreetMap (no API key required) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <!-- NOTE: no `defer` here — TILE_LAYERS (and other top-level code in the main
@@ -1604,6 +1605,108 @@ body {
 .ml-kb-text { color:var(--t2); line-height:1.4; }
 
 
+
+/* ═══ NEWSROOM — the public-facing news page ═══
+   A deliberately different visual world from the terminal dashboard behind it:
+   this is the read surface, not the instrument panel. Newsprint ground, flag
+   red for urgency, a Playfair masthead. The mono face carries over from the
+   dashboard so the two still feel like one product. */
+#news-page{
+  --nw-ink:#12100e; --nw-paper:#faf7f2; --nw-red:#c8102e; --nw-navy:#0a2647;
+  --nw-grey:#6b6560; --nw-rule:#d9d2c7; --nw-panel:#f2ede4;
+  display:none; position:fixed; inset:0; z-index:9200;
+  background:var(--nw-paper); color:var(--nw-ink);
+  font-family:'Source Serif 4',Georgia,serif; overflow-y:auto;
+}
+#news-page.show{ display:block; }
+/* The app header and threat strip paint above this overlay's top edge and
+   were clipping the masthead — clear them rather than fight z-index, which
+   would hide the operator's live status bar behind the news page. */
+#news-page .nw-wrap{ padding-top:84px; }
+.nw-wrap{ max-width:1180px; margin:0 auto; padding:0 28px 72px; }
+
+/* masthead */
+.nw-mast{ border-bottom:3px solid var(--nw-ink); padding:26px 0 12px;
+  display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.nw-mast h1{ font-family:'Playfair Display',Georgia,serif; font-weight:900;
+  font-size:clamp(30px,5.2vw,58px); line-height:.94; letter-spacing:-.02em; margin:0; color:var(--nw-ink); }
+.nw-mast h1 em{ font-style:italic; color:var(--nw-red); }
+.nw-mast-meta{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--nw-grey); text-align:right; line-height:1.7; }
+.nw-close{ background:none; border:1px solid var(--nw-rule); color:var(--nw-grey);
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; padding:7px 13px;
+  cursor:pointer; border-radius:0; }
+.nw-close:hover{ border-color:var(--nw-ink); color:var(--nw-ink); }
+.nw-close:focus-visible{ outline:2px solid var(--nw-red); outline-offset:2px; }
+
+/* the strap under the masthead */
+.nw-strap{ display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+  border-bottom:1px solid var(--nw-rule); padding:9px 0; margin-bottom:26px;
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--nw-grey); }
+.nw-live{ color:var(--nw-red); font-weight:700; display:inline-flex; align-items:center; gap:6px; }
+.nw-live::before{ content:''; width:7px; height:7px; border-radius:50%; background:var(--nw-red);
+  animation:nwPulse 2s ease-in-out infinite; }
+@keyframes nwPulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
+@media (prefers-reduced-motion:reduce){ .nw-live::before{animation:none} }
+
+/* lead story */
+.nw-lead{ display:grid; grid-template-columns:minmax(0,2.05fr) minmax(0,1fr); gap:42px; padding-bottom:32px;
+  border-bottom:1px solid var(--nw-rule); margin-bottom:32px; }
+.nw-kicker{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--nw-red); margin-bottom:12px; }
+.nw-lead h2{ font-family:'Playfair Display',Georgia,serif; font-weight:900;
+  font-size:clamp(28px,3.9vw,46px); line-height:1.06; letter-spacing:-.015em; margin:0 0 18px;
+  text-wrap:balance; color:var(--nw-ink); }
+.nw-anchor{ font-size:18.5px; line-height:1.58; margin:0 0 16px; color:#2b2622; }
+.nw-anchor::first-letter{ font-family:'Playfair Display',Georgia,serif; font-size:56px; font-weight:900;
+  float:left; line-height:.82; padding:5px 10px 0 0; color:var(--nw-red); }
+.nw-situation{ font-size:15.5px; line-height:1.62; color:#3a352f; margin:0; }
+
+/* right rail — the orders */
+.nw-rail{ border-left:1px solid var(--nw-rule); padding-left:26px; }
+.nw-rail h3, .nw-sec-h{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--nw-ink); margin:0 0 14px;
+  padding-bottom:7px; border-bottom:2px solid var(--nw-ink); }
+.nw-order{ padding:0 0 14px; margin-bottom:14px; border-bottom:1px dotted var(--nw-rule); }
+.nw-order:last-child{ border-bottom:none; margin-bottom:0; }
+.nw-order-n{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--nw-red); font-weight:700; letter-spacing:.1em; }
+.nw-order p{ margin:5px 0 0; font-size:14px; line-height:1.5; color:#2b2622; }
+.nw-order .nw-why{ font-size:12.5px; color:var(--nw-grey); font-style:italic; margin-top:5px; line-height:1.45; }
+
+/* developments */
+.nw-devs{ columns:2; column-gap:38px; margin-bottom:34px; }
+@media(max-width:860px){ .nw-devs{columns:1} }
+.nw-dev{ break-inside:avoid; padding:0 0 18px 15px; margin-bottom:18px;
+  border-left:3px solid var(--nw-rule); border-bottom:1px solid var(--nw-rule); }
+.nw-dev.critical{ border-left-color:var(--nw-red); }
+.nw-dev.high{ border-left-color:#c85c1a; }
+.nw-dev.medium{ border-left-color:#c8a84b; }
+.nw-dev.low{ border-left-color:#7d9b76; }
+.nw-dev h4{ font-family:'Playfair Display',Georgia,serif; font-weight:700; font-size:20px;
+  line-height:1.18; margin:0 0 8px; text-wrap:balance; }
+.nw-dev p{ margin:0 0 8px; font-size:14.5px; line-height:1.55; color:#3a352f; }
+.nw-tags{ display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; }
+.nw-sev{ padding:2px 7px; color:#fff; font-weight:600; }
+.nw-sev.critical{background:var(--nw-red)} .nw-sev.high{background:#c85c1a}
+.nw-sev.medium{background:#a8892f} .nw-sev.low{background:#5f7a58}
+.nw-cat{ color:var(--nw-grey); }
+.nw-why-m{ font-size:13px; font-style:italic; color:var(--nw-grey); line-height:1.45; }
+
+/* outlook + gaps footer */
+.nw-foot{ display:grid; grid-template-columns:1.6fr 1fr; gap:38px; padding-top:8px; }
+@media(max-width:860px){ .nw-foot,.nw-lead{grid-template-columns:1fr} .nw-rail{border-left:none;padding-left:0} }
+.nw-outlook p{ font-size:15px; line-height:1.6; color:#3a352f; margin:0; }
+.nw-gaps li{ font-size:13px; line-height:1.5; color:var(--nw-grey); margin-bottom:8px; }
+.nw-gaps ul{ margin:0; padding-left:17px; }
+.nw-conf{ display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.1em; text-transform:uppercase; padding:3px 9px; border:1px solid var(--nw-rule); color:var(--nw-grey); }
+.nw-src{ margin-top:34px; padding-top:16px; border-top:1px solid var(--nw-rule);
+  font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.06em; color:var(--nw-grey); line-height:1.9; }
+.nw-src a{ color:var(--nw-navy); text-decoration:none; border-bottom:1px solid var(--nw-rule); }
+.nw-src a:hover{ border-bottom-color:var(--nw-navy); }
+.nw-empty{ padding:70px 0; text-align:center; color:var(--nw-grey); font-family:'IBM Plex Mono',monospace; font-size:12px; }
+
 /* ═══ OSINT TERMINAL MODE ═══ */
 #osint-modal {
   display:none; position:fixed; inset:0;
@@ -2913,6 +3016,7 @@ window.gm_authFailure = function() {
     <button class="hdr-btn" onclick="openOSINT()" title="OSINT Terminal">OSINT</button>
     <button class="hdr-btn" onclick="openMLDashboard()" title="ML Engine">ML</button>
     <button class="hdr-btn" onclick="openAnalytics()" title="Predictive analytics — 72 h outlook">OUTLOOK</button>
+    <button class="hdr-btn" onclick="openNews()" title="News — the twice-daily bulletin">NEWS</button>
 
     <div class="hdr-sep"></div>
 
@@ -7145,6 +7249,133 @@ function toggleJarvis() {
   btn.title = jarvisCollapsed ? 'Expand command screen' : 'Collapse command screen';
 }
 
+
+// ─── NEWSROOM ─────────────────────────────────────────────────────────────
+// The public read surface. It renders the SAME twice-daily Haiku brief the
+// dashboard already generates on cron and caches in KV — so opening this page
+// costs nothing per viewer and needs no API key. Everything else in the app
+// stays what it is: data gathering that feeds this bulletin.
+function nwEsc(x){ return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function nwRender(rec){
+  const b = rec && rec.brief;
+  const body = document.getElementById('nw-body');
+  if(!b || !b.headline){ body.innerHTML = '<div class="nw-empty">No bulletin available yet. The next one is generated at 06:00 and 18:00 PHT.</div>'; return; }
+
+  const devs  = Array.isArray(b.developments) ? b.developments : [];
+  const ords  = Array.isArray(b.director_orders) ? b.director_orders : [];
+  const gaps  = Array.isArray(b.gaps) ? b.gaps : [];
+  const refs  = Array.isArray(rec.refs) ? rec.refs : [];
+
+  document.getElementById('nw-meta').innerHTML =
+    nwEsc(rec.generated_pht || '') + '<br>Philippines &middot; National';
+  document.getElementById('nw-strap-edition').textContent =
+    rec.generated_at ? 'Edition ' + timeAgo(rec.generated_at) : '';
+  document.getElementById('nw-strap-sources').textContent =
+    (rec.items_considered ? rec.items_considered + ' reports reviewed' : '');
+  document.getElementById('nw-strap-conf').textContent =
+    b.confidence ? 'Confidence ' + b.confidence : '';
+
+  const lead = `
+    <div class="nw-lead">
+      <div>
+        <div class="nw-kicker">Lead &middot; ${nwEsc((devs[0]&&devs[0].category)||'National')}</div>
+        <h2>${nwEsc(b.headline)}</h2>
+        ${b.anchor_lead ? `<p class="nw-anchor">${nwEsc(b.anchor_lead)}</p>` : ''}
+        ${b.situation ? `<p class="nw-situation">${nwEsc(b.situation)}</p>` : ''}
+      </div>
+      <aside class="nw-rail">
+        <h3>Priority Actions</h3>
+        ${ords.length ? ords.map((o,i)=>`
+          <div class="nw-order">
+            <span class="nw-order-n">${String(i+1).padStart(2,'0')}</span>
+            <p>${nwEsc(o.order)}</p>
+            ${o.rationale ? `<p class="nw-why">${nwEsc(o.rationale)}</p>` : ''}
+          </div>`).join('') : '<p class="nw-why">None issued this edition.</p>'}
+      </aside>
+    </div>`;
+
+  const rest = devs.slice(1);
+  const devHtml = rest.length ? `
+    <div class="nw-sec-h">What else is developing</div>
+    <div class="nw-devs">
+      ${rest.map(d=>{
+        const sev=(d.severity||'low').toLowerCase();
+        return `<article class="nw-dev ${sev}">
+          <h4>${nwEsc(d.title)}</h4>
+          <div class="nw-tags"><span class="nw-sev ${sev}">${nwEsc(sev)}</span><span class="nw-cat">${nwEsc(d.category||'')}</span></div>
+          <p>${nwEsc(d.what)}</p>
+          ${d.why_it_matters ? `<p class="nw-why-m">${nwEsc(d.why_it_matters)}</p>` : ''}
+        </article>`;
+      }).join('')}
+    </div>` : '';
+
+  const foot = `
+    <div class="nw-foot">
+      <div class="nw-outlook">
+        <div class="nw-sec-h">Next 24 hours</div>
+        <p>${nwEsc(b.outlook_24h||'No outlook issued.')}</p>
+        ${b.confidence?`<p style="margin-top:14px"><span class="nw-conf">Assessed confidence: ${nwEsc(b.confidence)}</span></p>`:''}
+      </div>
+      <div class="nw-gaps">
+        <div class="nw-sec-h">What we don't know</div>
+        ${gaps.length?`<ul>${gaps.map(g=>`<li>${nwEsc(g)}</li>`).join('')}</ul>`:'<p class="nw-why">No material gaps flagged.</p>'}
+      </div>
+    </div>`;
+
+  // Sources are the credibility of the whole page — every claim above is drawn
+  // from these, so they are listed rather than summarised away.
+  const srcNames = [...new Set(refs.map(r=>r && r.s).filter(Boolean))];
+  const src = refs.length ? `<div class="nw-src">
+      <strong>Compiled from ${refs.length} reports</strong> &middot; ${srcNames.slice(0,14).map(nwEsc).join(' &middot; ')}
+      <br>Written by Claude Haiku from the feeds listed, twice daily at 06:00 and 18:00 PHT. Verify before operational use.
+    </div>` : '';
+
+  body.innerHTML = lead + devHtml + foot + src;
+}
+
+// News is the landing view: a visitor should meet the bulletin, not the
+// instrument panel. An operator who dismisses it once gets the dashboard
+// directly on the next visit, and ?view=news / ?view=dashboard force either.
+const NW_PREF='jdm_landing_pref';
+function nwShouldLand(){
+  try{
+    const v=new URLSearchParams(location.search).get('view');
+    if(v==='news')return true;
+    if(v==='dashboard')return false;
+    return localStorage.getItem(NW_PREF)!=='dashboard';
+  }catch(e){ return true; }
+}
+function nwInit(){ if(nwShouldLand()) openNews(); }
+
+async function openNews(){
+  const el = document.getElementById('news-page');
+  el.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  try{
+    // The proxy check runs 500 ms after load, so on a cold open getProxyBase()
+    // is still '' and the URL would resolve against our own origin — returning
+    // index.html, which then fails as "<!DOCTYPE ... is not valid JSON".
+    let base = getProxyBase();
+    for (let i = 0; i < 20 && !base; i++) {
+      await new Promise(r => setTimeout(r, 250));
+      base = getProxyBase();
+    }
+    if (!base) base = 'https://jdm-proxy.josed-jdm.workers.dev';
+    const r = await fetch(`${base}/api/brief`, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    nwRender(await r.json());
+  }catch(e){
+    document.getElementById('nw-body').innerHTML =
+      `<div class="nw-empty">Could not load the bulletin (${nwEsc(e.message)}).</div>`;
+  }
+}
+function closeNews(){
+  document.getElementById('news-page').classList.remove('show');
+  document.body.style.overflow = '';
+  try{ localStorage.setItem(NW_PREF,'dashboard'); }catch(e){}
+}
+
 // ─── BRIEF MODAL ──────────────────────────────────────────────────────────
 async function sendBriefing() {
   const modal = document.getElementById('brief-modal');
@@ -9080,6 +9311,7 @@ function injectPWAManifest() {
 // ─── INIT PWA ─────────────────────────────────────────────────────────────────
 async function initPWA() {
   // Register service worker
+  nwInit();   // front page first
   const swRegistered = await registerServiceWorker();
   
   // Inject PWA manifest
@@ -19166,6 +19398,26 @@ document.addEventListener('click', function resumeAudio() {
 </div>
 
 
+<!-- NEWSROOM — public news view of the twice-daily Haiku brief -->
+<div id="news-page" role="dialog" aria-modal="true" aria-labelledby="nw-title">
+  <div class="nw-wrap">
+    <div class="nw-mast">
+      <h1 id="nw-title">State of the <em>Nation</em></h1>
+      <div style="display:flex;align-items:flex-end;gap:18px">
+        <div class="nw-mast-meta" id="nw-meta"></div>
+        <button class="nw-close" onclick="closeNews()" aria-label="Open the live command center">COMMAND CENTER &#8594;</button>
+      </div>
+    </div>
+    <div class="nw-strap">
+      <span class="nw-live">Live</span>
+      <span id="nw-strap-edition"></span>
+      <span id="nw-strap-sources"></span>
+      <span id="nw-strap-conf"></span>
+    </div>
+    <div id="nw-body"><div class="nw-empty">Loading the latest bulletin&hellip;</div></div>
+  </div>
+</div>
+
 <!-- OSINT TERMINAL MODAL -->
 <div id="osint-modal" role="dialog" aria-modal="true" aria-label="OSINT terminal">
   <div id="osint-header">
@@ -20337,6 +20589,7 @@ setTimeout(() => clearInterval(waitForMap), 30000);
 
   /* ── 2. Modal dialogs: focus trap, focus restore, Escape ────────────── */
   var MODALS = [
+    { id: 'news-page',           cls: 'show',   esc: true  },
     { id: 'brief-modal',         cls: 'show',   esc: true  },
     { id: 'analytics-modal',     cls: 'show',   esc: true  },
     { id: 'threat-matrix-modal', cls: 'show',   esc: true  },
