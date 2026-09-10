@@ -951,19 +951,6 @@ body {
 }
 
 /* ═══ BRIEF MODAL ═══ */
-#brief-modal {
-  display:none; position:fixed; inset:0;
-  background:rgba(0,0,0,0.88); z-index:99996;
-  align-items:center; justify-content:center;
-  backdrop-filter:blur(4px);
-}
-#brief-modal.show { display:flex; }
-#brief-box {
-  background:var(--surface);
-  border:1px solid var(--border-hi);
-  width:min(820px,90vw); max-height:82vh;
-  display:flex; flex-direction:column;
-}
 #brief-header {
   display:flex; align-items:center; justify-content:space-between;
   padding:10px 16px; border-bottom:1px solid var(--border);
@@ -978,12 +965,6 @@ body {
   font-size:16px; cursor:pointer; padding:0 4px;
 }
 #brief-close:hover { color:var(--amber); }
-#brief-content {
-  flex:1; overflow-y:auto; padding:20px;
-  font-family:var(--ui); font-size:13px; line-height:1.75;
-  color:var(--t1); white-space:pre-wrap;
-}
-#brief-content strong { color:var(--amber-text); }
 
 /* ═══ PULSE ANIMATIONS ═══ */
 @keyframes pulse-expand {
@@ -2678,10 +2659,6 @@ body {
 }
 
 /* Brief modal — glass effect */
-#brief-box {
-  border-color: rgba(200,175,110,0.2);
-  box-shadow: 0 0 60px rgba(0,0,0,0.7), 0 0 120px rgba(200,168,75,0.04);
-}
 
 /* Sim bar — less intrusive */
 #sim-bar {
@@ -3018,9 +2995,8 @@ body {
   #sub-areas-panel { left: 6px; right: 6px; width: auto; max-width: none; }
 
   /* ── MODALS FULL WIDTH ── */
-  #brief-box, #assess-box, #matrix-box { width: 96vw; left: 2vw; }
-  #brief-content { padding: 14px; font-size: 12px; }
-  #assess-content { grid-template-columns: 1fr; }
+  #assess-box, #matrix-box { width: 96vw; left: 2vw; }
+    #assess-content { grid-template-columns: 1fr; }
 
   /* ── LOCATION SELECTOR ── */
   #loc-selector { width: 96vw; left: 2vw; transform: none; }
@@ -3411,10 +3387,7 @@ window.gm_authFailure = function() {
     <div class="hdr-sep"></div>
 
 
-    <div class="hdr-sep"></div>
 
-    <!-- Primary action -->
-    <button class="hdr-btn-primary" onclick="sendBriefing()">⚡ BRIEF</button>
   </div>
 
 </nav>
@@ -3818,16 +3791,6 @@ window.gm_authFailure = function() {
 
 </main>
 
-<!-- BRIEF MODAL -->
-<div id="brief-modal" role="dialog" aria-modal="true" aria-labelledby="brief-title">
-  <div id="brief-box">
-    <div id="brief-header">
-      <h2 id="brief-title" class="a11y-h">▮ JARVIS INTELLIGENCE BRIEFING // JDM OPERATIONS</h2>
-      <button id="brief-close" onclick="closeBrief()">✕</button>
-    </div>
-    <div id="brief-content"></div>
-  </div>
-</div>
 
 
 <script>
@@ -8730,31 +8693,11 @@ function closeNews(){
   try{ localStorage.setItem(NW_PREF,'dashboard'); }catch(e){}
 }
 
-// ─── BRIEF MODAL ──────────────────────────────────────────────────────────
-async function sendBriefing() {
-  const modal = document.getElementById('brief-modal');
-  const content = document.getElementById('brief-content');
-  modal.classList.add('show');
-  content.innerHTML = '<div id="brief-loading">◈ Generating intelligence brief...<br><span style="font-size:10px;opacity:0.6">Analyzing all live feeds</span></div>';
+// The legacy client-side JARVIS brief was removed 2026-09-10: it needed an
+// API key held in the browser (all CONFIG keys ship empty, so it could only
+// ever say "No API key"), and it was hardcoded to Iloilo. The real bulletin is
+// the Haiku brief written on cron and served from /api/brief.
 
-  if (!hasActiveKey()) {
-    content.innerHTML = '<div style="color:var(--orange);padding:20px">⚠ No API key. Set CONFIG.GEMINI_KEY (free at aistudio.google.com) or CONFIG.CLAUDE_KEY (console.anthropic.com) to enable JARVIS briefings.</div>';
-    return;
-  }
-
-  const prompt = 'Generate a comprehensive situational awareness briefing for ILOILO CITY and WESTERN VISAYAS based on the live intel. Structure: 1) Executive Summary — Iloilo City status 2) Active Threats & Disasters (typhoon, flood, earthquake risk for Panay region) 3) Security & Crime (PNP Iloilo, CIDG, PDEA Region 6) 4) Local Government & Politics (Iloilo City Hall, Governor, Barangay incidents) 5) Economic Indicators (port activity, tourism, investment, OFW remittances) 6) Social Media & Public Sentiment 7) Priority Recommendations for Iloilo operations. Be thorough — this is a full operational brief for on-ground commanders in Iloilo.';
-  chatHistory.push({ role:'user', content: prompt });
-
-  try {
-    const reply = await callAI({ messages: chatHistory.slice(-10), system: buildSystemPrompt(), max_tokens: 4000 });
-    chatHistory.push({ role:'assistant', content: reply });
-    content.innerHTML = reply.split('\n\n').join('<br><br>').split('\n').join('<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/^#{1,3} (.+)$/gm,'<strong style="color:var(--amber);font-size:13px;display:block;margin-top:12px">$1</strong>');
-  } catch(e) {
-    content.innerHTML = `<span style="color:var(--alert-red)">⚠ Error: ${e.message}</span>`;
-  }
-}
-
-function closeBrief() { document.getElementById('brief-modal').classList.remove('show'); }
 
 // ─── KEYBOARD SHORTCUTS ───────────────────────────────────────────────────
 function setupKeyboard() {
@@ -8768,7 +8711,7 @@ function setupKeyboard() {
 
     switch(k) {
       // ── Original shortcuts ──────────────────────────
-      case 'b': sendBriefing(); break;
+
       case 'r': refreshFeeds(); showKbdToast('↻ Refreshing feeds…'); break;
       case 'm': toggleMarkers(); break;
       case 'j': toggleJarvis(); break;
@@ -8819,7 +8762,6 @@ function setupKeyboard() {
 
       // ── Dismiss ─────────────────────────────────────
       case 'escape':
-        closeBrief();
         dismissContextMenu();
         closeAllInfoWindows();
         if (typeof closeOSINT==='function') closeOSINT();
@@ -10334,7 +10276,7 @@ function toggleSound() {
 
 // ─── 7. SLASH COMMANDS ────────────────────────────────────────────────────
 const SLASH_COMMANDS = [
-  { cmd:'/brief',    desc:'Generate full intelligence briefing',     fn:() => sendBriefing() },
+
   { cmd:'/map',      desc:'Focus map on active location',            fn:() => focusPH() },
   { cmd:'/sim',      desc:'/sim typhoon|earthquake|flood|...',        fn:(arg) => arg ? runSim(arg) : addJarvisMsg('jarvis','Usage: /sim typhoon | earthquake | flood | volcano | armed_clash | terror | protest | outbreak | maritime') },
   { cmd:'/chart',    desc:'/chart category|severity|sources|trend',  fn:(arg) => generateQuickChart(arg||'category') },
@@ -21997,7 +21939,6 @@ setTimeout(() => clearInterval(waitForMap), 30000);
   var MODALS = [
     { id: 'news-page',           cls: 'show',   esc: true  },
     { id: 'weather-page',        cls: 'show',   esc: true  },
-    { id: 'brief-modal',         cls: 'show',   esc: true  },
     { id: 'analytics-modal',     cls: 'show',   esc: true  },
     { id: 'threat-matrix-modal', cls: 'show',   esc: true  },
     { id: 'sentinel-cc-modal',   cls: 'show',   esc: true  },
