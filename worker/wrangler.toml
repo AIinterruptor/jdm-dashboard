@@ -17,6 +17,13 @@ MAX_RESPONSE_SIZE = "5242880"
 binding = "JDM_KV"
 id = "6d8b5ecaf053453eb510f14cc26052ae"
 
+# Prediction board. D1 rather than KV because votes are concurrent appends —
+# a KV counter is read-modify-write and drops them.
+[[d1_databases]]
+binding = "PRED_DB"
+database_name = "newsph-predictions"
+database_id = "a280b4a4-9f86-4692-b632-1360f7d870c2"
+
 [triggers]
 # every 30 min: collect feeds into KV. 22:05 UTC = 06:05 PHT and 10:05 UTC = 18:05 PHT: collect + Haiku brief.
 crons = ["*/30 * * * *", "5 22 * * *", "5 10 * * *"]

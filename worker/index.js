@@ -1,6 +1,6 @@
 /**
  * JDM Command Center — Cloudflare Worker Proxy
- * Version: 3.7.1 (2026-09-10) — allowlist Bilyonaryo for the PH business feeds
+ * Version: 3.8.0 (2026-09-10) — prediction board: daily Sonnet questions, crowd voting, Brier-scored record
  *
  * Merges the live v1.0.0 worker (domain allowlist, legacy /proxy-* routes) with the
  * repo v2.1.0 worker (keyed /api/* routes) — the dashboard needs BOTH families.
@@ -29,7 +29,7 @@
  * Vars (wrangler.toml): ALLOWED_ORIGINS, RATE_LIMIT, MAX_RESPONSE_SIZE
  */
 
-const VERSION = '3.7.1';
+const VERSION = '3.8.0';
 const UPSTREAM_TIMEOUT_MS = 15000;
 let MAX_BYTES_DEFAULT = 5242880;   // overridden per request from env.MAX_RESPONSE_SIZE
 const FRESH_TTL = 300;          // seconds a cached upstream body is considered fresh
@@ -1099,6 +1099,310 @@ async function handleFinance(url, env, ctx) {
   });
 }
 
+// ─── PREDICTION BOARD ─────────────────────────────────────────────────────
+// A prediction nobody resolves is an opinion with a date on it. Everything else
+// on this site is checkable — per-claim citations, "uncited, treat as
+// unverified", a refusal to publish stale NAVPU — so a predictive channel that
+// never published its own hit rate would contradict the whole product.
+//
+// Therefore: every question carries a numeric probability, a deadline, and the
+// exact criterion that settles it; every resolved question is scored; and the
+// running record is published. Brier score, because it punishes confident
+// wrongness rather than rewarding vagueness.
+//
+// The MODEL's forecast and the CROWD's are kept independent. The generator is
+// never shown the vote tally — if it were, it would anchor on a crowd that is
+// itself reading the model's published number, and the loop would manufacture
+// confidence out of its own output.
+
+const PRED_SYSTEM = `You write the daily prediction board for a Philippine news site, in the spirit of a prediction market: specific, resolvable, priced.
+
+Write 5 to 7 questions from the material given. Each must be a claim that will be unambiguously TRUE or FALSE by its deadline — a stranger with the same evidence must be able to settle it without arguing about wording.
+
+WHAT MAKES A GOOD QUESTION:
+- "Will USD/PHP close above 62.80 on any trading day before 17 September 2026?" — settled by a number.
+- "Will the Vice President's impeachment trial reach a verdict before 30 September 2026?" — settled by an event that either happens or does not.
+- "Will PAGASA raise Signal No. 3 or higher over any part of Luzon before 17 September 2026?" — settled by a named authority's published action.
+
+WHAT IS FORBIDDEN:
+- Vague verbs: "escalate", "dominate the narrative", "remain tense", "continue to develop". These cannot be scored and must never appear.
+- Questions about what someone "will likely" do. State the event, not your hedge — your hedge belongs in the probability.
+- Anything settled by opinion, sentiment, or interpretation.
+- Questions whose outcome is already known at the time of writing.
+- Predicting the death, injury, arrest or criminal conviction of a NAMED private individual. Institutional and official acts (a court ruling, an agency decision, an official's resignation) are legitimate; a wager on a named person coming to harm is not.
+
+PROBABILITY: give a number from 3 to 97. Never 0 or 100 — you are not certain. Spread them honestly: if every question sits at 50 you have told the reader nothing, and if everything is 90 you are miscalibrated. Your score depends on being right about HOW sure you are, not on sounding confident.
+
+REASONING: one or two sentences naming the specific figure or fact behind the number. If your basis is thin, say so and move your probability toward 50 — that is what a probability is for.
+
+MARKET QUESTIONS: you have exchange rates, the index and its recent range. You may set a threshold question around them. You must NOT explain why a market moved: you have prices only, no policy decisions, no flows, no earnings.
+
+DEADLINES: between 2 and 14 days out. Prefer one week. Never write a question that cannot be settled by its own deadline.`;
+
+const PRED_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['questions'],
+  properties: {
+    questions: {
+      // Structured outputs reject minItems > 1, so the count is enforced in the
+      // system prompt ("write 5 to 7 questions") rather than the schema.
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['question', 'criterion', 'category', 'probability', 'reason', 'days_out', 'source_hint'],
+        properties: {
+          question: { type: 'string', description: 'One specific claim, answerable yes or no. No hedging verbs.' },
+          criterion: { type: 'string', description: 'Exactly what settles it — the figure, the authority, the published act.' },
+          category: { type: 'string', enum: ['economy', 'politics', 'disaster', 'health', 'social'] },
+          // Bounds are enforced in code below, not here: structured outputs
+          // reject minimum/maximum on integers, and a value the page depends on
+          // should be clamped by us regardless of what the model returns.
+          probability: { type: 'integer' },
+          reason: { type: 'string', description: 'One or two sentences naming the figure or fact behind the number.' },
+          days_out: { type: 'integer' },
+          source_hint: { type: 'string', description: 'Where the settling figure will come from.' },
+        },
+      },
+    },
+  },
+};
+
+// Deterministic resolution where the criterion is arithmetic. A market question
+// with a threshold does not need a model to settle it, and a rule that can be
+// checked by code is one that cannot be argued with.
+function predAutoRule(q) {
+  const t = `${q.question} ${q.criterion}`;
+  const m = /USD\s*\/?\s*PHP.*?(above|below)\s*(\d+(?:\.\d+)?)/i.exec(t);
+  if (m) return JSON.stringify({ kind: 'usdphp', op: m[1].toLowerCase(), level: parseFloat(m[2]) });
+  const p = /PSEi.*?(above|below)\s*([\d,]+(?:\.\d+)?)/i.exec(t);
+  if (p) return JSON.stringify({ kind: 'psei', op: p[1].toLowerCase(), level: parseFloat(p[2].replace(/,/g, '')) });
+  return null;
+}
+
+async function generatePredictions(env, reason) {
+  if (!env.PRED_DB) throw new Error('PRED_DB not bound');
+  if (!env.ANTHROPIC_KEY) throw new Error('ANTHROPIC_KEY not configured');
+
+  // Material: the current brief and the market figures. Deliberately NOT the
+  // vote tallies — see the independence note at the top.
+  const brief = await kvGetJson(env, 'brief:latest');
+  const fin = await handleFinance(new URL('https://x/api/finance'), env, null).then(r => r.json()).catch(() => null);
+  const sig = await osintSignals(env).catch(() => ({ ok: false }));
+
+  const parts = [];
+  if (brief && brief.brief) {
+    const b = brief.brief;
+    parts.push(`TODAY'S BRIEF (${brief.generated_pht}):\n${b.headline}\n${b.situation || ''}`);
+    for (const d of (b.developments || []).slice(0, 6)) parts.push(`- ${d.title}: ${d.what}`);
+    if (b.outlook_24h) parts.push(`Next 24h read: ${b.outlook_24h}`);
+  }
+  if (fin && fin.peso) {
+    parts.push(`\nMARKETS: USD/PHP ${fin.peso.usd_php} (change ${fin.peso.change ?? 'n/a'} on the previous close).`);
+    if (fin.psei) parts.push(`PSEi ${fin.psei.close} at the close of ${fin.psei.as_of}, ${fin.psei.period_change_pct}% over ${fin.psei.period_days} sessions.`);
+  }
+  if (sig && sig.ok) parts.push(`\nREPORTING VOLUME: ${osintSignalLines(sig)}`);
+  // Show what is already on the board so the model does not re-ask it.
+  const open = await env.PRED_DB.prepare(
+    `SELECT question FROM questions WHERE status = 'open' ORDER BY opened_at DESC LIMIT 12`).all().catch(() => ({ results: [] }));
+  if (open.results && open.results.length) {
+    parts.push(`\nALREADY ON THE BOARD — do not duplicate these:\n` + open.results.map(r => `- ${r.question}`).join('\n'));
+  }
+  if (!parts.length) throw new Error('no material to write questions from');
+
+  const now = Date.now();
+  const pht = new Date(now + 8 * 3600000);
+  const stamp = `${phtDate(now)} ${String(pht.getUTCHours()).padStart(2, '0')}:${String(pht.getUTCMinutes()).padStart(2, '0')} PHT`;
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-5', max_tokens: 4000, system: PRED_SYSTEM,
+      messages: [{ role: 'user', content: `Today is ${stamp}. Write the prediction board from this material.\n\n<material>\n${parts.join('\n')}\n</material>` }],
+      output_config: { format: { type: 'json_schema', schema: PRED_SCHEMA } },
+    }),
+  });
+  if (!r.ok) throw new Error('anthropic HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
+  const msg = await r.json();
+  const txt = (msg.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+  let out = null;
+  try { out = JSON.parse(txt); }
+  catch { const m = txt.match(/\{[\s\S]*\}/); if (m) { try { out = JSON.parse(m[0]); } catch {} } }
+  if (!out || !Array.isArray(out.questions)) throw new Error('unparseable model output');
+
+  const day = phtDate(now);
+  const stmts = [];
+  let n = 0;
+  for (const q of out.questions) {
+    const id = `q-${day}-${(++n)}`;
+    // Clamp what the model returned. 0 or 100 is a claim of certainty nobody
+    // can back, and a deadline outside this range is either unscoreable or
+    // already past.
+    const prob = Math.min(97, Math.max(3, parseInt(q.probability, 10) || 50));
+    const days = Math.min(14, Math.max(2, parseInt(q.days_out, 10) || 7));
+    const resolves = now + days * 86400000;
+    // Voting shuts 12 hours before resolution so nobody votes on a result they
+    // can already see.
+    const closes = resolves - 12 * 3600000;
+    stmts.push(env.PRED_DB.prepare(
+      `INSERT OR IGNORE INTO questions
+       (id, opened_at, closes_at, resolves_at, category, question, criterion, source_hint, model_prob, model_reason, auto_rule, status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,'open')`)
+      .bind(id, now, closes, resolves, q.category, q.question, q.criterion, q.source_hint || null,
+            prob, q.reason || null, predAutoRule(q)));
+  }
+  if (stmts.length) await env.PRED_DB.batch(stmts);
+  await kvPutJson(env, 'pred:lastrun', { at: now, generated_pht: stamp, reason, count: stmts.length, usage: msg.usage, model: msg.model });
+  return { ok: true, generated_pht: stamp, count: stmts.length, usage: msg.usage, model: msg.model };
+}
+
+// ─── RESOLUTION ───────────────────────────────────────────────────────────
+// Arithmetic criteria settle themselves. Everything else is left for a human or
+// a model pass — and an unresolvable question is VOIDED rather than guessed,
+// because a wrong resolution is worse than no resolution on a scoreboard.
+async function resolveDue(env) {
+  if (!env.PRED_DB) throw new Error('PRED_DB not bound');
+  const now = Date.now();
+  const due = await env.PRED_DB.prepare(
+    `SELECT * FROM questions WHERE status IN ('open','closed') AND resolves_at <= ? LIMIT 25`).bind(now).all();
+  if (!due.results || !due.results.length) return { ok: true, resolved: 0 };
+
+  const fin = await handleFinance(new URL('https://x/api/finance'), env, null).then(r => r.json()).catch(() => null);
+  let resolved = 0;
+  for (const q of due.results) {
+    let outcome = null, by = null, note = null;
+    if (q.auto_rule && fin) {
+      try {
+        const rule = JSON.parse(q.auto_rule);
+        let v = null;
+        if (rule.kind === 'usdphp' && fin.peso) v = fin.peso.usd_php;
+        else if (rule.kind === 'psei' && fin.psei) v = fin.psei.close;
+        if (v !== null) {
+          outcome = rule.op === 'above' ? (v > rule.level ? 1 : 0) : (v < rule.level ? 1 : 0);
+          by = 'auto'; note = `${rule.kind} ${v} vs ${rule.op} ${rule.level}`;
+        }
+      } catch { /* fall through to unresolved */ }
+    }
+    if (outcome === null) continue;   // left for a later pass; never guessed
+
+    const agg = await env.PRED_DB.prepare(
+      `SELECT COUNT(*) n, SUM(choice) yes FROM votes WHERE question_id = ?`).bind(q.id).first();
+    const votes = (agg && agg.n) || 0;
+    const crowd = votes ? Math.round(((agg.yes || 0) / votes) * 100) : null;
+    const brier = p => Math.round(Math.pow(p / 100 - outcome, 2) * 10000);
+
+    await env.PRED_DB.batch([
+      env.PRED_DB.prepare(`UPDATE questions SET status='resolved', outcome=?, resolved_at=?, resolved_by=?, resolve_note=? WHERE id=?`)
+        .bind(outcome, now, by, note, q.id),
+      env.PRED_DB.prepare(`INSERT OR REPLACE INTO scores
+        (question_id, resolved_at, outcome, model_prob, crowd_prob, votes, model_brier, crowd_brier)
+        VALUES (?,?,?,?,?,?,?,?)`)
+        .bind(q.id, now, outcome, q.model_prob, crowd, votes, brier(q.model_prob), crowd === null ? null : brier(crowd)),
+    ]);
+    resolved++;
+  }
+  return { ok: true, resolved };
+}
+
+// ─── ROUTES ───────────────────────────────────────────────────────────────
+// The board and voting are FREE: a paywalled poll gets no votes, and
+// participation is the funnel. The scored TRACK RECORD is the paid asset —
+// nobody else publishes a calibrated Philippine forecast record.
+async function handlePredBoard(env, ctx) {
+  if (!env.PRED_DB) return json({ error: 'predictions not configured' }, 503);
+  return edgeCached('pred-board', 60, ctx, async () => {
+    const now = Date.now();
+    const rows = await env.PRED_DB.prepare(
+      `SELECT q.id, q.question, q.criterion, q.category, q.model_prob, q.model_reason,
+              q.opened_at, q.closes_at, q.resolves_at, q.source_hint,
+              (SELECT COUNT(*) FROM votes v WHERE v.question_id = q.id) votes,
+              (SELECT SUM(choice) FROM votes v WHERE v.question_id = q.id) yes
+       FROM questions q WHERE q.status = 'open' AND q.resolves_at > ?
+       ORDER BY q.resolves_at ASC LIMIT 12`).bind(now).all();
+    const qs = (rows.results || []).map(r => ({
+      id: r.id, question: r.question, criterion: r.criterion, category: r.category,
+      model_prob: r.model_prob, model_reason: r.model_reason,
+      source_hint: r.source_hint, closes_at: r.closes_at, resolves_at: r.resolves_at,
+      votes: r.votes || 0,
+      // Only show a crowd number once it means something. Three votes is not a
+      // "market pulse", and printing 100% off one vote would be theatre.
+      crowd_prob: (r.votes || 0) >= 5 ? Math.round(((r.yes || 0) / r.votes) * 100) : null,
+    }));
+    return json({ ok: true, now, questions: qs });
+  });
+}
+
+// One ballot per voter per question, enforced by the PRIMARY KEY. The worker's
+// checkRateLimit() is a module-level Map — per-isolate, reset constantly — so it
+// is not a defence here; the unique constraint is.
+async function handlePredVote(request, env) {
+  if (!env.PRED_DB) return json({ error: 'predictions not configured' }, 503);
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id || '').trim();
+  const choice = body.choice === 1 || body.choice === true || body.choice === 'yes' ? 1 : 0;
+  if (!/^q-\d{8}-\d+$/.test(id)) return json({ error: 'bad question id' }, 400);
+
+  const q = await env.PRED_DB.prepare(`SELECT status, closes_at FROM questions WHERE id = ?`).bind(id).first();
+  if (!q) return json({ error: 'no such question' }, 404);
+  if (q.status !== 'open' || Date.now() > q.closes_at) return json({ error: 'Voting has closed on this question.' }, 409);
+
+  // Salted hash of the IP. The raw address is never stored, and the salt means
+  // the table cannot be scanned against a list of candidate addresses.
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const salt = env.VOTE_SALT || 'jdm-pred';
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + '|' + id + '|' + ip));
+  const voter = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+
+  const res = await env.PRED_DB.prepare(
+    `INSERT OR IGNORE INTO votes (question_id, voter, choice, created_at) VALUES (?,?,?,?)`)
+    .bind(id, voter, choice, Date.now()).run();
+  const counted = res.meta && res.meta.changes > 0;
+
+  const agg = await env.PRED_DB.prepare(
+    `SELECT COUNT(*) n, SUM(choice) yes FROM votes WHERE question_id = ?`).bind(id).first();
+  const n = (agg && agg.n) || 0;
+  return json({ ok: true, counted, already_voted: !counted, votes: n,
+                crowd_prob: n >= 5 ? Math.round(((agg.yes || 0) / n) * 100) : null });
+}
+
+// The scoreboard. This is the paid view: a scored, calibrated forecast record
+// is the thing that makes a predictive channel credible rather than loud.
+async function handlePredRecord(env, ctx) {
+  if (!env.PRED_DB) return json({ error: 'predictions not configured' }, 503);
+  return edgeCached('pred-record', 300, ctx, async () => {
+    const tot = await env.PRED_DB.prepare(
+      `SELECT COUNT(*) n, AVG(model_brier) mb, AVG(crowd_brier) cb,
+              SUM(CASE WHEN (model_prob >= 50) = (outcome = 1) THEN 1 ELSE 0 END) model_right,
+              SUM(CASE WHEN crowd_prob IS NOT NULL AND (crowd_prob >= 50) = (outcome = 1) THEN 1 ELSE 0 END) crowd_right,
+              SUM(CASE WHEN crowd_prob IS NOT NULL THEN 1 ELSE 0 END) crowd_n
+       FROM scores`).first();
+    const recent = await env.PRED_DB.prepare(
+      `SELECT s.question_id, s.outcome, s.model_prob, s.crowd_prob, s.votes, s.resolved_at,
+              q.question, q.category, q.resolve_note
+       FROM scores s JOIN questions q ON q.id = s.question_id
+       ORDER BY s.resolved_at DESC LIMIT 25`).all();
+    const n = (tot && tot.n) || 0;
+    return json({ ok: true, resolved: n,
+      // Brier is stored x10000; 0.25 is what always saying 50% scores.
+      model_brier: n && tot.mb !== null ? Math.round(tot.mb) / 10000 : null,
+      crowd_brier: tot && tot.cb !== null ? Math.round(tot.cb) / 10000 : null,
+      model_accuracy: n ? Math.round(((tot.model_right || 0) / n) * 100) : null,
+      crowd_accuracy: tot && tot.crowd_n ? Math.round(((tot.crowd_right || 0) / tot.crowd_n) * 100) : null,
+      crowd_scored: (tot && tot.crowd_n) || 0,
+      baseline_brier: 0.25,
+      recent: recent.results || [] });
+  });
+}
+
+async function handlePredRun(request, env) {
+  if (!env.ADMIN_TOKEN || !(await safeEqual(request.headers.get('X-Admin-Token'), env.ADMIN_TOKEN))) return json({ error: 'Forbidden' }, 403);
+  try {
+    const gen = await generatePredictions(env, 'manual');
+    const res = await resolveDue(env).catch(e => ({ ok: false, error: e.message }));
+    return json({ ok: true, generated: gen, resolution: res });
+  } catch (e) { return json({ ok: false, error: e.message }, 500); }
+}
+
 // ─── MONEY OUTLOOK: a daily read of the figures, by Sonnet ────────────────
 // Runs ONCE a day on the 06:00 PHT cron and caches in KV. Never page-triggered:
 // the news page has no auth, so a route that spends model tokens on request
@@ -1531,6 +1835,13 @@ export default {
       if (h === 22) {
         try { await generateMoneyOutlook(env, 'daily'); }
         catch (e) { await kvPutJson(env, 'money:lasterror', { at: Date.now(), error: e.message }, 7 * 86400).catch(() => {}); }
+        // Prediction board, daily. Resolution runs FIRST so a question that came
+        // due overnight is scored before the model writes the next batch — the
+        // board should never show a stale question beside a fresh one.
+        try { await resolveDue(env); }
+        catch (e) { await kvPutJson(env, 'pred:lasterror', { at: Date.now(), stage: 'resolve', error: e.message }, 7 * 86400).catch(() => {}); }
+        try { await generatePredictions(env, 'daily'); }
+        catch (e) { await kvPutJson(env, 'pred:lasterror', { at: Date.now(), stage: 'generate', error: e.message }, 7 * 86400).catch(() => {}); }
       }
     })());
   },
@@ -1586,6 +1897,12 @@ export default {
       else if (path === '/api/finance') resp = await handleFinance(url, env, ctx);
       else if (path === '/api/money') resp = await handleMoneyOutlook(env, ctx);
       else if (path === '/api/money/run' && request.method === 'POST') resp = await handleMoneyOutlookRun(request, env);
+      // Board and voting are FREE — a paywalled poll gets no votes and
+      // participation is the funnel. The scored record is the paid asset.
+      else if (path === '/api/predictions') resp = await handlePredBoard(env, ctx);
+      else if (path === '/api/predictions/vote' && request.method === 'POST') resp = await handlePredVote(request, env);
+      else if (path === '/api/predictions/record') resp = await gated(request, env, () => handlePredRecord(env, ctx));
+      else if (path === '/api/predictions/run' && request.method === 'POST') resp = await handlePredRun(request, env);
       else if (path === '/api/outlook/run' && request.method === 'POST') resp = await handleOutlookRun(request, env);
       else if (path === '/api/zones/run' && request.method === 'POST') resp = await handleZonesRun(request, env);
       else resp = json({ error: 'Not found', see: '/health' }, 404);

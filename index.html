@@ -1797,6 +1797,80 @@ body {
   color:var(--nw-grey); }
 .nw-money-foot a{ color:var(--nw-red); }
 
+/* ─── PREDICTION BOARD ──────────────────────────────────────────────────────
+   Light paper, like the news page. NOTE: this surface defines its OWN token
+   set (--nw-ink on --nw-paper); styling it from the dark dashboard palette is
+   what made the front-page text invisible earlier, so every colour here comes
+   from the paper tokens. */
+#pred-page{
+  --nw-ink:#12100e; --nw-paper:#faf7f2; --nw-red:#c8102e; --nw-navy:#0a2647;
+  --nw-grey:#6b6560; --nw-rule:#d9d2c7; --nw-panel:#f2ede4;
+  display:none; position:fixed; inset:0; z-index:9250;
+  background:var(--nw-paper); color:var(--nw-ink);
+  font-family:'Source Serif 4',Georgia,serif; overflow-y:auto; }
+#pred-page.show{ display:block; }
+#pred-page .nw-wrap{ padding-top:84px; }
+
+.pred-intro{ max-width:74ch; margin:0 0 22px; font:400 16px/1.62 'Source Serif 4',Georgia,serif;
+  color:#2b2622; }
+.pred-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:18px; }
+.pred-card{ display:flex; flex-direction:column; gap:11px; padding:18px 20px;
+  border:1px solid var(--nw-rule); background:#fff; }
+.pred-cat{ font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.14em;
+  text-transform:uppercase; color:var(--nw-red); }
+.pred-q{ margin:0; font-family:'Playfair Display',Georgia,serif; font-weight:700;
+  font-size:19px; line-height:1.28; color:var(--nw-ink); text-wrap:balance; }
+.pred-bars{ display:flex; flex-direction:column; gap:7px; }
+.pred-bar-row{ display:flex; align-items:center; gap:10px; }
+.pred-bar-k{ width:56px; flex:none; font:600 10px/1 var(--mono,ui-monospace,monospace);
+  letter-spacing:.08em; color:var(--nw-grey); text-transform:uppercase; }
+.pred-bar{ flex:1; height:8px; background:var(--nw-panel); position:relative; overflow:hidden; }
+.pred-bar i{ position:absolute; inset:0 auto 0 0; background:var(--nw-navy); display:block;
+  transition:width .35s ease; }
+.pred-bar.crowd i{ background:var(--nw-red); }
+.pred-bar-v{ width:46px; flex:none; text-align:right;
+  font:600 13px/1 var(--mono,ui-monospace,monospace); font-variant-numeric:tabular-nums;
+  color:var(--nw-ink); }
+.pred-bar-v em{ font-style:normal; font-size:11px; color:var(--nw-grey); }
+.pred-why{ margin:0; font:400 13.5px/1.55 'Source Serif 4',Georgia,serif; color:#3a352f; }
+.pred-crit summary{ cursor:pointer; font:600 10px/1 var(--mono,ui-monospace,monospace);
+  letter-spacing:.1em; color:var(--nw-red); text-transform:uppercase; }
+.pred-crit p{ margin:8px 0 0; font:400 12.5px/1.55 var(--mono,ui-monospace,monospace); color:var(--nw-grey); }
+.pred-crit .pred-src{ margin-top:5px; font-size:11.5px; }
+.pred-vote{ display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+  margin-top:auto; padding-top:11px; border-top:1px solid var(--nw-rule); }
+.pred-btn{ padding:8px 17px; cursor:pointer; border:1px solid var(--nw-ink); background:transparent;
+  font:600 12px/1 var(--mono,ui-monospace,monospace); letter-spacing:.06em; color:var(--nw-ink);
+  transition:background .15s,color .15s; }
+.pred-btn:hover{ background:var(--nw-ink); color:var(--nw-paper); }
+.pred-btn.yes:hover{ background:var(--nw-navy); border-color:var(--nw-navy); }
+.pred-btn.no:hover{ background:var(--nw-red); border-color:var(--nw-red); }
+.pred-ask,.pred-done{ font:400 12px/1.4 var(--mono,ui-monospace,monospace); color:var(--nw-grey); }
+.pred-done b{ color:var(--nw-ink); }
+.pred-foot{ margin:26px 0 0; padding-top:16px; border-top:1px solid var(--nw-rule); max-width:78ch;
+  font:400 12.5px/1.65 var(--mono,ui-monospace,monospace); color:var(--nw-grey); }
+.pred-foot strong{ color:var(--nw-ink); } .pred-foot a{ color:var(--nw-red); }
+
+.pred-score{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; margin-bottom:22px; }
+.pred-score-box{ display:flex; flex-direction:column; gap:6px; padding:18px 20px;
+  border:1px solid var(--nw-rule); background:#fff; }
+.pred-score-k{ font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.14em; color:var(--nw-red); }
+.pred-score-v{ font-family:'Playfair Display',Georgia,serif; font-weight:900; font-size:34px; line-height:1;
+  font-variant-numeric:tabular-nums; color:var(--nw-ink); }
+.pred-score-s{ font:400 11.5px/1.45 var(--mono,ui-monospace,monospace); color:var(--nw-grey); }
+.pred-hist-row{ display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:baseline;
+  padding:11px 0; border-bottom:1px solid var(--nw-rule); }
+.pred-hist-o{ font:600 11px/1 var(--mono,ui-monospace,monospace); letter-spacing:.08em; }
+.pred-hist-row.yes .pred-hist-o{ color:#1a7a33; } .pred-hist-row.no .pred-hist-o{ color:var(--nw-red); }
+.pred-hist-q{ font:400 14.5px/1.45 'Source Serif 4',Georgia,serif; color:var(--nw-ink); }
+.pred-hist-p{ font:400 11.5px/1 var(--mono,ui-monospace,monospace); color:var(--nw-grey); white-space:nowrap; }
+.pred-locked{ max-width:60ch; padding:26px; border:1px solid var(--nw-rule); background:#fff; }
+.pred-locked h3{ margin:0 0 10px; font-family:'Playfair Display',Georgia,serif; font-size:23px; color:var(--nw-ink); }
+.pred-locked p{ margin:0 0 16px; font:400 15px/1.6 'Source Serif 4',Georgia,serif; color:#3a352f; }
+.pred-locked .pred-btn{ margin-right:9px; }
+@media (max-width:560px){ .pred-grid{ grid-template-columns:1fr; } }
+
+
 /* ─── FRONT PAGE GRID (wire-service / financial daily) ──────────────────────
    Three tracks: the lead with its photograph, a ranked digest, a data rail.
    The arrangement a financial front page uses — the whole state of the day in
@@ -3331,6 +3405,7 @@ window.gm_authFailure = function() {
     <button class="hdr-btn" onclick="openNews()" title="News — the twice-daily bulletin">NEWS</button>
     <button class="hdr-btn" onclick="openWeather()" title="Seven-day regional forecast">WEATHER</button>
     <button class="hdr-btn" onclick="openFinance()" title="The peso, remittance corridors and the index">MONEY</button>
+    <button class="hdr-btn" onclick="openPredictions()" title="What we think happens next — and our record">PREDICT</button>
     <button class="hdr-btn pass-chip" id="pass-chip" onclick="openPassSheet()" title="Operator Pass">GET PASS</button>
 
     <div class="hdr-sep"></div>
@@ -7798,6 +7873,175 @@ async function nwTape(){
       </div>`).join('') +
       `<a class="nw-tape-more" href="#" onclick="closeNews();openFinance();return false;">Full money page &rarr;</a>`;
   }catch{ el.innerHTML = '<span class="nw-why">Market data unavailable.</span>'; }
+}
+
+// ─── PREDICTION BOARD (client) ────────────────────────────────────────────
+// Free and open: a paywalled poll gets no votes, and participation is the
+// funnel. The scored record behind it is the paid view.
+//
+// The reader sees the model's probability and the room's side by side, never
+// merged into one number — they are independent forecasts of the same outcome,
+// and averaging them would destroy the only interesting comparison on the page.
+const PRED_VOTED = 'jdm_pred_voted';
+function predVoted(){ try { return JSON.parse(localStorage.getItem(PRED_VOTED) || '{}'); } catch { return {}; } }
+function predMarkVoted(id, choice){
+  try { const v = predVoted(); v[id] = choice; localStorage.setItem(PRED_VOTED, JSON.stringify(v)); } catch {}
+}
+
+async function predBase(){
+  let base = getProxyBase();
+  for (let i = 0; i < 20 && !base; i++) { await new Promise(r => setTimeout(r, 250)); base = getProxyBase(); }
+  return base || 'https://jdm-proxy.josed-jdm.workers.dev';
+}
+
+function predDays(ms){
+  const d = Math.ceil((ms - Date.now()) / 86400000);
+  return d <= 0 ? 'closing' : d === 1 ? '1 day left' : d + ' days left';
+}
+
+async function openPredictions(){
+  const el = document.getElementById('pred-page');
+  el.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  const body = document.getElementById('pred-body');
+  body.innerHTML = '<div class="nw-empty">Loading the board&hellip;</div>';
+  try{
+    const r = await fetch(`${await predBase()}/api/predictions`, { signal: AbortSignal.timeout(20000) });
+    const d = await r.json();
+    const qs = d.questions || [];
+    if (!qs.length){ body.innerHTML = '<div class="nw-empty">No open questions. The board is written daily at 06:00 PHT.</div>'; return; }
+    const voted = predVoted();
+    document.getElementById('pred-meta').innerHTML = qs.length + ' open questions<br>Written daily by Claude Sonnet';
+
+    body.innerHTML = `
+      <p class="pred-intro">Every question below is written to be <strong>settled, not argued</strong> &mdash;
+        each names the figure or the authority that decides it, and a deadline. The model publishes a
+        probability before the outcome is known; you can publish yours beside it. When the deadline
+        passes, both are scored and the record is kept.</p>
+      <div class="pred-grid">${qs.map(q => predCard(q, voted[q.id])).join('')}</div>
+      <div class="pred-foot">
+        <strong>How this works.</strong> Questions are written once a day by Claude Sonnet from that
+        morning&rsquo;s bulletin and the market figures &mdash; before the outcome is known, never after.
+        The model&rsquo;s probability and the readers&rsquo; are recorded separately against the same
+        outcome: the model is not shown the vote, so neither number is anchored on the other. Reader
+        percentages are a self-selected poll of whoever visited this page, not a survey of Filipinos,
+        and are hidden until at least five people have voted. Resolved questions and the running
+        accuracy record are on the <a href="#" onclick="openPredRecord();return false;">track record</a>.
+      </div>`;
+  }catch(e){
+    body.innerHTML = `<div class="nw-empty">Could not load the board (${escHtml(e.message)}).</div>`;
+  }
+}
+function closePredictions(){
+  document.getElementById('pred-page').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+function predCard(q, myVote){
+  const crowd = q.crowd_prob;
+  const done = myVote !== undefined;
+  return `
+    <article class="pred-card" id="pc-${escHtml(q.id)}">
+      <div class="pred-cat">${escHtml(q.category)} &middot; ${escHtml(predDays(q.resolves_at))}</div>
+      <h3 class="pred-q">${escHtml(q.question)}</h3>
+      <div class="pred-bars">
+        <div class="pred-bar-row">
+          <span class="pred-bar-k">Claude</span>
+          <span class="pred-bar"><i style="width:${q.model_prob}%"></i></span>
+          <span class="pred-bar-v">${q.model_prob}%</span>
+        </div>
+        <div class="pred-bar-row">
+          <span class="pred-bar-k">Readers</span>
+          <span class="pred-bar crowd"><i style="width:${crowd === null ? 0 : crowd}%"></i></span>
+          <span class="pred-bar-v">${crowd === null ? `<em>${q.votes || 0}/5</em>` : crowd + '%'}</span>
+        </div>
+      </div>
+      ${q.model_reason ? `<p class="pred-why">${escHtml(q.model_reason)}</p>` : ''}
+      <details class="pred-crit"><summary>What settles this</summary>
+        <p>${escHtml(q.criterion)}</p>
+        ${q.source_hint ? `<p class="pred-src">Source: ${escHtml(q.source_hint)}</p>` : ''}</details>
+      <div class="pred-vote" data-id="${escHtml(q.id)}">
+        ${done ? `<span class="pred-done">You said <b>${myVote ? 'yes' : 'no'}</b></span>`
+          : `<button class="pred-btn yes" onclick="predVote('${escHtml(q.id)}',1)">Yes</button>
+             <button class="pred-btn no" onclick="predVote('${escHtml(q.id)}',0)">No</button>
+             <span class="pred-ask">What do you think?</span>`}
+      </div>
+    </article>`;
+}
+
+async function predVote(id, choice){
+  const wrap = document.querySelector(`.pred-vote[data-id="${id}"]`);
+  if (wrap) wrap.innerHTML = '<span class="pred-ask">Recording&hellip;</span>';
+  try{
+    const r = await fetch(`${await predBase()}/api/predictions/vote`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id, choice }), signal: AbortSignal.timeout(15000) });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    predMarkVoted(id, choice);
+    if (wrap) wrap.innerHTML = d.already_voted
+      ? '<span class="pred-done">You have already voted on this one.</span>'
+      : `<span class="pred-done">You said <b>${choice ? 'yes' : 'no'}</b> &middot; ${d.votes} vote${d.votes===1?'':'s'} so far</span>`;
+    // Update the crowd bar in place so the reader sees their own vote land.
+    const card = document.getElementById('pc-' + id);
+    if (card && d.crowd_prob !== null && d.crowd_prob !== undefined){
+      const bar = card.querySelector('.pred-bar.crowd i');
+      const val = card.querySelectorAll('.pred-bar-v')[1];
+      if (bar) bar.style.width = d.crowd_prob + '%';
+      if (val) val.textContent = d.crowd_prob + '%';
+    }
+  }catch(e){
+    if (wrap) wrap.innerHTML = `<span class="pred-ask" style="color:var(--nw-red)">${escHtml(e.message)}</span>`;
+  }
+}
+
+// The scored record — the paid view. A predictive channel that never published
+// its own hit rate would be exactly the thing this site refuses to be.
+async function openPredRecord(){
+  const body = document.getElementById('pred-body');
+  body.innerHTML = '<div class="nw-empty">Loading the record&hellip;</div>';
+  try{
+    const r = await fetch(`${await predBase()}/api/predictions/record`, { headers: passHeaders(), signal: AbortSignal.timeout(20000) });
+    if (r.status === 402){ const d = await r.json().catch(()=>({}));
+      body.innerHTML = `<div class="pred-locked">
+        <h3>The track record needs an Operator Pass</h3>
+        <p>The board and voting are free. The scored history &mdash; every resolved question, the
+          model&rsquo;s probability, the readers&rsquo;, and who was closer &mdash; is the part nobody
+          else publishes for the Philippines.</p>
+        <button class="pred-btn yes" onclick="closePredictions();openPassSheet()">See the pass</button>
+        <button class="pred-btn no" onclick="openPredictions()">Back to the board</button></div>`;
+      return; }
+    const d = await r.json();
+    if (!d.resolved){
+      body.innerHTML = `<div class="nw-empty">No questions have resolved yet. The first deadlines fall in a few days &mdash;
+        the record starts empty on purpose, because a forecast record you cannot audit is worth nothing.
+        <br><br><button class="pred-btn no" onclick="openPredictions()">Back to the board</button></div>`;
+      return; }
+    body.innerHTML = `
+      <div class="pred-score">
+        <div class="pred-score-box"><span class="pred-score-k">CLAUDE</span>
+          <span class="pred-score-v">${d.model_brier ?? '—'}</span>
+          <span class="pred-score-s">Brier &middot; ${d.model_accuracy}% called right</span></div>
+        <div class="pred-score-box"><span class="pred-score-k">READERS</span>
+          <span class="pred-score-v">${d.crowd_brier ?? '—'}</span>
+          <span class="pred-score-s">${d.crowd_scored ? `Brier &middot; ${d.crowd_accuracy}% called right` : 'not enough voted questions yet'}</span></div>
+        <div class="pred-score-box"><span class="pred-score-k">COIN FLIP</span>
+          <span class="pred-score-v">0.25</span>
+          <span class="pred-score-s">what always saying 50% scores</span></div>
+      </div>
+      <p class="pred-intro">Lower is better. A Brier score is the squared distance between the
+        probability and what actually happened, so it punishes confident wrongness rather than
+        rewarding vagueness. ${d.resolved} question${d.resolved===1?'':'s'} resolved.</p>
+      <div class="pred-hist">${(d.recent||[]).map(s=>`
+        <div class="pred-hist-row ${s.outcome ? 'yes' : 'no'}">
+          <span class="pred-hist-o">${s.outcome ? 'YES' : 'NO'}</span>
+          <span class="pred-hist-q">${escHtml(s.question)}</span>
+          <span class="pred-hist-p">Claude ${s.model_prob}%${s.crowd_prob !== null ? ` &middot; readers ${s.crowd_prob}%` : ''}</span>
+        </div>`).join('')}</div>
+      <div class="pred-foot"><button class="pred-btn no" onclick="openPredictions()">Back to the board</button></div>`;
+  }catch(e){
+    body.innerHTML = `<div class="nw-empty">Could not load the record (${escHtml(e.message)}).</div>`;
+  }
 }
 
 // ─── MONEY NOTE ON THE NEWS PAGE ──────────────────────────────────────────
@@ -17756,6 +18000,7 @@ setInterval(() => {
 
 // ─── KEYBOARD SHORTCUT ────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('pred-page')?.classList.contains('show')) { closePredictions(); return; }
   if (e.key === 'Escape' && document.getElementById('finance-page')?.classList.contains('show')) { closeFinance(); return; }
   if (e.key === 'Escape' && document.getElementById('pass-sheet')?.classList.contains('show')) { closePassSheet(); return; }
   if (e.key === 'Escape' && cinemaOpen) { closeCinema(); return; }
@@ -20520,6 +20765,18 @@ document.addEventListener('click', function resumeAudio() {
       <button class="pass-x" onclick="closePassSheet()" aria-label="Close">&#215;</button>
     </div>
     <div id="pass-body"></div>
+  </div>
+</div>
+<div id="pred-page" role="dialog" aria-modal="true" aria-labelledby="pred-title">
+  <div class="nw-wrap">
+    <div class="nw-mast">
+      <h1 id="pred-title">What Happens <em>Next</em></h1>
+      <div style="display:flex;align-items:flex-end;gap:18px">
+        <div class="nw-mast-meta" id="pred-meta"></div>
+        <button class="nw-close" onclick="closePredictions()" aria-label="Close the prediction board">CLOSE &#215;</button>
+      </div>
+    </div>
+    <div id="pred-body"><div class="nw-empty">Loading&hellip;</div></div>
   </div>
 </div>
 <div id="finance-page" role="dialog" aria-modal="true" aria-labelledby="fin-title">
