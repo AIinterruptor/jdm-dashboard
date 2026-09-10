@@ -1747,6 +1747,31 @@ body {
 .fin-foot,.fin-notes{ margin:20px 0 0; max-width:74ch;
   font:400 12px/1.65 var(--mono,ui-monospace,monospace); color:var(--muted,#8b8578); }
 .fin-foot strong{ color:var(--amber,#c8a84b); font-weight:600; }
+
+/* ─── MANAGED FUNDS ──────────────────────────────────────────────────────── */
+.fund-chart-wrap{ overflow-x:auto; margin:4px 0 10px; }
+.fund-chart{ display:block; width:100%; min-width:520px; height:auto; }
+.fund-tick{ font:400 10px var(--mono,ui-monospace,monospace); fill:var(--muted,#8b8578); }
+.fund-legend{ display:flex; gap:22px; flex-wrap:wrap; margin-bottom:6px; }
+.fund-leg{ display:flex; align-items:center; gap:7px;
+  font:400 12px/1 var(--mono,ui-monospace,monospace); color:var(--muted,#8b8578); }
+.fund-leg i{ width:14px; height:2px; display:inline-block; }
+.fund-leg b{ font-variant-numeric:tabular-nums; }
+.fund-leg .up{ color:var(--green,#3a8838); } .fund-leg .down{ color:var(--red,#c82030); }
+.fund-mp2{ margin:18px 0 0; padding:16px 18px; border:1px solid var(--border,rgba(200,175,110,.10)); }
+.fund-mp2-row{ display:flex; align-items:baseline; gap:14px; margin-top:9px; flex-wrap:wrap; }
+.fund-mp2-y{ font:400 12px var(--mono,ui-monospace,monospace); color:var(--muted,#8b8578); }
+.fund-mp2-r{ font:600 19px/1 var(--mono,ui-monospace,monospace); font-variant-numeric:tabular-nums;
+  color:var(--text,#e8e3d8); }
+.fund-mp2-c{ font:400 11px var(--mono,ui-monospace,monospace); color:var(--amber,#c8a84b);
+  text-decoration:none; border-bottom:1px solid rgba(200,175,110,.3); }
+.fund-mp2-c:hover{ color:var(--text,#e8e3d8); }
+.fund-gap{ margin:18px 0 0; padding:16px 18px; border-left:2px solid var(--amber,#c8a84b);
+  background:rgba(200,175,110,.03); }
+.fund-gap p{ margin:8px 0 0; max-width:70ch; font:400 14px/1.6 'Source Serif 4',Georgia,serif;
+  color:var(--muted,#8b8578); }
+.fund-gap a{ color:var(--amber,#c8a84b); }
+
 .fin-notes{ margin-top:10px; padding-left:18px; }
 .fin-notes li{ margin:3px 0; }
 @media (max-width:760px){
@@ -7623,6 +7648,143 @@ async function passInit(){
   await passRefresh();
 }
 
+// ─── MANAGED FUNDS: what an investor can actually compare ─────────────────
+// The Commander asked for "all PH funds" — BDO/BPI/Metrobank UITFs, Sun Life
+// and PhilAm mutual funds. Those are NOT publishable from here, and the page
+// says so plainly rather than quietly omitting them:
+//
+//   * uitf.com.ph (the industry NAVPU portal) is reCAPTCHA-gated. Bypassing a
+//     CAPTCHA is off the table, and its visible table was a month stale with
+//     NAVPU values of 0 when checked on 2026-09-10.
+//   * PIFA no longer publishes a NAVPS table at all — its site has no data
+//     tables and names none of the fund houses.
+//   * EODHD returns [] for these: UITFs and mutual funds are not exchange
+//     traded, so no market-data vendor carries them.
+//
+// Scraping a dozen fund-house pages for money figures would be the worst of
+// both worlds: brittle, and unciteable on a site that sells checkable sourcing.
+// So this compares what IS licensed and verifiable, and routes the reader to
+// the official source for the rest.
+const FUND_BASE = 100;               // everything indexed to 100 at the start of the window
+
+// MP2 is the default comparator for a Philippine saver and it is a PUBLISHED
+// annual dividend, not a scraped price. Each rate carries the announcement it
+// came from so a reader can check it — the same standard the news page applies
+// to claims.
+//
+// Only rates confirmed against an official government source are listed here.
+// A blog or a calculator site is not a source for a money figure.
+const MP2_RATES = [
+  { year: 2022, rate: 7.03, src: 'https://pco.gov.ph/other_releases/pbbm-lauds-highest-pag-ibig-dividend-rates-since-pandemic-6-53-for-regular-savings-7-03-for-mp2/',
+    cite: 'Presidential Communications Office, 30 March 2023' },
+];
+
+// Index a price series to 100 at its first point. This is the only honest way
+// to put a peso-priced ETF and an index on one chart: a dual y-axis would let
+// the shapes lie about relative performance.
+function fundIndex(series) {
+  if (!series || !series.length) return [];
+  const base = series[0].c;
+  return series.map(p => ({ d: p.d, v: (p.c / base) * FUND_BASE }));
+}
+
+// A multi-series line chart on ONE scale. Marks, labels and the drawing all
+// stay inside the viewBox, and every label names a value the chart reaches.
+function fundChart(sets, w, h) {
+  const live = sets.filter(s => s.pts && s.pts.length > 1);
+  if (!live.length) return '';
+  const padL = 42, padR = 12, padT = 12, padB = 26;
+  const all = live.flatMap(s => s.pts.map(p => p.v));
+  const min = Math.min(...all), max = Math.max(...all);
+  const lo = Math.floor(min / 5) * 5, hi = Math.ceil(max / 5) * 5;
+  const span = (hi - lo) || 1;
+  const n = Math.max(...live.map(s => s.pts.length));
+  const x = i => padL + (i * (w - padL - padR)) / (n - 1);
+  const y = v => (h - padB) - ((v - lo) / span) * (h - padT - padB);
+
+  // Gridlines carry the scale; they are recessive so the data reads first.
+  const ticks = [lo, lo + span / 2, hi];
+  const grid = ticks.map(t => `
+    <line x1="${padL}" y1="${y(t).toFixed(1)}" x2="${w - padR}" y2="${y(t).toFixed(1)}"
+      stroke="var(--border)" stroke-width="1"/>
+    <text x="${padL - 7}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end"
+      class="fund-tick">${t.toFixed(0)}</text>`).join('');
+
+  const lines = live.map(s => {
+    const pts = s.pts.map((p, i) => `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
+    const last = s.pts[s.pts.length - 1];
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2"
+        stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${x(s.pts.length - 1).toFixed(1)}" cy="${y(last.v).toFixed(1)}" r="3" fill="${s.color}"/>`;
+  }).join('');
+
+  const first = live[0].pts[0], lastPt = live[0].pts[live[0].pts.length - 1];
+  return `<svg class="fund-chart" viewBox="0 0 ${w} ${h}" role="img"
+      aria-label="Growth of 100 pesos, ${live.map(s => s.label).join(' versus ')}">
+    ${grid}${lines}
+    <text x="${padL}" y="${h - 8}" class="fund-tick">${escHtml(first.d)}</text>
+    <text x="${w - padR}" y="${h - 8}" text-anchor="end" class="fund-tick">${escHtml(lastPt.d)}</text>
+  </svg>`;
+}
+
+function renderFunds(d) {
+  const ps = d.psei, fm = d.fmetf;
+  const sets = [];
+  if (ps && ps.series && ps.series.length > 1)
+    sets.push({ label: 'PSEi', color: 'var(--amber)', pts: fundIndex(ps.series) });
+  if (fm && fm.series && fm.series.length > 1)
+    sets.push({ label: 'FMETF', color: 'var(--accent, #6b9bd1)', pts: fundIndex(fm.series) });
+
+  const perf = sets.map(s => {
+    const last = s.pts[s.pts.length - 1].v;
+    return { label: s.label, color: s.color, chg: last - FUND_BASE };
+  });
+
+  const chart = sets.length ? `
+    <div class="fund-chart-wrap">${fundChart(sets, 720, 220)}</div>
+    <div class="fund-legend">${perf.map(p => `
+      <span class="fund-leg"><i style="background:${p.color}"></i>${escHtml(p.label)}
+        <b class="${p.chg >= 0 ? 'up' : 'down'}">${p.chg > 0 ? '+' : ''}${p.chg.toFixed(1)}%</b></span>`).join('')}
+    </div>` : '<p class="fin-sub">No comparable series available this cycle.</p>';
+
+  const mp2 = MP2_RATES.length ? `
+    <div class="fund-mp2">
+      <span class="fin-k">PAG-IBIG MP2 — FOR REFERENCE</span>
+      ${MP2_RATES.map(r => `<div class="fund-mp2-row">
+        <span class="fund-mp2-y">${r.year}</span>
+        <span class="fund-mp2-r">${r.rate.toFixed(2)}%</span>
+        <a class="fund-mp2-c" href="${r.src}" target="_blank" rel="noopener noreferrer">${escHtml(r.cite)}</a>
+      </div>`).join('')}
+      <p class="fin-sub" style="margin:10px 0 0">A declared annual dividend, not a traded price, so it
+        cannot be plotted against a daily series without misleading you about how it behaves &mdash;
+        MP2 does not move day to day and cannot fall. Later years are not listed here because only
+        rates confirmed against an official government announcement are shown.</p>
+    </div>` : '';
+
+  return `
+    <section class="fin-sec">
+      <h3 class="fin-h">Managed funds &mdash; what &#8369;100 became</h3>
+      <p class="fin-sub">Both series are indexed to 100 at the start of the window, which is the only
+        honest way to compare a peso-priced fund against an index on one scale. FMETF is the sole
+        exchange-traded fund on the PSE; it tracks the PSEi, so the gap between the two lines is
+        roughly the cost of tracking.</p>
+      ${chart}
+      ${mp2}
+      <div class="fund-gap">
+        <span class="fin-k">WHY YOUR UITF ISN&rsquo;T HERE</span>
+        <p>Bank UITFs (BDO, BPI, Metrobank, Security Bank) and mutual funds (Sun Life, PhilAm,
+          Philequity, ATRAM) are <strong>not exchange traded</strong>. They are priced by a NAVPU or
+          NAVPS that each provider publishes itself, and no market-data vendor carries them &mdash;
+          our own data source returns nothing for them.</p>
+        <p>The industry portal that does carry them, <a href="https://www.uitf.com.ph/daily_navpu.php"
+          target="_blank" rel="noopener noreferrer">uitf.com.ph</a>, is behind a CAPTCHA, and on
+          10 September 2026 its published table was a month out of date with several values showing
+          zero. Republishing figures from it would put stale numbers about your money on this page,
+          so we do not. Check your provider directly, or the portal, for a current NAVPU.</p>
+      </div>
+    </section>`;
+}
+
 // ─── THE PESO: money page ─────────────────────────────────────────────────
 // Free, like the outlook: prices are a commodity and the official sources
 // publish them. Reads the cron-independent /api/finance record, which is edge
@@ -7755,7 +7917,7 @@ async function openFinance(){
     const notes = (d.notes || []).length ? `<ul class="fin-notes">${
       d.notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul>` : '';
 
-    body.innerHTML = hero + table + psei + crypto + `
+    body.innerHTML = hero + table + psei + renderFunds(d) + crypto + `
       <div class="fin-foot">
         <strong>Method and limits.</strong> Rates are mid-market, from the sources named above, and are
         cached for fifteen minutes &mdash; they are not tick-by-tick. Equity and index figures are

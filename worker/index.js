@@ -1,6 +1,6 @@
 /**
  * JDM Command Center — Cloudflare Worker Proxy
- * Version: 3.5.0 (2026-09-10) — adds free /api/finance (peso, OFW corridors, PSEi end-of-day, crypto)
+ * Version: 3.6.0 (2026-09-10) — /api/finance adds FMETF series for the managed-fund comparison
  *
  * Merges the live v1.0.0 worker (domain allowlist, legacy /proxy-* routes) with the
  * repo v2.1.0 worker (keyed /api/* routes) — the dashboard needs BOTH families.
@@ -29,7 +29,7 @@
  * Vars (wrangler.toml): ALLOWED_ORIGINS, RATE_LIMIT, MAX_RESPONSE_SIZE
  */
 
-const VERSION = '3.5.0';
+const VERSION = '3.6.0';
 const UPSTREAM_TIMEOUT_MS = 15000;
 let MAX_BYTES_DEFAULT = 5242880;   // overridden per request from env.MAX_RESPONSE_SIZE
 const FRESH_TTL = 300;          // seconds a cached upstream body is considered fresh
@@ -1042,7 +1042,7 @@ async function handleFinance(url, env, ctx) {
         const [rt, hist] = await Promise.allSettled([
           finFetchJson(`https://eodhd.com/api/real-time/PSEI.INDX?api_token=${key}&fmt=json`),
           finFetchJson(`https://eodhd.com/api/eod/PSEI.INDX?api_token=${key}&fmt=json&period=d&from=${
-            new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)}`),
+            new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10)}`),
         ]);
         const series = hist.status === 'fulfilled' && Array.isArray(hist.value)
           ? hist.value.map(d => ({ d: d.date, c: finNum(d.close) })).filter(x => x.c) : [];
@@ -1059,6 +1059,26 @@ async function handleFinance(url, env, ctx) {
         };
         if (series.length) out.sources.push('EODHD — PSEi, end-of-day');
       } catch { out.psei = null; }
+    }
+
+    // FMETF — the ONLY exchange-traded fund on the PSE, and therefore the only
+    // Philippine managed fund with a licensed, machine-readable price series.
+    // Bank UITFs and mutual funds are priced by NAVPU/NAVPS published by each
+    // provider; no market-data vendor carries them (EODHD returns [] for a
+    // Philequity search), so they cannot appear here at all.
+    if (key) {
+      try {
+        const h = await finFetchJson(`https://eodhd.com/api/eod/FMETF.PSE?api_token=${key}&fmt=json&period=d&from=${
+          new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10)}`);
+        const series = Array.isArray(h) ? h.map(d => ({ d: d.date, c: finNum(d.close) })).filter(x => x.c) : [];
+        if (series.length > 1) {
+          const f = series[0].c, l = series[series.length - 1].c;
+          out.fmetf = { close: l, as_of: series[series.length - 1].d, intraday: false,
+                        period_change_pct: Math.round(((l - f) / f) * 10000) / 100,
+                        period_days: series.length, series };
+          out.sources.push('EODHD — FMETF, end-of-day');
+        }
+      } catch { out.fmetf = null; }
     }
 
     // Crypto. CoinGecko throttles hard, so it rides the same edge cache and a
