@@ -1,6 +1,6 @@
 /**
  * JDM Command Center — Cloudflare Worker Proxy
- * Version: 3.3.0 (2026-09-10) — adds prepaid Operator Pass (QRPh via PayMongo): worker-side gate on dashboard/archive/outlook
+ * Version: 3.3.1 (2026-09-10) — Operator Pass repriced for a PH individual (₱199/mo, ₱1,990/yr)
  *
  * Merges the live v1.0.0 worker (domain allowlist, legacy /proxy-* routes) with the
  * repo v2.1.0 worker (keyed /api/* routes) — the dashboard needs BOTH families.
@@ -29,7 +29,7 @@
  * Vars (wrangler.toml): ALLOWED_ORIGINS, RATE_LIMIT, MAX_RESPONSE_SIZE
  */
 
-const VERSION = '3.3.0';
+const VERSION = '3.3.1';
 const UPSTREAM_TIMEOUT_MS = 15000;
 let MAX_BYTES_DEFAULT = 5242880;   // overridden per request from env.MAX_RESPONSE_SIZE
 const FRESH_TTL = 300;          // seconds a cached upstream body is considered fresh
@@ -922,10 +922,19 @@ async function handleBriefRun(request, env, ctx) {
 // ledger's complexity exists to make credit spending atomic
 // (UPDATE ... WHERE balance >= ?), and KV cannot do that safely. An expiry date
 // has no double-spend to guard, so last-write-wins is correct here.
+// Priced for a Philippine INDIVIDUAL, because the public list only ever reaches
+// one: an LGU or news desk cannot pay by QRPh at all — they invoice against an
+// OR, which is what /api/pass/grant exists for. So this number gives away no
+// institutional upside, and ₱199 sits inside the band a PH reader already pays
+// for a monthly digital subscription. The year is 10 months' money for 12.
+//
+// It is deliberately NOT cost-plus. Production is ~$1.77/month FIXED (cron +
+// KV cache), so marginal cost per reader is zero and any price clears ~100%
+// margin; what a reader will pay is the only real constraint.
 const PASSES = [
   // The server decides what a pass costs and grants; the client only names an id.
-  { id: 'month', name: 'Operator Pass — 30 days', days: 30, centavos: 49900 },
-  { id: 'year',  name: 'Operator Pass — 12 months', days: 365, centavos: 499000 },
+  { id: 'month', name: 'Operator Pass — 30 days', days: 30, centavos: 19900 },
+  { id: 'year',  name: 'Operator Pass — 12 months', days: 365, centavos: 199000 },
 ];
 const PASS_PREFIX = 'pass:';
 const PASS_TTL_SLACK = 30 * 86400;   // keep a lapsed pass readable for a month so a re-purchase can extend it
