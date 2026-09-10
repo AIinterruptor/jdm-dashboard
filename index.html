@@ -1772,6 +1772,43 @@ body {
   color:var(--muted,#8b8578); }
 .fund-gap a{ color:var(--amber,#c8a84b); }
 
+/* ─── MONEY NOTE (news page) + RANKING (money page) ─────────────────────── */
+.nw-money{ margin:34px 0 0; padding:24px 0 0; border-top:2px solid var(--amber,#c8a84b);
+  scroll-margin-top:96px; }
+.nw-money-head{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.nw-money-k{ font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.18em; color:var(--amber,#c8a84b); }
+.nw-money-meta{ font:400 11px/1 var(--mono,ui-monospace,monospace); color:var(--muted,#8b8578); }
+.nw-money-hed{ margin:10px 0 12px; font-family:'Playfair Display',Georgia,serif; font-weight:700;
+  font-size:clamp(21px,2.6vw,27px); line-height:1.22; color:var(--text,#e8e3d8); text-wrap:balance; }
+.nw-money-p{ margin:0 0 12px; max-width:68ch; font:400 16px/1.66 'Source Serif 4',Georgia,serif;
+  color:var(--text,#e8e3d8); }
+.nw-money-rem{ margin:16px 0; padding:14px 18px; border-left:2px solid var(--amber,#c8a84b);
+  background:rgba(200,175,110,.03); }
+.nw-money-rem .nw-money-p{ margin:7px 0 0; font-size:15px; color:var(--muted,#8b8578); }
+.nw-money-figs{ margin:14px 0 0; }
+.nw-money-figs summary{ cursor:pointer; font:600 11px/1 var(--mono,ui-monospace,monospace);
+  letter-spacing:.1em; color:var(--amber,#c8a84b); }
+.nw-money-figs ul{ margin:12px 0 0; padding:0; list-style:none; }
+.nw-money-figs li{ display:flex; gap:14px; justify-content:space-between; padding:7px 0;
+  border-bottom:1px solid rgba(200,175,110,.06); font:400 12px/1.5 var(--mono,ui-monospace,monospace);
+  color:var(--muted,#8b8578); flex-wrap:wrap; }
+.nw-money-figs li b{ color:var(--text,#e8e3d8); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.nw-money-foot{ margin:16px 0 0; max-width:72ch; font:400 12px/1.6 var(--mono,ui-monospace,monospace);
+  color:var(--muted,#8b8578); }
+.nw-money-foot a{ color:var(--amber,#c8a84b); }
+
+.rank-table .rank-n{ font:600 15px/1 var(--mono,ui-monospace,monospace); color:var(--amber,#c8a84b);
+  font-variant-numeric:tabular-nums; width:1%; padding-right:16px; }
+.rank-full{ display:block; margin-top:3px; font:400 11px/1.3 var(--mono,ui-monospace,monospace);
+  color:var(--muted,#8b8578); }
+.rank-note{ max-width:34ch; white-space:normal; }
+.fin-cv.up{ color:var(--green,#3a8838); } .fin-cv.down{ color:var(--red,#c82030); }
+.rank-side{ margin:18px 0 0; padding:16px 18px; border:1px solid var(--border,rgba(200,175,110,.10)); }
+.rank-side p{ margin:9px 0 0; max-width:70ch; font:400 14px/1.6 'Source Serif 4',Georgia,serif;
+  color:var(--muted,#8b8578); }
+.rank-side strong{ color:var(--text,#e8e3d8); }
+
+
 .fin-notes{ margin-top:10px; padding-left:18px; }
 .fin-notes li{ margin:3px 0; }
 @media (max-width:760px){
@@ -7648,6 +7685,112 @@ async function passInit(){
   await passRefresh();
 }
 
+
+// ─── MONEY NOTE ON THE NEWS PAGE ──────────────────────────────────────────
+// Written once a day by Claude Sonnet on the 06:00 PHT cron and cached in KV.
+// This is MARKET COMMENTARY, not financial advice: the generator is barred
+// from recommending any action, from naming a cause it cannot see, and from
+// predicting a level. The byline says which model wrote it, the same way the
+// hazard reading does.
+async function nwMoneyHtml(){
+  try{
+    let base = getProxyBase();
+    for (let i = 0; i < 20 && !base; i++) { await new Promise(r => setTimeout(r, 250)); base = getProxyBase(); }
+    if (!base) base = 'https://jdm-proxy.josed-jdm.workers.dev';
+    const r = await fetch(`${base}/api/money`, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) return '';
+    const rec = await r.json();
+    const n = rec && rec.note;
+    if (!n || !n.headline) return '';
+    const figs = Array.isArray(n.figures) ? n.figures : [];
+    return `
+      <section class="nw-money">
+        <div class="nw-money-head">
+          <span class="nw-money-k">MONEY &mdash; DAILY NOTE</span>
+          <span class="nw-money-meta">${nwEsc(rec.generated_pht||'')}${n.quiet_day ? ' &middot; a quiet day' : ''}</span>
+        </div>
+        <h3 class="nw-money-hed">${nwEsc(n.headline)}</h3>
+        ${String(n.note||'').split(/\n{2,}/).filter(Boolean).map(p=>`<p class="nw-money-p">${nwEsc(p)}</p>`).join('')}
+        ${n.remittance_read ? `<div class="nw-money-rem"><span class="nw-money-k">IF YOU RECEIVE MONEY FROM ABROAD</span>
+          <p class="nw-money-p">${nwEsc(n.remittance_read)}</p></div>` : ''}
+        ${figs.length ? `<details class="nw-money-figs"><summary>The figures behind each statement (${figs.length})</summary>
+          <ul>${figs.map(f=>`<li><span>${nwEsc(f.claim)}</span><b>${nwEsc(f.figure)}</b></li>`).join('')}</ul></details>` : ''}
+        <p class="nw-money-foot">Written by Claude Sonnet from the figures on the money page and nothing else &mdash;
+          it has no policy decisions, inflation data or capital-flow data, so it does not explain <em>why</em>
+          anything moved. Commentary only, not financial advice; nobody here is a licensed adviser.
+          <a href="#" onclick="closeNews();openFinance();return false;">See the full money page &rarr;</a></p>
+      </section>`;
+  }catch{ return ''; }
+}
+
+// ─── INSTRUMENT RANKING ───────────────────────────────────────────────────
+// "Which instrument, by rank and performance." Ranked on ONE basis — total
+// return over the same window — because ranking things measured differently
+// is how league tables mislead.
+//
+// Two honesty rules, both visible on the page:
+//  1. Every row says what KIND of number it is. A traded price that can fall
+//     and a declared dividend that cannot are not the same claim, and putting
+//     them in one column without saying so would be the real distortion.
+//  2. Nothing is ranked over a window it does not have. MP2 is an annual rate
+//     for a completed year; the price series are a rolling 12 months. Those
+//     are shown as separate blocks, not interleaved into one false ladder.
+function buildRanking(d) {
+  const rows = [];
+  const win = (d.psei && d.psei.period_days) || (d.fmetf && d.fmetf.period_days) || 0;
+
+  if (d.fmetf) rows.push({ name: 'FMETF', full: 'First Metro Philippine Equity ETF',
+    kind: 'Traded fund', ret: d.fmetf.period_change_pct, note: 'The only ETF listed on the PSE. Can fall.' });
+  if (d.psei) rows.push({ name: 'PSEi', full: 'PSE Composite Index',
+    kind: 'Index', ret: d.psei.period_change_pct, note: 'A benchmark, not something you can buy directly.' });
+  for (const c of (d.crypto || [])) {
+    // Crypto has only a 24h change here, NOT a comparable 12-month return, so
+    // it is deliberately excluded from the ranked table rather than ranked on
+    // a different window and quietly presented as equivalent.
+  }
+  rows.sort((a, b) => (b.ret ?? -999) - (a.ret ?? -999));
+  return { rows, win };
+}
+
+function renderRanking(d) {
+  const { rows, win } = buildRanking(d);
+  if (!rows.length) return '';
+  const best = rows[0];
+  return `
+    <section class="fin-sec">
+      <h3 class="fin-h">Ranked by performance</h3>
+      <p class="fin-sub">Total return over the same ${win} trading days, which is the only window every
+        one of these shares. Ranking instruments measured over different periods &mdash; or measured in
+        different ways &mdash; is how a league table starts to mislead, so anything without a comparable
+        figure is listed below the table rather than ranked inside it.</p>
+      <div class="fin-scroll"><table class="fin-table rank-table">
+        <thead><tr><th>#</th><th>Instrument</th><th>Type</th><th>Return</th><th>What it is</th></tr></thead>
+        <tbody>${rows.map((r, i) => `<tr>
+          <td class="rank-n">${i + 1}</td>
+          <td class="fin-cn">${escHtml(r.name)}<span class="rank-full">${escHtml(r.full)}</span></td>
+          <td class="fin-cb">${escHtml(r.kind)}</td>
+          <td class="fin-cv ${r.ret >= 0 ? 'up' : 'down'}">${r.ret > 0 ? '+' : ''}${r.ret}%</td>
+          <td class="fin-cb rank-note">${escHtml(r.note)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      <div class="rank-side">
+        <span class="fin-k">NOT RANKED &mdash; AND WHY</span>
+        <p><strong>Pag-IBIG MP2 (7.03%, 2022)</strong> is a <em>declared annual dividend for a completed
+          year</em>, not a rolling return on a traded price. It cannot fall and it does not move daily.
+          Placing it in the table above would compare a guaranteed backward-looking rate against a
+          market return that can go negative &mdash; the two are not the same kind of number, and the
+          comparison would flatter whichever one happened to be ahead.</p>
+        <p><strong>Crypto</strong> carries only a 24-hour change from our source, not a comparable
+          ${win}-day return, so it is shown as a price above rather than ranked here.</p>
+        <p><strong>Bank UITFs and mutual funds</strong> cannot be ranked at all: their NAVPU figures are
+          not machine-readable from any source we can lawfully publish. That gap is explained above.</p>
+      </div>
+      <p class="fin-sub" style="margin-top:14px">Past return is a record of what happened, not a
+        prediction. ${escHtml(best.name)} leads this window at ${best.ret > 0 ? '+' : ''}${best.ret}%;
+        that says nothing about the next one.</p>
+    </section>`;
+}
+
 // ─── MANAGED FUNDS: what an investor can actually compare ─────────────────
 // The Commander asked for "all PH funds" — BDO/BPI/Metrobank UITFs, Sun Life
 // and PhilAm mutual funds. Those are NOT publishable from here, and the page
@@ -7917,7 +8060,7 @@ async function openFinance(){
     const notes = (d.notes || []).length ? `<ul class="fin-notes">${
       d.notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul>` : '';
 
-    body.innerHTML = hero + table + psei + renderFunds(d) + crypto + `
+    body.innerHTML = hero + table + psei + renderRanking(d) + renderFunds(d) + crypto + `
       <div class="fin-foot">
         <strong>Method and limits.</strong> Rates are mid-market, from the sources named above, and are
         cached for fifteen minutes &mdash; they are not tick-by-tick. Equity and index figures are
@@ -8160,6 +8303,9 @@ function nwRender(rec){
     </div>` : '';
 
   body.innerHTML = lead + devHtml + foot + src;
+  // The money note is fetched separately so a slow or missing money record can
+  // never delay or break the bulletin itself.
+  nwMoneyHtml().then(h => { if (h) document.getElementById('nw-body').insertAdjacentHTML('beforeend', h); });
 }
 
 // News is the landing view: a visitor should meet the bulletin, not the

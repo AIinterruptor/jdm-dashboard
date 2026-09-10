@@ -1,6 +1,6 @@
 /**
  * JDM Command Center — Cloudflare Worker Proxy
- * Version: 3.6.0 (2026-09-10) — /api/finance adds FMETF series for the managed-fund comparison
+ * Version: 3.7.0 (2026-09-10) — daily money note by Sonnet on the 06:00 PHT cron (/api/money)
  *
  * Merges the live v1.0.0 worker (domain allowlist, legacy /proxy-* routes) with the
  * repo v2.1.0 worker (keyed /api/* routes) — the dashboard needs BOTH families.
@@ -29,7 +29,7 @@
  * Vars (wrangler.toml): ALLOWED_ORIGINS, RATE_LIMIT, MAX_RESPONSE_SIZE
  */
 
-const VERSION = '3.6.0';
+const VERSION = '3.7.0';
 const UPSTREAM_TIMEOUT_MS = 15000;
 let MAX_BYTES_DEFAULT = 5242880;   // overridden per request from env.MAX_RESPONSE_SIZE
 const FRESH_TTL = 300;          // seconds a cached upstream body is considered fresh
@@ -1097,6 +1097,141 @@ async function handleFinance(url, env, ctx) {
   });
 }
 
+// ─── MONEY OUTLOOK: a daily read of the figures, by Sonnet ────────────────
+// Runs ONCE a day on the 06:00 PHT cron and caches in KV. Never page-triggered:
+// the news page has no auth, so a route that spends model tokens on request
+// would let any visitor run up the bill. Same invariant as the brief, the
+// zones and the hazard outlook.
+//
+// This is MARKET COMMENTARY, not advice. The prompt forbids recommending any
+// action, and the page bylines the model. Neither the site nor a model is a
+// licensed adviser, so nothing here tells a reader what to buy or hold.
+const MONEY_SYSTEM = `You write the daily money note for a Philippine news bulletin. Your reader is an ordinary Filipino: a household receiving remittances, a small trader, a first-time investor. Write for them, not for a trading desk.
+
+WHAT YOU HAVE: a table of figures only - the peso against the dollar and its change on the previous close, twelve remittance corridor rates, the PSEi and FMETF end-of-day series, and crypto prices. That is all.
+
+WHAT YOU MUST NEVER DO:
+- Never name a CAUSE for any move. You have no policy decisions, no inflation data, no capital flow data, no earnings, no central bank statements. Writing "the peso weakened on BSP policy expectations" or "profit-taking ahead of the Fed" is invention: you cannot see any of that. State what moved and by how much. If a reader wants why, that is a different story written by someone with the evidence.
+- Never recommend an action. Do not tell anyone to buy, sell, hold, switch, time a remittance, or move money. You are not an adviser and this is not advice. You may state arithmetic consequences ("a peso weaker by 12 centavos adds about P120 to a US$1,000 remittance") because that is calculation, not counsel.
+- Never predict a level or a direction. No targets, no "expect", no "likely to reach".
+- Never describe a market as cheap, expensive, overvalued or a good entry.
+
+WHAT TO DO: name the figure behind every statement. Lead with whatever genuinely moved most in the reader's life - usually the peso, because it sets the value of every remittance. Say plainly when a move is small enough not to matter; most days are quiet, and saying so is more useful than manufacturing significance. The index figure is the LAST CLOSE and the market is not open when you write - refer to it by its date, never as "today".
+
+Tone: plain, calm, concrete. Short sentences. No jargon without a plain-English gloss. No hype.`;
+
+const MONEY_SCHEMA = {
+  type: 'object',
+  properties: {
+    headline: { type: 'string', description: 'Six to twelve words. What actually moved. No verdict, no advice.' },
+    note: { type: 'string', description: 'Two to four short paragraphs of plain commentary. Every claim carries its figure.' },
+    remittance_read: { type: 'string', description: 'One paragraph on what the rates mean arithmetically for someone receiving money from abroad today. Calculation only, never a recommendation about when to send.' },
+    figures: {
+      type: 'array', description: 'Each statement paired with the exact figure that supports it.',
+      items: { type: 'object', additionalProperties: false, properties: {
+        claim: { type: 'string' }, figure: { type: 'string' },
+      }, required: ['claim', 'figure'] },
+    },
+    quiet_day: { type: 'boolean', description: 'True when nothing moved enough to matter. Say so plainly rather than inflating it.' },
+  },
+  additionalProperties: false,
+  required: ['headline', 'note', 'remittance_read', 'figures', 'quiet_day'],
+};
+
+// Render the figure table the model reads. It gets numbers and nothing else —
+// no narrative, no headlines — so it cannot borrow a causal story from the news
+// feed and present it as a market explanation.
+function moneyFactTable(f) {
+  const L = [];
+  if (f.peso) {
+    L.push(`PESO: ${f.peso.usd_php} per USD` +
+      (f.peso.change === null ? '' : `, ${f.peso.change > 0 ? 'weaker by' : 'stronger by'} ${Math.abs(f.peso.change).toFixed(3)} (${f.peso.change_pct}%) against the previous close`));
+  }
+  if (f.corridors && f.corridors.length) {
+    L.push('CORRIDORS (1 unit -> PHP): ' + f.corridors.map(c => `${c.per > 1 ? c.per + ' ' : ''}${c.code} ${c.php}`).join(', '));
+  }
+  if (f.psei) {
+    L.push(`PSEi: ${f.psei.close} at the close of ${f.psei.as_of}` +
+      (f.psei.period_change_pct === null ? '' : `, ${f.psei.period_change_pct}% over the last ${f.psei.period_days} trading days`) +
+      '. The market is NOT open as you write; this is the last settled close.');
+    const s = f.psei.series || [];
+    if (s.length > 5) {
+      const prev = s[s.length - 2];
+      L.push(`PSEi previous session: ${prev.c} on ${prev.d} (session change ${(f.psei.close - prev.c).toFixed(2)}).`);
+    }
+  }
+  if (f.fmetf) L.push(`FMETF (the only PSE-listed fund): ${f.fmetf.close} on ${f.fmetf.as_of}, ${f.fmetf.period_change_pct}% over ${f.fmetf.period_days} trading days.`);
+  if (f.crypto && f.crypto.length) L.push('CRYPTO: ' + f.crypto.map(c => `${c.id} PHP ${c.php}${c.change_24h === null ? '' : ` (${c.change_24h}% 24h)`}`).join(', '));
+  return L.join('\n');
+}
+
+async function generateMoneyOutlook(env, reason) {
+  if (!env.JDM_KV) throw new Error('JDM_KV not bound');
+  if (!env.ANTHROPIC_KEY) throw new Error('ANTHROPIC_KEY not configured');
+
+  // Read the finance record the money page already serves, so the note and the
+  // page can never disagree about a number.
+  const fin = await handleFinance(new URL('https://x/api/finance'), env, null).then(r => r.json());
+  if (!fin || fin.error) throw new Error('no finance data: ' + (fin && fin.error));
+  const facts = moneyFactTable(fin);
+  if (!facts.trim()) throw new Error('no figures to read');
+
+  const now = Date.now();
+  const pht = new Date(now + 8 * 3600000);
+  const stamp = `${phtDate(now)} ${String(pht.getUTCHours()).padStart(2, '0')}:${String(pht.getUTCMinutes()).padStart(2, '0')} PHT`;
+
+  const body = {
+    model: 'claude-sonnet-5', max_tokens: 3000, system: MONEY_SYSTEM,
+    messages: [{ role: 'user', content:
+      `Today is ${stamp}. Write the daily money note from these figures and nothing else.\n\n<figures>\n${facts}\n</figures>` }],
+    output_config: { format: { type: 'json_schema', schema: MONEY_SCHEMA } },
+  };
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error('anthropic HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
+  const msg = await r.json();
+
+  // Structured output, with the same JSON-in-text fallback the brief uses:
+  // a refusal or a wrapped block must not lose the whole edition.
+  let out = null, mode = 'structured', structuredError = null;
+  const txt = (msg.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+  try { out = JSON.parse(txt); }
+  catch (e) {
+    const m = txt.match(/\{[\s\S]*\}/);
+    if (m) { try { out = JSON.parse(m[0]); mode = 'recovered'; } catch (e2) { structuredError = e2.message; } }
+    else structuredError = e.message;
+  }
+  if (!out) throw new Error('unparseable model output: ' + (structuredError || 'no json'));
+
+  const rec = { generated_at: now, generated_pht: stamp, reason, model: msg.model, mode,
+                structured_error: structuredError, usage: msg.usage,
+                basis: { psei_as_of: fin.psei && fin.psei.as_of, usd_php: fin.peso && fin.peso.usd_php },
+                note: out };
+  await kvPutJson(env, 'money:latest', rec);
+  return rec;
+}
+
+async function handleMoneyOutlook(env, ctx) {
+  if (!env.JDM_KV) return json({ error: 'JDM_KV not bound' }, 503);
+  return edgeCached('money-latest', 120, ctx, async () => {
+    const rec = await kvGetJson(env, 'money:latest');
+    const err = await kvGetJson(env, 'money:lasterror');
+    if (!rec) return json({ error: 'No money note yet', hint: 'Written daily at 06:05 PHT', lasterror: err || null }, 404);
+    return json({ ...rec, lasterror: err && err.at > rec.generated_at ? err : null });
+  });
+}
+
+async function handleMoneyOutlookRun(request, env) {
+  // ADMIN_TOKEN-gated for the same reason every /run route is: an open route
+  // that spends model tokens is a way for anyone to run up the bill.
+  if (!env.ADMIN_TOKEN || !(await safeEqual(request.headers.get('X-Admin-Token'), env.ADMIN_TOKEN))) return json({ error: 'Forbidden' }, 403);
+  try { const rec = await generateMoneyOutlook(env, 'manual'); return json({ ok: true, generated_pht: rec.generated_pht, mode: rec.mode, usage: rec.usage, model: rec.model }); }
+  catch (e) { return json({ ok: false, error: e.message }, 500); }
+}
+
 // ─── BRIEF ARCHIVE: the paid product ──────────────────────────────────────
 // The archive is the only asset here with no substitute anywhere. PAGASA
 // publishes forecasts for free, so a 7-day outlook is a commodity; nobody
@@ -1386,6 +1521,15 @@ export default {
       // Haiku call, so this adds ~$0.01 an edition and nothing per viewer.
       try { await generateOutlook(env, h === 22 ? 'morning' : 'evening'); }
       catch (e) { await kvPutJson(env, 'outlook:lasterror', { at: Date.now(), error: e.message }, 7 * 86400).catch(() => {}); }
+      // Money note: ONCE A DAY, morning slot only (h === 22 UTC = 06:05 PHT).
+      // Sonnet costs roughly 10x Haiku per token, so this is deliberately not
+      // in the evening slot. Note that at 06:05 PHT the PSE has not opened, so
+      // the newest index figure is the PREVIOUS trading day's close — the
+      // prompt is told to refer to it by date and never as "today".
+      if (h === 22) {
+        try { await generateMoneyOutlook(env, 'daily'); }
+        catch (e) { await kvPutJson(env, 'money:lasterror', { at: Date.now(), error: e.message }, 7 * 86400).catch(() => {}); }
+      }
     })());
   },
   async fetch(request, env, ctx) {
@@ -1438,6 +1582,8 @@ export default {
       else if (path === '/api/archive') resp = await gated(request, env, () => handleArchive(url, env));
       // Free: prices are a commodity and the official sources publish them.
       else if (path === '/api/finance') resp = await handleFinance(url, env, ctx);
+      else if (path === '/api/money') resp = await handleMoneyOutlook(env, ctx);
+      else if (path === '/api/money/run' && request.method === 'POST') resp = await handleMoneyOutlookRun(request, env);
       else if (path === '/api/outlook/run' && request.method === 'POST') resp = await handleOutlookRun(request, env);
       else if (path === '/api/zones/run' && request.method === 'POST') resp = await handleZonesRun(request, env);
       else resp = json({ error: 'Not found', see: '/health' }, 404);
