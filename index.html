@@ -1773,29 +1773,83 @@ body {
 .fund-gap a{ color:var(--amber,#c8a84b); }
 
 /* ─── MONEY NOTE (news page) + RANKING (money page) ─────────────────────── */
-.nw-money{ margin:34px 0 0; padding:24px 0 0; border-top:2px solid var(--amber,#c8a84b);
+.nw-money{ margin:34px 0 0; padding:24px 0 0; border-top:2px solid var(--nw-ink);
   scroll-margin-top:96px; }
 .nw-money-head{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-.nw-money-k{ font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.18em; color:var(--amber,#c8a84b); }
-.nw-money-meta{ font:400 11px/1 var(--mono,ui-monospace,monospace); color:var(--muted,#8b8578); }
+.nw-money-k{ font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.18em; color:var(--nw-red); }
+.nw-money-meta{ font:400 11px/1 var(--mono,ui-monospace,monospace); color:var(--nw-grey); }
 .nw-money-hed{ margin:10px 0 12px; font-family:'Playfair Display',Georgia,serif; font-weight:700;
-  font-size:clamp(21px,2.6vw,27px); line-height:1.22; color:var(--text,#e8e3d8); text-wrap:balance; }
+  font-size:clamp(21px,2.6vw,27px); line-height:1.22; color:var(--nw-ink); text-wrap:balance; }
 .nw-money-p{ margin:0 0 12px; max-width:68ch; font:400 16px/1.66 'Source Serif 4',Georgia,serif;
-  color:var(--text,#e8e3d8); }
-.nw-money-rem{ margin:16px 0; padding:14px 18px; border-left:2px solid var(--amber,#c8a84b);
-  background:rgba(200,175,110,.03); }
-.nw-money-rem .nw-money-p{ margin:7px 0 0; font-size:15px; color:var(--muted,#8b8578); }
+  color:#2b2622; }
+.nw-money-rem{ margin:16px 0; padding:14px 18px; border-left:3px solid var(--nw-red);
+  background:var(--nw-panel); }
+.nw-money-rem .nw-money-p{ margin:7px 0 0; font-size:15px; color:#3a352f; }
 .nw-money-figs{ margin:14px 0 0; }
 .nw-money-figs summary{ cursor:pointer; font:600 11px/1 var(--mono,ui-monospace,monospace);
-  letter-spacing:.1em; color:var(--amber,#c8a84b); }
+  letter-spacing:.1em; color:var(--nw-red); }
 .nw-money-figs ul{ margin:12px 0 0; padding:0; list-style:none; }
 .nw-money-figs li{ display:flex; gap:14px; justify-content:space-between; padding:7px 0;
   border-bottom:1px solid rgba(200,175,110,.06); font:400 12px/1.5 var(--mono,ui-monospace,monospace);
-  color:var(--muted,#8b8578); flex-wrap:wrap; }
-.nw-money-figs li b{ color:var(--text,#e8e3d8); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  color:var(--nw-grey); flex-wrap:wrap; }
+.nw-money-figs li b{ color:var(--nw-ink); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .nw-money-foot{ margin:16px 0 0; max-width:72ch; font:400 12px/1.6 var(--mono,ui-monospace,monospace);
-  color:var(--muted,#8b8578); }
-.nw-money-foot a{ color:var(--amber,#c8a84b); }
+  color:var(--nw-grey); }
+.nw-money-foot a{ color:var(--nw-red); }
+
+/* ─── FRONT PAGE GRID (wire-service / financial daily) ──────────────────────
+   Three tracks: the lead with its photograph, a ranked digest, a data rail.
+   The arrangement a financial front page uses — the whole state of the day in
+   one screen, then descend. Keeps the paper's existing identity (Playfair
+   display, Source Serif body, gold hairlines) rather than importing another
+   publication's look wholesale. */
+.nw-front{ display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,.85fr) minmax(0,.75fr);
+  gap:30px; align-items:start; padding-bottom:26px;
+  border-bottom:1px solid var(--nw-rule); }
+.nw-front-lead h2{ margin:6px 0 12px; font-family:'Playfair Display',Georgia,serif; font-weight:900;
+  font-size:clamp(28px,3.6vw,44px); line-height:1.06; letter-spacing:-.015em;
+  color:var(--nw-ink); text-wrap:balance; }
+
+.nw-col-h{ padding-bottom:7px; margin-bottom:12px;
+  border-bottom:2px solid var(--nw-ink);
+  font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.18em;
+  color:var(--nw-ink); text-transform:uppercase; }
+.nw-digest-item{ display:grid; grid-template-columns:auto 1fr; gap:4px 11px; padding:11px 0;
+  border-bottom:1px solid var(--nw-rule); text-decoration:none; cursor:pointer; }
+.nw-digest-item:hover .nw-digest-t{ color:var(--nw-red); }
+.nw-digest-n{ grid-row:span 2; font:600 11px/1.4 var(--mono,ui-monospace,monospace);
+  color:var(--nw-red); font-variant-numeric:tabular-nums; }
+.nw-digest-t{ font:600 15px/1.34 'Source Serif 4',Georgia,serif; color:var(--nw-ink);
+  transition:color .15s; }
+.nw-digest-m{ display:flex; align-items:center; gap:7px;
+  font:400 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.1em;
+  color:var(--nw-grey); text-transform:uppercase; }
+.nw-dot{ width:6px; height:6px; border-radius:50%; display:inline-block; background:var(--nw-grey); }
+.nw-dot.critical{ background:var(--nw-red); } .nw-dot.high{ background:#d2691e; }
+.nw-dot.medium{ background:#b8860b; } .nw-dot.low{ background:#1a7a33; }
+
+.nw-tape-row{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+  padding:8px 0; border-bottom:1px solid var(--nw-rule); }
+.nw-tape-k{ font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.1em;
+  color:var(--nw-grey); }
+.nw-tape-v{ flex:1; text-align:right; font:600 14px/1 var(--mono,ui-monospace,monospace);
+  font-variant-numeric:tabular-nums; color:var(--nw-ink); }
+.nw-tape-c{ min-width:62px; text-align:right; font:400 11px/1 var(--mono,ui-monospace,monospace);
+  font-variant-numeric:tabular-nums; color:var(--nw-grey); }
+.nw-tape-c.up{ color:#1a7a33; } .nw-tape-c.down{ color:var(--nw-red); }
+.nw-tape-c i{ font-style:normal; opacity:.55; margin-left:3px; font-size:9px; }
+.nw-tape-more{ display:block; margin-top:11px; text-decoration:none;
+  font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.1em; color:var(--nw-red); }
+
+@media (max-width:1100px){
+  .nw-front{ grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); }
+  .nw-front-rail{ grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:0 30px; align-items:start; }
+}
+@media (max-width:720px){
+  .nw-front{ grid-template-columns:1fr; gap:24px; }
+  .nw-front-rail{ grid-template-columns:1fr; }
+}
+
 
 .rank-table .rank-n{ font:600 15px/1 var(--mono,ui-monospace,monospace); color:var(--amber,#c8a84b);
   font-variant-numeric:tabular-nums; width:1%; padding-right:16px; }
@@ -1930,7 +1984,7 @@ body {
 .nw-tags{ display:flex; gap:8px; align-items:center; flex-wrap:wrap;
   font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; }
 .nw-sev{ padding:2px 7px; color:#fff; font-weight:600; }
-.nw-sev.critical{background:var(--nw-red)} .nw-sev.high{background:#c85c1a}
+.nw-sev.critical{background:var(--nw-red)} .nw-sev.high{background:#a34b12}
 .nw-sev.medium{background:#a8892f} .nw-sev.low{background:#5f7a58}
 .nw-cat{ color:var(--nw-grey); }
 .nw-why-m{ font-size:13px; font-style:italic; color:var(--nw-grey); line-height:1.45; }
@@ -4166,6 +4220,18 @@ function getRSSFeeds(loc) {
     { key:'RSS_RAP2', src:'Rappler PH',url:'https://www.rappler.com/nation/feed/',                tag:'news' },
     { key:'RSS_STAR', src:'PhilStar',  url:'https://www.philstar.com/rss/headlines',              tag:'news' },
     { key:'RSS_STAR2',src:'PStar Nat', url:'https://www.philstar.com/rss/nation',                 tag:'news' },
+    // PH business & finance desks. Bilyonaryo's /feed/ returns HTML, not RSS —
+    // its WordPress REST API is the working path, and the DEFAULT endpoint
+    // returns golf and lifestyle, so it is filtered to Business (5) and Money
+    // and Trade (7) or the economy category fills with sport.
+    { key:'RSS_BWORLD',src:'BusinessWorld', url:'https://www.bworldonline.com/feed/',                tag:'news' },
+    { key:'RSS_STARB', src:'PStar Biz',   url:'https://www.philstar.com/rss/business',              tag:'news' },
+    // Bilyonaryo is NOT wired: its /feed/ serves HTML, and while its WordPress
+    // REST API works from a browser it answers Cloudflare egress with a
+    // .well-known bot-wall redirect — the same block that took Inquirer out
+    // (verified 2026-09-10 via both /proxy and /proxy-rss). Re-add only if it
+    // answers 200 with a JSON array through the worker.
+    // { key:'JSON_BILYO', src:'Bilyonaryo', url:'https://bilyonaryo.com/wp-json/wp/v2/posts?categories=5,7&per_page=20&_fields=title,link,date,excerpt', tag:'news', kind:'wp' },
     { key:'RSS_PTV',  src:'PTV News',  url:'https://ptvnews.ph/feed/',                           tag:'gov' },
     // Verified 2026-09-10 via /proxy-rss: all answer 200 with current items.
     { key:'RSS_GDACS_A', src:'GDACS',  url:'https://www.gdacs.org/xml/rss.xml',                   tag:'disaster' },
@@ -4498,6 +4564,7 @@ const SOURCE_NAMES = {   // v5.5: retired sources removed, new keys added
   'FX':'BSP/FX','WORLDBANK':'WBANK','RSS_RELIEFWEB':'RELIEFWB','RSS_BBCASIA':'BBC','OVERPASS':'OSM','NDCC':'NDRRMC','PHIVOLCS':'PHIVOLCS',
   'RSS_PTV':'PTV','RSS_GMA':'GMA','RSS_RAP':'RAPPLER','RSS_STAR':'PSTAR',
   'RSS_GMA2':'GMA-W','RSS_RAP2':'RAPPLER-PH','RSS_STAR2':'PSTAR-N',
+  'RSS_BWORLD':'BWORLD','RSS_STARB':'PSTAR-B',
   'RSS_GDACS_A':'GDACS-A','RSS_RW_DIS':'RW-DIS','RSS_USGS_W':'USGS-W',
   'TAVILY':'TAVILY','TAVILY_PH':'TAVILY-PH',
   'SOCIAL_X':'X(Twitter)','SOCIAL_FB':'Facebook','SOCIAL_IG':'Instagram','SOCIAL_SCRAPER':'SOCIAL',
@@ -5349,6 +5416,26 @@ async function fetchRSS(feed) {
     if (head.startsWith('{')) {
       let j = null; try { j = JSON.parse(txt); } catch {}
       if (j && j.error) throw new Error(String(j.error) + (j.host ? ' (' + j.host + ')' : ''));
+    }
+    // WordPress REST feeds (Bilyonaryo): their /feed/ path serves HTML, so the
+    // JSON API is the only working route. It returns an ARRAY, which the
+    // upstream-error check above (an object with .error) correctly ignores.
+    if (feed.kind === 'wp' && head.startsWith('[')) {
+      let arr = null; try { arr = JSON.parse(txt); } catch {}
+      if (!Array.isArray(arr)) throw new Error('WP JSON parse error');
+      const strip = h => String(h || '').replace(/<[^>]+>/g, '')
+        .replace(/&#8216;|&#8217;/g, "'").replace(/&#8220;|&#8221;/g, '"')
+        .replace(/&amp;/g, '&').replace(/&#\d+;/g, '').trim();
+      return arr.slice(0, 8).map((post, i) => {
+        const title = strip(post.title && post.title.rendered) || 'Untitled';
+        const desc  = strip(post.excerpt && post.excerpt.rendered).slice(0, 220);
+        const ex = extractLocationFromText(title + ' ' + desc);
+        return { id: `${feed.key}-${i}`, source: feed.src, tag: feed.tag || 'news',
+          category: guessCategory(title + ' ' + desc), severity: guessGdeltSeverity(title + ' ' + desc),
+          title, body: desc, url: post.link || '',
+          loc: ex.loc || 'Philippines', lat: ex.lat, lng: ex.lng,
+          time: timeAgo(post.date || Date.now()) };
+      });
     }
     if (/^<!DOCTYPE\s+html|^<html[\s>]/i.test(head) || /cf-error|Just a moment|Attention Required|403 Forbidden/i.test(txt.slice(0, 2000))) {
       throw new Error('blocked: publisher refused the fetch, not a feed');
@@ -7686,6 +7773,33 @@ async function passInit(){
 }
 
 
+
+// The markets rail on the front page. Reads the SAME /api/finance record the
+// money page serves, so the front page and the money page can never disagree
+// about a number.
+async function nwTape(){
+  const el = document.getElementById('nw-tape'); if (!el) return;
+  try{
+    const d = await fetchFinance();
+    const rows = [];
+    if (d.peso) rows.push({ k:'USD/PHP', v:d.peso.usd_php.toFixed(3),
+      c:d.peso.change_pct === null ? null : d.peso.change_pct });
+    if (d.psei) rows.push({ k:'PSEi', v:d.psei.close.toLocaleString('en-PH',{maximumFractionDigits:2}),
+      c:d.psei.period_change_pct, note:'yr' });
+    if (d.fmetf) rows.push({ k:'FMETF', v:d.fmetf.close.toFixed(2), c:d.fmetf.period_change_pct, note:'yr' });
+    for (const c of (d.crypto||[]).slice(0,1)) rows.push({ k:c.id==='bitcoin'?'BTC/PHP':'ETH/PHP',
+      v:Math.round(c.php).toLocaleString('en-PH'), c:c.change_24h, note:'24h' });
+    el.innerHTML = rows.map(r=>`
+      <div class="nw-tape-row">
+        <span class="nw-tape-k">${nwEsc(r.k)}</span>
+        <span class="nw-tape-v">${nwEsc(r.v)}</span>
+        ${r.c === null || r.c === undefined ? '<span class="nw-tape-c"></span>' :
+          `<span class="nw-tape-c ${r.c>=0?'up':'down'}">${r.c>0?'+':''}${r.c}%${r.note?`<i>${r.note}</i>`:''}</span>`}
+      </div>`).join('') +
+      `<a class="nw-tape-more" href="#" onclick="closeNews();openFinance();return false;">Full money page &rarr;</a>`;
+  }catch{ el.innerHTML = '<span class="nw-why">Market data unavailable.</span>'; }
+}
+
 // ─── MONEY NOTE ON THE NEWS PAGE ──────────────────────────────────────────
 // Written once a day by Claude Sonnet on the 06:00 PHT cron and cached in KV.
 // This is MARKET COMMENTARY, not financial advice: the generator is barred
@@ -8235,17 +8349,38 @@ function nwRender(rec){
   document.getElementById('nw-strap-conf').textContent =
     b.confidence ? 'Confidence ' + b.confidence : '';
 
+  // Lead block on a wire-service grid: a dominant lead with its photograph,
+  // a ranked digest column, and a data rail — the arrangement a financial
+  // front page uses because it lets a reader take the whole state of the day
+  // in one screen, then descend. Photography is editorial, not decorative:
+  // each image is chosen for the lead's own category, and it is self-hosted
+  // because the licence bars permanent hotlinking.
+  const digest = devs.slice(1, 5);
+
   const lead = `
-    <div class="nw-lead">
-      <div>
+    <div class="nw-front">
+      <article class="nw-front-lead">
         <div class="nw-kicker">Lead &middot; ${nwEsc((devs[0]&&devs[0].category)||'National')}</div>
         <h2>${nwEsc(b.headline)}</h2>
         ${b.anchor_lead ? `<p class="nw-anchor">${nwEsc(b.anchor_lead)}</p>` : ''}
         ${b.situation ? `<p class="nw-situation">${nwEsc(b.situation)}</p>` : ''}
         ${devs[0] ? nwCites(devs[0].refs, refs) : ''}
+      </article>
+
+      <div class="nw-front-digest">
+        <div class="nw-col-h">Also developing</div>
+        ${digest.length ? digest.map((d,i)=>`
+          <a class="nw-digest-item" href="#dev-${i}" onclick="document.getElementById('dev-${i}')?.scrollIntoView({block:'center'});return false;">
+            <span class="nw-digest-n">${String(i+1).padStart(2,'0')}</span>
+            <span class="nw-digest-t">${nwEsc(d.title)}</span>
+            <span class="nw-digest-m"><i class="nw-dot ${(d.severity||'low').toLowerCase()}"></i>${nwEsc(d.category||'')}</span>
+          </a>`).join('') : '<p class="nw-why">Nothing further this edition.</p>'}
       </div>
-      <aside class="nw-rail">
-        <h3>Priority Actions</h3>
+
+      <aside class="nw-front-rail">
+        <div class="nw-col-h">Markets</div>
+        <div id="nw-tape" class="nw-tape"><span class="nw-why">Loading&hellip;</span></div>
+        <div class="nw-col-h" style="margin-top:22px">Priority actions</div>
         ${ords.length ? ords.map((o,i)=>`
           <div class="nw-order">
             <span class="nw-order-n">${String(i+1).padStart(2,'0')}</span>
@@ -8262,7 +8397,7 @@ function nwRender(rec){
     <div class="nw-devs">
       ${rest.map(d=>{
         const sev=(d.severity||'low').toLowerCase();
-        return `<article class="nw-dev ${sev}">
+        return `<article class="nw-dev ${sev}" id="dev-${rest.indexOf(d)}">
           <h4>${nwEsc(d.title)}</h4>
           <div class="nw-tags"><span class="nw-sev ${sev}">${nwEsc(sev)}</span><span class="nw-cat">${nwEsc(d.category||'')}</span></div>
           <p>${nwEsc(d.what)}</p>
@@ -8306,6 +8441,7 @@ function nwRender(rec){
   // The money note is fetched separately so a slow or missing money record can
   // never delay or break the bulletin itself.
   nwMoneyHtml().then(h => { if (h) document.getElementById('nw-body').insertAdjacentHTML('beforeend', h); });
+  nwTape();
 }
 
 // News is the landing view: a visitor should meet the bulletin, not the

@@ -1,6 +1,6 @@
 /**
  * JDM Command Center — Cloudflare Worker Proxy
- * Version: 3.7.0 (2026-09-10) — daily money note by Sonnet on the 06:00 PHT cron (/api/money)
+ * Version: 3.7.1 (2026-09-10) — allowlist Bilyonaryo for the PH business feeds
  *
  * Merges the live v1.0.0 worker (domain allowlist, legacy /proxy-* routes) with the
  * repo v2.1.0 worker (keyed /api/* routes) — the dashboard needs BOTH families.
@@ -29,7 +29,7 @@
  * Vars (wrangler.toml): ALLOWED_ORIGINS, RATE_LIMIT, MAX_RESPONSE_SIZE
  */
 
-const VERSION = '3.7.0';
+const VERSION = '3.7.1';
 const UPSTREAM_TIMEOUT_MS = 15000;
 let MAX_BYTES_DEFAULT = 5242880;   // overridden per request from env.MAX_RESPONSE_SIZE
 const FRESH_TTL = 300;          // seconds a cached upstream body is considered fresh
@@ -41,6 +41,8 @@ const ALLOWED_DOMAINS = new Set([
   'news.google.com', 'newsinfo.inquirer.net', 'data.gmanetwork.com', 'www.gmanetwork.com',
   'www.rappler.com', 'www.philstar.com', 'ptvnews.ph', 'mb.com.ph', 'news.abs-cbn.com',
   'www.sunstar.com.ph', 'www.pna.gov.ph', 'www.manilatimes.net', 'www.bworldonline.com',
+  // PH business/finance desks (money page + economy category)
+  'bilyonaryo.com', 'www.bilyonaryo.com',
   // International
   'feeds.bbci.co.uk', 'www.youtube.com',
   // Weather / disaster / gov
