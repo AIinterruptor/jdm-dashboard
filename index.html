@@ -7440,9 +7440,13 @@ function openPassSheet(note){
        ${passes.map(p=>passRow(p)).join('')}
        <button class="pass-link" onclick="passSignOut()">Remove this pass from this device</button>`
     : `${note ? `<p class="pass-note">${escHtml(note)}</p>` : ''}
-       <p class="pass-note">The news bulletin stays free. A pass unlocks the
-         <strong>command centre</strong>, the <strong>brief archive</strong> and the
-         <strong>7-day regional outlook</strong>.</p>
+       <p class="pass-note">The bulletin and the <strong>7-day outlook</strong> stay free.
+         A pass unlocks the <strong>brief archive</strong> &mdash; every past edition,
+         searchable &mdash; and the <strong>reporting-volume history</strong> behind the
+         command centre.</p>
+       <p class="pass-note">The archive is the part with no substitute: a
+         longitudinal record of what was reported in the Philippines, categorised,
+         severity-scored and cited. It grows by two editions a day.</p>
        ${passes.map(p=>passRow(p)).join('')}
        <div class="pass-sep">Already bought one?</div>
        <div class="pass-recover">
@@ -7557,10 +7561,10 @@ async function fetchOutlook(){
   let base = getProxyBase();
   for (let i = 0; i < 20 && !base; i++) { await new Promise(r => setTimeout(r, 250)); base = getProxyBase(); }
   if (!base) base = 'https://jdm-proxy.josed-jdm.workers.dev';
-  const r = await fetch(`${base}/api/outlook`, { headers: passHeaders(), signal: AbortSignal.timeout(15000) });
-  // 402 is the pass gate, not a failure: show the unlock sheet rather than an
-  // error the reader cannot act on.
-  if (r.status === 402) { const d = await r.json().catch(() => ({})); passLocked(d.error); throw new Error('Operator Pass required'); }
+  // Free route: PAGASA publishes the official forecast and our own footer points
+  // readers there, so charging for a nicer rendering of public data was the
+  // weakest thing to gate. No pass header, and it keeps the shared edge cache.
+  const r = await fetch(`${base}/api/outlook`, { signal: AbortSignal.timeout(15000) });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const d = await r.json();
   d._t = Date.now(); _outlookRec = d; return d;

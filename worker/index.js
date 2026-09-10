@@ -1,6 +1,6 @@
 /**
  * JDM Command Center — Cloudflare Worker Proxy
- * Version: 3.3.1 (2026-09-10) — Operator Pass repriced for a PH individual (₱199/mo, ₱1,990/yr)
+ * Version: 3.4.0 (2026-09-10) — gate swap: outlook/zones FREE, brief archive PAID (+ archive route, TTLs removed)
  *
  * Merges the live v1.0.0 worker (domain allowlist, legacy /proxy-* routes) with the
  * repo v2.1.0 worker (keyed /api/* routes) — the dashboard needs BOTH families.
@@ -29,7 +29,7 @@
  * Vars (wrangler.toml): ALLOWED_ORIGINS, RATE_LIMIT, MAX_RESPONSE_SIZE
  */
 
-const VERSION = '3.3.1';
+const VERSION = '3.4.0';
 const UPSTREAM_TIMEOUT_MS = 15000;
 let MAX_BYTES_DEFAULT = 5242880;   // overridden per request from env.MAX_RESPONSE_SIZE
 const FRESH_TTL = 300;          // seconds a cached upstream body is considered fresh
@@ -371,7 +371,9 @@ async function collectFeeds(env) {
     const hours = Array.from({ length: 24 }, () => ({ n: 0, cat: {}, sev: {} }));
     for (const it of doc.items) { const hh = hours[phtHour(it.ts)]; hh.n++; hh.cat[it.c] = (hh.cat[it.c] || 0) + 1; hh.sev[it.v] = (hh.sev[it.v] || 0) + 1; }
     await kvPutJson(env, `feeds:${day}`, doc, 40 * 86400);
-    await kvPutJson(env, `hist:${day}`, { day, hours, updated: now, items: doc.items.length }, 40 * 86400);
+    // No TTL either: the hourly volume history IS the baseline that osintSignals
+    // scores against, and it is the part of the archive that genuinely compounds.
+    await kvPutJson(env, `hist:${day}`, { day, hours, updated: now, items: doc.items.length });
   }
   await kvPutJson(env, 'collector:last', { at: now, fetched: fresh.length, added, failed }, 7 * 86400);
   if (!(await kvGetJson(env, 'collector:first'))) await kvPutJson(env, 'collector:first', { at: now });   // recording start, for baselines
@@ -476,7 +478,28 @@ async function generateBrief(env, reason) {
   const res = await callHaiku(env, DIRECTOR_SYSTEM, user);
   const rec = { generated_at: now, generated_pht: stamp, reason, model: res.model, mode: res.mode, structured_error: res.structuredError, items_considered: items.length, items_listed: ranked.length, usage: res.usage, brief: res.brief, signals: sig,
     refs: ranked.map(i => ({ t: i.t, s: i.s, l: /^https?:\/\//i.test(i.l) ? i.l : '' })) };
-  await kvPutJson(env, `brief:${phtDate(now)}-${String(pht.getUTCHours()).padStart(2, '0')}`, rec, 40 * 86400);
+  // NO TTL. This is the archive, and it is the one asset that compounds: a
+  // longitudinal record of what was reported in PH and how heavily. A 40-day
+  // expiry (what this used to carry) capped the paid product at 40 days
+  // forever and quietly destroyed the inventory as it aged. KV keys without a
+  // TTL persist indefinitely and cost nothing at two editions a day.
+  await kvPutJson(env, `brief:${phtDate(now)}-${String(pht.getUTCHours()).padStart(2, '0')}`, rec);
+  // Index maintained AT WRITE TIME so the archive listing is one KV read
+  // rather than a fan-out over every edition. The gated route cannot hide
+  // behind edgeCached, so a per-request fan-out would get expensive as the
+  // archive grows.
+  try {
+    const idx = (await kvGetJson(env, 'brief:index')) || { editions: [] };
+    const key = `brief:${phtDate(now)}-${String(pht.getUTCHours()).padStart(2, '0')}`;
+    idx.editions = [{ key, day: phtDate(now), slot: String(pht.getUTCHours()).padStart(2, '0'),
+                      generated_pht: rec.generated_pht, mode: rec.mode,
+                      headline: rec.brief?.headline || null,
+                      items: rec.items_considered ?? null,
+                      confidence: rec.brief?.confidence || null },
+                    ...idx.editions.filter(e => e.key !== key)];
+    idx.updated = now;
+    await kvPutJson(env, 'brief:index', idx);
+  } catch (e) { /* the edition itself is already stored; an index slip is not fatal */ }
   await kvPutJson(env, 'brief:latest', rec);
   return rec;
 }
@@ -911,6 +934,51 @@ async function handleBriefRun(request, env, ctx) {
 }
 
 // ─── Router ───────────────────────────────────────────────────────────
+// ─── BRIEF ARCHIVE: the paid product ──────────────────────────────────────
+// The archive is the only asset here with no substitute anywhere. PAGASA
+// publishes forecasts for free, so a 7-day outlook is a commodity; nobody
+// publishes a queryable longitudinal record of what was reported in the
+// Philippines, categorised, severity-scored and cited. It accumulates two
+// editions a day whether or not anyone is reading.
+//
+// GET /api/archive           -> the index (one KV read, built at write time)
+// GET /api/archive?key=...   -> one past edition
+async function handleArchive(url, env) {
+  if (!env.JDM_KV) return json({ error: 'JDM_KV not bound' }, 503);
+  const key = (url.searchParams.get('key') || '').trim();
+
+  if (key) {
+    // Only ever an archive edition. Without this a caller could name
+    // 'brief:lasterror' — or any other key in the namespace — and read it.
+    if (!/^brief:\d{8}-\d{2}$/.test(key)) return json({ error: 'Not an archive edition.' }, 400);
+    const rec = await kvGetJson(env, key);
+    if (!rec) return json({ error: 'No edition under that key.' }, 404);
+    return json({ ok: true, key, ...rec });
+  }
+
+  let idx = await kvGetJson(env, 'brief:index');
+  if (!idx || !Array.isArray(idx.editions) || !idx.editions.length) {
+    // Backfill for editions written before the index existed. Key names carry
+    // the date and slot, so the listing needs no record reads. brief:latest and
+    // brief:lasterror live under the same prefix and are NOT editions.
+    const out = []; let cursor;
+    do {
+      const page = await env.JDM_KV.list({ prefix: 'brief:', cursor });
+      for (const k of page.keys) {
+        const m = /^brief:(\d{8})-(\d{2})$/.exec(k.name);
+        if (m) out.push({ key: k.name, day: m[1], slot: m[2] });
+      }
+      cursor = page.list_complete ? null : page.cursor;
+    } while (cursor);
+    idx = { editions: out.sort((a, b) => b.key.localeCompare(a.key)), backfilled: true };
+  }
+  const days = new Set(idx.editions.map(e => e.day));
+  return json({ ok: true, count: idx.editions.length, days_covered: days.size,
+                oldest: idx.editions.length ? idx.editions[idx.editions.length - 1].day : null,
+                newest: idx.editions.length ? idx.editions[0].day : null,
+                editions: idx.editions, backfilled: !!idx.backfilled });
+}
+
 // ─── ACCESS PASSES: prepaid 30-day access, paid by QRPh ────────────────────
 // PayMongo on this account has NO recurring billing — /v1/subscriptions returns
 // `merchant_invalid_state` and /v1/plans does not exist — so nothing can auto
@@ -1196,8 +1264,15 @@ export default {
       else if (path === '/api/pass/webhook' && request.method === 'POST') resp = await handlePassWebhook(request, env);
       else if (path === '/api/pass/claim' && request.method === 'POST') resp = await handlePassClaim(request, env);
       else if (path === '/api/pass/grant' && request.method === 'POST') resp = await handlePassGrant(request, env);
-      else if (path === '/api/zones') resp = await gated(request, env, () => handleZones(env, ctx));
-      else if (path === '/api/outlook') resp = await gated(request, env, () => handleOutlook(env, ctx));
+      // /api/outlook and /api/zones are FREE. The 7-day forecast is a commodity:
+      // PAGASA publishes it officially and our own footer tells readers to check
+      // PAGASA for warnings — charging for a nicer rendering of public data was
+      // the weakest thing to gate. Free, they are the funnel; and being
+      // un-gated they keep the shared edge cache.
+      else if (path === '/api/zones') resp = await handleZones(env, ctx);
+      else if (path === '/api/outlook') resp = await handleOutlook(env, ctx);
+      // The archive IS the paid product.
+      else if (path === '/api/archive') resp = await gated(request, env, () => handleArchive(url, env));
       else if (path === '/api/outlook/run' && request.method === 'POST') resp = await handleOutlookRun(request, env);
       else if (path === '/api/zones/run' && request.method === 'POST') resp = await handleZonesRun(request, env);
       else resp = json({ error: 'Not found', see: '/health' }, 404);
