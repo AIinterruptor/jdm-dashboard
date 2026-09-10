@@ -1,6 +1,6 @@
 /**
  * JDM Command Center — Cloudflare Worker Proxy
- * Version: 3.2.1 (2026-09-05) — KV collector + history + Haiku curator brief + disaster zones (both every 12 h)
+ * Version: 3.3.0 (2026-09-10) — adds prepaid Operator Pass (QRPh via PayMongo): worker-side gate on dashboard/archive/outlook
  *
  * Merges the live v1.0.0 worker (domain allowlist, legacy /proxy-* routes) with the
  * repo v2.1.0 worker (keyed /api/* routes) — the dashboard needs BOTH families.
@@ -29,7 +29,7 @@
  * Vars (wrangler.toml): ALLOWED_ORIGINS, RATE_LIMIT, MAX_RESPONSE_SIZE
  */
 
-const VERSION = '3.2.1';
+const VERSION = '3.3.0';
 const UPSTREAM_TIMEOUT_MS = 15000;
 let MAX_BYTES_DEFAULT = 5242880;   // overridden per request from env.MAX_RESPONSE_SIZE
 const FRESH_TTL = 300;          // seconds a cached upstream body is considered fresh
@@ -86,8 +86,8 @@ function corsHeaders(request, env) {
   return {
     'Access-Control-Allow-Origin': ok ? origin : list[0],
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
-    'Access-Control-Expose-Headers': 'X-JDM-Cache, X-JDM-Age, X-JDM-Upstream-Status, X-JDM-Version',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token, X-Pass-Key',
+    'Access-Control-Expose-Headers': 'X-JDM-Cache, X-JDM-Age, X-JDM-Upstream-Status, X-JDM-Version, X-Pass-Days-Left',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
@@ -911,6 +911,220 @@ async function handleBriefRun(request, env, ctx) {
 }
 
 // ─── Router ───────────────────────────────────────────────────────────
+// ─── ACCESS PASSES: prepaid 30-day access, paid by QRPh ────────────────────
+// PayMongo on this account has NO recurring billing — /v1/subscriptions returns
+// `merchant_invalid_state` and /v1/plans does not exist — so nothing can auto
+// charge a card next month. A prepaid PASS is what these rails can actually
+// sell: pay once, get N days, re-purchase when it lapses.
+//
+// State is one KV document per pass holding an EXPIRY DATE, not a balance.
+// That is the whole reason this does not port the Human Atlas D1 ledger: the
+// ledger's complexity exists to make credit spending atomic
+// (UPDATE ... WHERE balance >= ?), and KV cannot do that safely. An expiry date
+// has no double-spend to guard, so last-write-wins is correct here.
+const PASSES = [
+  // The server decides what a pass costs and grants; the client only names an id.
+  { id: 'month', name: 'Operator Pass — 30 days', days: 30, centavos: 49900 },
+  { id: 'year',  name: 'Operator Pass — 12 months', days: 365, centavos: 499000 },
+];
+const PASS_PREFIX = 'pass:';
+const PASS_TTL_SLACK = 30 * 86400;   // keep a lapsed pass readable for a month so a re-purchase can extend it
+
+// A pass key is the bearer credential. 32 hex = 128 bits of CSPRNG — guessing
+// is not a threat model. Stored under its own SHA-256 so a KV dump does not
+// hand over working keys.
+function newPassKey() {
+  const b = new Uint8Array(16); crypto.getRandomValues(b);
+  return [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+async function passHash(key) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(key || '')));
+  return [...new Uint8Array(d)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+// The gate. Returns {ok, expires_at} — never throws, because a KV blip must not
+// turn into a 500 on a paying customer's dashboard.
+async function passStatus(request, env) {
+  const key = (request.headers.get('X-Pass-Key') || new URL(request.url).searchParams.get('pass') || '').trim();
+  if (!key) return { ok: false, reason: 'no_pass' };
+  const rec = await kvGetJson(env, PASS_PREFIX + (await passHash(key)));
+  if (!rec) return { ok: false, reason: 'unknown' };
+  if (!(rec.expires_at > Date.now())) return { ok: false, reason: 'expired', expires_at: rec.expires_at };
+  return { ok: true, expires_at: rec.expires_at, days_left: Math.ceil((rec.expires_at - Date.now()) / 86400000) };
+}
+
+// Wrap a handler so the route is gated AT THE WORKER. Hiding a div in
+// index.html is not a paywall — anyone can call /api/* directly.
+//
+// Note what this deliberately does NOT do: call edgeCached. A ~120s SHARED
+// cache in front of an authenticated response either serves gated content to an
+// anonymous visitor or pins a cached 401 onto a paying customer. Gated routes
+// read KV directly; that is a single KV read per request, which is cheap and
+// correct.
+async function gated(request, env, produce) {
+  const st = await passStatus(request, env);
+  if (!st.ok) return json({ error: 'This view needs an Operator Pass.', locked: true, reason: st.reason }, 402);
+  const resp = await produce();
+  const h = new Headers(resp.headers);
+  h.set('X-Pass-Days-Left', String(st.days_left ?? 0));
+  return new Response(resp.body, { status: resp.status, headers: h });
+}
+
+// GET /api/pass — what does this key entitle the holder to? Public route:
+// answering "no" is not a secret, and the news page uses it to decide whether
+// to show the unlock prompt or the dashboard.
+async function handlePassStatus(request, env) {
+  const st = await passStatus(request, env);
+  return json({ ok: st.ok, reason: st.reason || null,
+                expires_at: st.expires_at || null, days_left: st.days_left || 0,
+                passes: PASSES.map(p => ({ id: p.id, name: p.name, days: p.days, centavos: p.centavos })) });
+}
+
+// POST /api/pass/checkout — start a PayMongo Checkout Session for one pass.
+// No sign-in: there is no account to attach anything to. The pass is minted by
+// the WEBHOOK (the only party that knows a payment succeeded) and claimed by
+// the browser afterwards using the checkout session id.
+async function handlePassCheckout(request, env) {
+  if (!env.PAYMONGO_SECRET_KEY) return json({ error: 'Payments are not configured yet.' }, 503);
+  const body = await request.json().catch(() => ({}));
+  const pass = PASSES.find(p => p.id === body.pass);
+  if (!pass) return json({ error: 'Unknown pass.' }, 400);
+
+  const site = (env.PASS_SITE || 'https://newsph.jdmaisolutions.com').replace(/\/+$/, '');
+  let r;
+  try {
+    r = await fetch('https://api.paymongo.com/v1/checkout_sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 Authorization: 'Basic ' + btoa(env.PAYMONGO_SECRET_KEY + ':') },
+      body: JSON.stringify({ data: { attributes: {
+        line_items: [{ name: pass.name, amount: pass.centavos, currency: 'PHP', quantity: 1 }],
+        // QRPh is the only method active on this account — identity verification
+        // failed and the BSP review is pending, so cards and e-wallets are off.
+        // Listing a method that is not enabled makes checkout FAIL rather than
+        // degrade, so this never guesses.
+        payment_method_types: (env.PAYMONGO_METHODS || 'qrph').split(','),
+        success_url: `${site}/?pass=1`,
+        cancel_url: `${site}/?pass=0`,
+        description: pass.name,
+        // Carried back on the webhook and re-resolved against PASSES there, so
+        // a tampered value cannot lengthen a pass.
+        metadata: { pass: pass.id },
+      } } }),
+    });
+  } catch {
+    return json({ error: 'Could not reach the payment provider. Please try again.' }, 502);
+  }
+  const d = await r.json().catch(() => null);
+  if (!r.ok || !d) { console.log('paymongo checkout failed', r.status); return json({ error: 'Could not start checkout. Please try again.' }, 502); }
+  return json({ ok: true, checkoutUrl: d.data?.attributes?.checkout_url, session: d.data?.id });
+}
+
+// POST /api/pass/webhook — PayMongo tells us a payment succeeded. This is the
+// ONLY route that mints a pass.
+async function handlePassWebhook(request, env) {
+  // The signature is computed over the RAW body, so read text() and never
+  // request.json() first — re-serialising changes the bytes and the HMAC fails.
+  const raw = await request.text();
+  const sig = request.headers.get('Paymongo-Signature') || '';
+  if (!env.PAYMENT_WEBHOOK_SECRET) return json({ error: 'not configured' }, 503);
+  if (!(await verifyPassSignature(raw, env.PAYMENT_WEBHOOK_SECRET, sig))) return json({ error: 'bad signature' }, 401);
+
+  let ev = null; try { ev = JSON.parse(raw); } catch { return json({ error: 'bad body' }, 400); }
+  const data = ev?.data?.attributes;
+  const type = data?.type || '';
+  if (!/payment\.paid|checkout_session\.payment\.paid/.test(type)) return json({ ok: true, ignored: type });
+
+  // A webhook can be REDELIVERED. Without this, a retry grants a second 30 days
+  // for one payment. The event id is the idempotency key.
+  const evId = ev?.data?.id || '';
+  if (evId) {
+    const seen = await kvGetJson(env, `passev:${evId}`);
+    if (seen) return json({ ok: true, duplicate: true });
+  }
+
+  const attrs = data?.data?.attributes || {};
+  const meta = attrs.metadata || data?.metadata || {};
+  const pass = PASSES.find(p => p.id === meta.pass);
+  if (!pass) return json({ ok: true, ignored: 'unknown pass id' });
+
+  // PayMongo already collected an email. Capture it on the record so a lost key
+  // can be recovered by hand — this deliberately does NOT add an email-sending
+  // dependency to this worker.
+  const email = attrs.billing?.email || attrs.payer_email || attrs.customer_email || null;
+  const sessionId = data?.data?.id || attrs.checkout_session_id || meta.session || '';
+
+  const key = newPassKey();
+  const now = Date.now();
+  const expires_at = now + pass.days * 86400000;
+  await kvPutJson(env, PASS_PREFIX + (await passHash(key)),
+    { pass: pass.id, created_at: now, expires_at, email, session: sessionId },
+    pass.days * 86400 + PASS_TTL_SLACK);
+
+  // The claim record is how the browser gets its key back after the redirect.
+  // Short-lived and single-purpose: it holds the key for 30 minutes, long
+  // enough to survive the redirect race, not long enough to be a store of keys.
+  if (sessionId) await kvPutJson(env, `passclaim:${sessionId}`, { key, expires_at }, 1800);
+  if (evId) await kvPutJson(env, `passev:${evId}`, { at: now }, 30 * 86400);
+  return json({ ok: true });
+}
+
+// POST /api/pass/claim — the browser returns from checkout and asks for the key
+// minted by the webhook. The success_url redirect RACES the webhook, so the
+// client polls this until it answers. Nothing secret rides in a URL.
+async function handlePassClaim(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const session = String(body.session || '').trim();
+  if (!session || !/^cs_[A-Za-z0-9]+$/.test(session)) return json({ error: 'bad session' }, 400);
+  const rec = await kvGetJson(env, `passclaim:${session}`);
+  if (!rec) return json({ ok: false, pending: true });
+  // One-shot: the key is handed over once, then the claim record is destroyed.
+  await env.JDM_KV.delete(`passclaim:${session}`).catch(() => {});
+  return json({ ok: true, key: rec.key, expires_at: rec.expires_at });
+}
+
+// PayMongo's signature header is `t=<unix>,te=<hex>,li=<hex>` — the test and
+// live HMACs side by side. Ported verbatim from the Human Atlas worker, where
+// it is proven against real deliveries; the format is not in PayMongo's public
+// docs.
+async function verifyPassSignature(rawBody, secret, header, maxAgeS = 300) {
+  if (!secret || !header) return false;
+  const parts = String(header).split(',');
+  if (parts.length < 3) return false;
+  const get = (p, k) => (p || '').startsWith(k + '=') ? p.slice(k.length + 1) : '';
+  const ts = get(parts[0], 't'), test = get(parts[1], 'te'), live = get(parts[2], 'li');
+  if (!ts) return false;
+  // Whichever mode signed it. NEVER fall back to the other: that would let a
+  // test-mode signature mint a live pass.
+  const expected = live || test;
+  if (!expected) return false;
+  // Reject a replayed old delivery.
+  const age = Math.abs(Date.now() / 1000 - Number(ts));
+  if (!Number.isFinite(age) || age > maxAgeS) return false;
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(ts + '.' + rawBody));
+  const hex = [...new Uint8Array(mac)].map(x => x.toString(16).padStart(2, '0')).join('');
+  return await safeEqual(hex, expected.trim().toLowerCase());
+}
+
+// POST /api/pass/grant — ADMIN_TOKEN-gated. Mints a pass without a payment, for
+// an invoiced institutional buyer (an LGU pays against an OR, not a QR code)
+// or a trial. Same gate as the /run routes and for the same reason.
+async function handlePassGrant(request, env) {
+  if (!env.ADMIN_TOKEN || !(await safeEqual(request.headers.get('X-Admin-Token'), env.ADMIN_TOKEN))) return json({ error: 'Forbidden' }, 403);
+  const body = await request.json().catch(() => ({}));
+  const days = Math.min(Math.max(parseInt(body.days, 10) || 30, 1), 3650);
+  const key = newPassKey();
+  const now = Date.now();
+  const expires_at = now + days * 86400000;
+  await kvPutJson(env, PASS_PREFIX + (await passHash(key)),
+    { pass: 'granted', created_at: now, expires_at, email: body.email || null, note: body.note || null },
+    days * 86400 + PASS_TTL_SLACK);
+  return json({ ok: true, key, expires_at, days });
+}
+
+
 export default {
   async scheduled(event, env, ctx) {
     // Collector fires on the half-hour; the brief fires at :05 (22:05 UTC = 06:05 PHT, 10:05 UTC = 18:05 PHT) so
@@ -962,11 +1176,19 @@ export default {
       else if (path === '/api/firms') resp = await handleFirms(url, env, ctx);
       else if (path === '/api/tavily') resp = await handleTavily(url, env);
       else if (path === '/api/frankfurter') resp = await handleFrankfurter(url, ctx);
-      else if (path === '/api/history') resp = await handleHistory(url, env, ctx);
+      else if (path === '/api/history') resp = await gated(request, env, () => handleHistory(url, env, ctx));
+      // /api/brief is the CURRENT edition and stays public: the news front page
+      // is the credibility artifact and must render for anyone. The archive,
+      // the outlook/weather read and the dashboard feed views are the paid views.
       else if (path === '/api/brief') resp = await handleBrief(env, ctx);
       else if (path === '/api/brief/run' && request.method === 'POST') resp = await handleBriefRun(request, env, ctx);
-      else if (path === '/api/zones') resp = await handleZones(env, ctx);
-      else if (path === '/api/outlook') resp = await handleOutlook(env, ctx);
+      else if (path === '/api/pass') resp = await handlePassStatus(request, env);
+      else if (path === '/api/pass/checkout' && request.method === 'POST') resp = await handlePassCheckout(request, env);
+      else if (path === '/api/pass/webhook' && request.method === 'POST') resp = await handlePassWebhook(request, env);
+      else if (path === '/api/pass/claim' && request.method === 'POST') resp = await handlePassClaim(request, env);
+      else if (path === '/api/pass/grant' && request.method === 'POST') resp = await handlePassGrant(request, env);
+      else if (path === '/api/zones') resp = await gated(request, env, () => handleZones(env, ctx));
+      else if (path === '/api/outlook') resp = await gated(request, env, () => handleOutlook(env, ctx));
       else if (path === '/api/outlook/run' && request.method === 'POST') resp = await handleOutlookRun(request, env);
       else if (path === '/api/zones/run' && request.method === 'POST') resp = await handleZonesRun(request, env);
       else resp = json({ error: 'Not found', see: '/health' }, 404);

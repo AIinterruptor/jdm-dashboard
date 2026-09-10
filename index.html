@@ -1682,6 +1682,55 @@ body {
    were clipping the masthead — clear them rather than fight z-index, which
    would hide the operator's live status bar behind the news page. */
 #news-page .nw-wrap{ padding-top:84px; }
+
+/* ─── OPERATOR PASS ─────────────────────────────────────────────────────── */
+/* The sheet borrows the newsroom's serif display and hairline rules so the
+   paid surface reads as part of the paper, not a bolted-on billing widget. */
+.pass-chip{ letter-spacing:.08em; }
+.pass-chip.pass-on{ border-color:var(--green,#3fb950); color:var(--green,#3fb950); }
+.pass-chip.pass-low{ border-color:var(--amber,#d29922); color:var(--amber,#d29922); }
+#pass-sheet{ position:fixed; inset:0; z-index:10050; display:none;
+  background:rgba(3,6,12,.82); backdrop-filter:blur(3px); }
+#pass-sheet.show{ display:flex; align-items:center; justify-content:center; padding:20px; }
+.pass-card{ width:min(520px,100%); max-height:88vh; overflow:auto;
+  background:var(--panel,#0d1117); border:1px solid var(--border,#30363d); border-radius:2px;
+  box-shadow:0 24px 64px rgba(0,0,0,.6); }
+.pass-head{ display:flex; align-items:center; justify-content:space-between;
+  padding:16px 20px; border-bottom:1px solid var(--border,#30363d);
+  font:600 13px/1 var(--mono,ui-monospace,monospace); letter-spacing:.14em; color:var(--text,#e6edf3); }
+.pass-x{ background:none; border:0; color:var(--muted,#8b949e); font-size:22px; line-height:1; cursor:pointer; padding:0 4px; }
+.pass-x:hover{ color:var(--text,#e6edf3); }
+#pass-body{ padding:20px; }
+.pass-note{ margin:0 0 14px; font:400 14px/1.6 'Source Serif 4',Georgia,serif; color:var(--text,#e6edf3); }
+.pass-fine{ margin:14px 0 0; font:400 12px/1.55 var(--mono,ui-monospace,monospace); color:var(--muted,#8b949e); }
+.pass-buy{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 16px; margin:0 0 10px; cursor:pointer; text-align:left;
+  background:var(--bg,#010409); border:1px solid var(--border,#30363d); border-radius:2px;
+  color:var(--text,#e6edf3); transition:border-color .15s,transform .15s; }
+.pass-buy:hover{ border-color:var(--accent,#58a6ff); transform:translateY(-1px); }
+.pass-buy-name{ font:500 14px/1.3 'Source Serif 4',Georgia,serif; }
+.pass-buy-price{ font:600 15px/1 var(--mono,ui-monospace,monospace); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.pass-sep{ margin:18px 0 10px; padding-top:14px; border-top:1px solid var(--border,#30363d);
+  font:600 11px/1 var(--mono,ui-monospace,monospace); letter-spacing:.12em; color:var(--muted,#8b949e); }
+.pass-recover{ display:flex; gap:8px; }
+.pass-recover input{ flex:1; min-width:0; padding:10px 12px; border-radius:2px;
+  background:var(--bg,#010409); border:1px solid var(--border,#30363d);
+  color:var(--text,#e6edf3); font:400 13px/1 var(--mono,ui-monospace,monospace); }
+.pass-recover input:focus{ outline:2px solid var(--accent,#58a6ff); outline-offset:1px; }
+.pass-recover button,.pass-link{ padding:10px 14px; cursor:pointer; border-radius:2px;
+  background:var(--panel,#0d1117); border:1px solid var(--border,#30363d);
+  color:var(--text,#e6edf3); font:600 12px/1 var(--mono,ui-monospace,monospace); letter-spacing:.06em; }
+.pass-recover button:hover,.pass-link:hover{ border-color:var(--accent,#58a6ff); }
+.pass-link{ width:100%; margin-top:12px; }
+.pass-keybox{ display:flex; align-items:center; gap:8px; padding:12px;
+  background:var(--bg,#010409); border:1px solid var(--accent,#58a6ff); border-radius:2px; }
+.pass-keybox code{ flex:1; min-width:0; overflow-wrap:anywhere;
+  font:600 13px/1.4 var(--mono,ui-monospace,monospace); color:var(--accent,#58a6ff); }
+.pass-keybox button{ padding:6px 10px; cursor:pointer; white-space:nowrap; border-radius:2px;
+  background:var(--panel,#0d1117); border:1px solid var(--border,#30363d);
+  color:var(--text,#e6edf3); font:600 11px/1 var(--mono,ui-monospace,monospace); }
+@media (max-width:520px){ .pass-recover{ flex-wrap:wrap; } .pass-recover button{ width:100%; } }
+
 .nw-wrap{ max-width:1180px; margin:0 auto; padding:0 28px 72px; }
 
 /* masthead */
@@ -3093,6 +3142,7 @@ window.gm_authFailure = function() {
     <button class="hdr-btn" onclick="openAnalytics()" title="Predictive analytics — 72 h outlook">OUTLOOK</button>
     <button class="hdr-btn" onclick="openNews()" title="News — the twice-daily bulletin">NEWS</button>
     <button class="hdr-btn" onclick="openWeather()" title="Seven-day regional forecast">WEATHER</button>
+    <button class="hdr-btn pass-chip" id="pass-chip" onclick="openPassSheet()" title="Operator Pass">GET PASS</button>
 
     <div class="hdr-sep"></div>
 
@@ -7326,6 +7376,176 @@ function toggleJarvis() {
 }
 
 
+// ─── OPERATOR PASS (client) ────────────────────────────────────────────────
+// The pass key is a bearer credential kept in localStorage and sent as
+// X-Pass-Key. The real gate is in the worker: hiding a panel here is a
+// convenience for the reader, not the paywall. Calling /api/* without a valid
+// pass returns 402 whatever this file does.
+const PASS_KEY_STORE = 'jdm_pass_key';
+const PASS_SESSION_STORE = 'jdm_pass_session';
+let _passState = null;
+
+function passKey(){ try { return localStorage.getItem(PASS_KEY_STORE) || ''; } catch { return ''; } }
+function passSetKey(k){ try { k ? localStorage.setItem(PASS_KEY_STORE, k) : localStorage.removeItem(PASS_KEY_STORE); } catch {} }
+// Every gated fetch goes through this so the header is never forgotten on a
+// new call site.
+function passHeaders(){ const k = passKey(); return k ? { 'X-Pass-Key': k } : {}; }
+
+async function passBase(){
+  let base = getProxyBase();
+  for (let i = 0; i < 20 && !base; i++) { await new Promise(r => setTimeout(r, 250)); base = getProxyBase(); }
+  return base || 'https://jdm-proxy.josed-jdm.workers.dev';
+}
+
+async function passRefresh(){
+  try{
+    const r = await fetch(`${await passBase()}/api/pass`, { headers: passHeaders(), signal: AbortSignal.timeout(12000) });
+    _passState = await r.json();
+  }catch{ _passState = null; }
+  passPaint();
+  return _passState;
+}
+
+// The chip in the header: the reader should always know whether they hold a
+// pass and when it lapses, without opening anything.
+function passPaint(){
+  const el = document.getElementById('pass-chip'); if (!el) return;
+  const s = _passState;
+  if (s && s.ok){
+    const d = s.days_left || 0;
+    el.textContent = d <= 7 ? `PASS · ${d}d left` : 'PASS ACTIVE';
+    el.className = 'hdr-btn pass-chip' + (d <= 7 ? ' pass-low' : ' pass-on');
+    el.title = 'Operator Pass active — expires ' + new Date(s.expires_at).toLocaleDateString('en-PH');
+  } else {
+    el.textContent = 'GET PASS';
+    el.className = 'hdr-btn pass-chip';
+    el.title = 'Unlock the command centre, the brief archive and the 7-day outlook';
+  }
+}
+
+// A 402 from any gated route lands here: show the sheet rather than a raw error.
+function passLocked(msg){
+  openPassSheet(msg || 'This view needs an Operator Pass.');
+}
+
+function openPassSheet(note){
+  const el = document.getElementById('pass-sheet'); if (!el) return;
+  const s = _passState;
+  const passes = (s && s.passes) || [];
+  const active = s && s.ok;
+  document.getElementById('pass-body').innerHTML = active
+    ? `<p class="pass-note">Your Operator Pass is active until
+         <strong>${new Date(s.expires_at).toLocaleDateString('en-PH',{day:'numeric',month:'long',year:'numeric'})}</strong>
+         (${s.days_left} days). Buying again extends it from that date &mdash; it does not restart it.</p>
+       ${passes.map(p=>passRow(p)).join('')}
+       <button class="pass-link" onclick="passSignOut()">Remove this pass from this device</button>`
+    : `${note ? `<p class="pass-note">${escHtml(note)}</p>` : ''}
+       <p class="pass-note">The news bulletin stays free. A pass unlocks the
+         <strong>command centre</strong>, the <strong>brief archive</strong> and the
+         <strong>7-day regional outlook</strong>.</p>
+       ${passes.map(p=>passRow(p)).join('')}
+       <div class="pass-sep">Already bought one?</div>
+       <div class="pass-recover">
+         <input id="pass-input" type="text" placeholder="Paste your pass key" autocomplete="off" spellcheck="false">
+         <button onclick="passRedeem()">Use key</button>
+       </div>
+       <p class="pass-fine">Payment is by QRPh through PayMongo. A pass is prepaid for a
+         fixed period &mdash; nothing recurring is set up and nothing is auto-charged when it lapses.</p>`;
+  el.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closePassSheet(){
+  document.getElementById('pass-sheet').classList.remove('show');
+  document.body.style.overflow = '';
+}
+function passRow(p){
+  return `<button class="pass-buy" onclick="passBuy('${p.id}')">
+    <span class="pass-buy-name">${escHtml(p.name)}</span>
+    <span class="pass-buy-price">&#8369;${(p.centavos/100).toLocaleString('en-PH')}</span>
+  </button>`;
+}
+
+async function passBuy(id){
+  const body = document.getElementById('pass-body');
+  body.innerHTML = '<p class="pass-note">Opening the payment page&hellip;</p>';
+  try{
+    const r = await fetch(`${await passBase()}/api/pass/checkout`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pass: id }), signal: AbortSignal.timeout(20000) });
+    const d = await r.json();
+    if (!d.ok || !d.checkoutUrl) throw new Error(d.error || 'Could not start checkout.');
+    // Store the session id BEFORE leaving: on return this is the only way to
+    // claim the key the webhook mints. Nothing secret is in the URL.
+    try { localStorage.setItem(PASS_SESSION_STORE, d.session || ''); } catch {}
+    location.href = d.checkoutUrl;
+  }catch(e){
+    body.innerHTML = `<p class="pass-note" style="color:var(--red)">${escHtml(e.message)}</p>`;
+  }
+}
+
+// Returning from checkout. The success_url redirect RACES the webhook that
+// mints the pass, so poll rather than assume: the payment is real, our record
+// of it may be a second or two behind.
+async function passClaim(){
+  let session = '';
+  try { session = localStorage.getItem(PASS_SESSION_STORE) || ''; } catch {}
+  if (!session) return false;
+  const base = await passBase();
+  for (let i = 0; i < 10; i++){
+    try{
+      const r = await fetch(`${base}/api/pass/claim`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session }), signal: AbortSignal.timeout(12000) });
+      const d = await r.json();
+      if (d.ok && d.key){
+        passSetKey(d.key);
+        try { localStorage.removeItem(PASS_SESSION_STORE); } catch {}
+        await passRefresh();
+        openPassSheet();
+        // The key is shown ONCE. It is the only credential, there is no account
+        // to recover it from, so the reader is told plainly to keep it.
+        document.getElementById('pass-body').innerHTML =
+          `<p class="pass-note">Your Operator Pass is active until
+             <strong>${new Date(d.expires_at).toLocaleDateString('en-PH',{day:'numeric',month:'long',year:'numeric'})}</strong>.</p>
+           <p class="pass-note">Save this key. It is how you restore access on another device or after clearing your browser:</p>
+           <div class="pass-keybox"><code>${escHtml(d.key)}</code>
+             <button onclick="navigator.clipboard.writeText('${escHtml(d.key)}').then(()=>this.textContent='Copied')">Copy</button></div>
+           <p class="pass-fine">We also have the email address you paid with, so a lost key can be recovered by hand.</p>`;
+        return true;
+      }
+    }catch{}
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
+
+async function passRedeem(){
+  const v = (document.getElementById('pass-input').value || '').trim();
+  if (!v) return;
+  passSetKey(v);
+  const s = await passRefresh();
+  if (s && s.ok){ closePassSheet(); location.reload(); }
+  else {
+    passSetKey('');
+    document.getElementById('pass-input').value = '';
+    const b = document.getElementById('pass-body');
+    b.insertAdjacentHTML('afterbegin', '<p class="pass-note" style="color:var(--red)">That key is not active. Check it and try again.</p>');
+  }
+}
+function passSignOut(){ passSetKey(''); closePassSheet(); location.reload(); }
+
+async function passInit(){
+  const q = new URLSearchParams(location.search);
+  if (q.get('pass') === '1'){
+    history.replaceState({}, '', location.pathname);
+    await passRefresh();
+    if (!(_passState && _passState.ok)) { openPassSheet('Confirming your payment&hellip;'); await passClaim(); }
+    return;
+  }
+  if (q.get('pass') === '0') history.replaceState({}, '', location.pathname);
+  await passRefresh();
+}
+
 // ─── OUTLOOK INTERPRETATION + 7-DAY WEATHER ───────────────────────────────
 // Both read the cron-generated /api/outlook record. Nothing here calls a model:
 // an unauthenticated page that could trigger a Haiku call would be a way for any
@@ -7337,7 +7557,10 @@ async function fetchOutlook(){
   let base = getProxyBase();
   for (let i = 0; i < 20 && !base; i++) { await new Promise(r => setTimeout(r, 250)); base = getProxyBase(); }
   if (!base) base = 'https://jdm-proxy.josed-jdm.workers.dev';
-  const r = await fetch(`${base}/api/outlook`, { signal: AbortSignal.timeout(15000) });
+  const r = await fetch(`${base}/api/outlook`, { headers: passHeaders(), signal: AbortSignal.timeout(15000) });
+  // 402 is the pass gate, not a failure: show the unlock sheet rather than an
+  // error the reader cannot act on.
+  if (r.status === 402) { const d = await r.json().catch(() => ({})); passLocked(d.error); throw new Error('Operator Pass required'); }
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const d = await r.json();
   d._t = Date.now(); _outlookRec = d; return d;
@@ -9528,6 +9751,7 @@ function injectPWAManifest() {
 async function initPWA() {
   // Register service worker
   nwInit();   // front page first
+  passInit(); // pass state + the return-from-checkout claim
   const swRegistered = await registerServiceWorker();
   
   // Inject PWA manifest
@@ -16861,6 +17085,7 @@ setInterval(() => {
 
 // ─── KEYBOARD SHORTCUT ────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('pass-sheet')?.classList.contains('show')) { closePassSheet(); return; }
   if (e.key === 'Escape' && cinemaOpen) { closeCinema(); return; }
   if (e.key === 'Escape' && osintActive) { closeOSINT(); return; }
   if (e.key === 'Escape' && windyOpen) { closeWindyOverlay(); return; }
@@ -19616,6 +19841,15 @@ document.addEventListener('click', function resumeAudio() {
 
 
 <!-- 7-DAY WEATHER — daily totals from the same cron-generated outlook record -->
+<div id="pass-sheet" role="dialog" aria-modal="true" aria-labelledby="pass-title">
+  <div class="pass-card">
+    <div class="pass-head">
+      <span id="pass-title">OPERATOR PASS</span>
+      <button class="pass-x" onclick="closePassSheet()" aria-label="Close">&#215;</button>
+    </div>
+    <div id="pass-body"></div>
+  </div>
+</div>
 <div id="weather-page" role="dialog" aria-modal="true" aria-labelledby="wx-title">
   <div class="nw-wrap">
     <div class="nw-mast">
