@@ -1683,6 +1683,78 @@ body {
    would hide the operator's live status bar behind the news page. */
 #news-page .nw-wrap{ padding-top:84px; }
 
+/* ─── THE PESO (money page) ─────────────────────────────────────────────────
+   Inherits the newsroom's identity rather than inventing a second one: the
+   Playfair masthead, Source Serif prose, gold hairlines on near-black. The
+   only new decision here is that every figure is mono with tabular numerals,
+   because a money page is read down its columns.
+   Green and red appear ONLY as direction on a rate, never as decoration —
+   the page states in words that a peso move is good and bad at the same time
+   depending on which side you stand, so colour never carries a verdict. */
+#finance-page{ position:fixed; inset:0; z-index:10040; display:none;
+  background:var(--bg,#080a0d); font-family:'Source Serif 4',Georgia,serif; overflow-y:auto; }
+#finance-page.show{ display:block; }
+#finance-page .nw-wrap{ padding-top:84px; }
+
+.fin-k{ font:600 11px/1 var(--mono,ui-monospace,monospace); letter-spacing:.18em; color:var(--amber,#c8a84b); }
+.fin-hero{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:28px; align-items:end;
+  padding:26px 0 22px; border-bottom:1px solid var(--border,rgba(200,175,110,.10)); }
+.fin-big{ font-family:'Playfair Display',Georgia,serif; font-weight:900; font-size:clamp(46px,7vw,76px);
+  line-height:.95; letter-spacing:-.02em; color:var(--text,#e8e3d8); font-variant-numeric:tabular-nums;
+  margin-top:6px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.fin-big-u{ font-family:'Source Serif 4',Georgia,serif; font-weight:400; font-style:italic;
+  font-size:17px; letter-spacing:0; color:var(--muted,#8b8578); }
+.fin-chg{ margin-top:10px; font:600 14px/1 var(--mono,ui-monospace,monospace);
+  font-variant-numeric:tabular-nums; color:var(--muted,#8b8578); }
+.fin-chg span{ font-weight:400; letter-spacing:.02em; }
+.fin-chg.up{ color:var(--green,#3a8838); } .fin-chg.down{ color:var(--red,#c82030); }
+.fin-hero-note{ margin:0; font:400 15px/1.62 'Source Serif 4',Georgia,serif; color:var(--muted,#8b8578); }
+
+.fin-sec{ padding:24px 0; border-bottom:1px solid var(--border,rgba(200,175,110,.10)); }
+.fin-h{ margin:0 0 6px; font-family:'Playfair Display',Georgia,serif; font-weight:700;
+  font-size:23px; line-height:1.2; color:var(--text,#e8e3d8); text-wrap:balance; }
+.fin-sub{ margin:0 0 16px; max-width:64ch; font:400 14px/1.6 'Source Serif 4',Georgia,serif;
+  color:var(--muted,#8b8578); }
+
+.fin-scroll{ overflow-x:auto; }
+.fin-table{ width:100%; border-collapse:collapse; }
+.fin-table th{ text-align:left; padding:0 14px 8px 0; white-space:nowrap;
+  font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.14em;
+  color:var(--amber,#c8a84b); border-bottom:1px solid var(--border,rgba(200,175,110,.10)); }
+.fin-table td{ padding:11px 14px 11px 0; border-bottom:1px solid rgba(200,175,110,.05); vertical-align:baseline; }
+.fin-table tr:last-child td{ border-bottom:0; }
+.fin-cn{ font:400 15px/1.3 'Source Serif 4',Georgia,serif; color:var(--text,#e8e3d8); }
+.fin-cc,.fin-cb{ font:400 12px/1.3 var(--mono,ui-monospace,monospace); color:var(--muted,#8b8578); white-space:nowrap; }
+.fin-cv{ font:600 16px/1.2 var(--mono,ui-monospace,monospace); font-variant-numeric:tabular-nums;
+  color:var(--text,#e8e3d8); white-space:nowrap; }
+
+.fin-idx{ display:flex; align-items:center; gap:32px; flex-wrap:wrap; max-width:640px; }
+.fin-idx-v{ font-family:'Playfair Display',Georgia,serif; font-weight:900; font-size:38px; line-height:1;
+  font-variant-numeric:tabular-nums; color:var(--text,#e8e3d8); }
+.fin-idx-m{ margin-top:7px; font:400 12px/1.5 var(--mono,ui-monospace,monospace); color:var(--muted,#8b8578); }
+.fin-idx-m .up{ color:var(--green,#3a8838); } .fin-idx-m .down{ color:var(--red,#c82030); }
+.fin-spark{ display:block; }
+
+.fin-crypto{ display:flex; gap:14px; flex-wrap:wrap; }
+.fin-coin{ flex:1 1 190px; display:flex; flex-direction:column; gap:5px; padding:14px 16px;
+  border:1px solid var(--border,rgba(200,175,110,.10)); }
+.fin-coin-n{ font:600 10px/1 var(--mono,ui-monospace,monospace); letter-spacing:.14em; color:var(--amber,#c8a84b); }
+.fin-coin-v{ font:600 20px/1.1 var(--mono,ui-monospace,monospace); font-variant-numeric:tabular-nums;
+  color:var(--text,#e8e3d8); }
+.fin-coin-c{ font:400 12px/1 var(--mono,ui-monospace,monospace); color:var(--muted,#8b8578); }
+.fin-coin-c.up{ color:var(--green,#3a8838); } .fin-coin-c.down{ color:var(--red,#c82030); }
+
+.fin-foot,.fin-notes{ margin:20px 0 0; max-width:74ch;
+  font:400 12px/1.65 var(--mono,ui-monospace,monospace); color:var(--muted,#8b8578); }
+.fin-foot strong{ color:var(--amber,#c8a84b); font-weight:600; }
+.fin-notes{ margin-top:10px; padding-left:18px; }
+.fin-notes li{ margin:3px 0; }
+@media (max-width:760px){
+  .fin-hero{ grid-template-columns:1fr; gap:16px; align-items:start; }
+  .fin-idx{ gap:14px; }
+}
+
+
 /* ─── OPERATOR PASS ─────────────────────────────────────────────────────── */
 /* The sheet borrows the newsroom's serif display and hairline rules so the
    paid surface reads as part of the paper, not a bolted-on billing widget. */
@@ -3142,6 +3214,7 @@ window.gm_authFailure = function() {
     <button class="hdr-btn" onclick="openAnalytics()" title="Predictive analytics — 72 h outlook">OUTLOOK</button>
     <button class="hdr-btn" onclick="openNews()" title="News — the twice-daily bulletin">NEWS</button>
     <button class="hdr-btn" onclick="openWeather()" title="Seven-day regional forecast">WEATHER</button>
+    <button class="hdr-btn" onclick="openFinance()" title="The peso, remittance corridors and the index">MONEY</button>
     <button class="hdr-btn pass-chip" id="pass-chip" onclick="openPassSheet()" title="Operator Pass">GET PASS</button>
 
     <div class="hdr-sep"></div>
@@ -7548,6 +7621,156 @@ async function passInit(){
   }
   if (q.get('pass') === '0') history.replaceState({}, '', location.pathname);
   await passRefresh();
+}
+
+// ─── THE PESO: money page ─────────────────────────────────────────────────
+// Free, like the outlook: prices are a commodity and the official sources
+// publish them. Reads the cron-independent /api/finance record, which is edge
+// cached for 15 minutes, so a thousand readers cost one upstream call.
+//
+// The ordering is the editorial judgement: the peso, then the OFW corridors,
+// then the index. For most Filipino readers the only financial number that
+// matters is what a dollar sends home — equities come after that, not before.
+let _finRec = null;
+
+async function fetchFinance(){
+  if (_finRec && Date.now() - _finRec._t < 5 * 60000) return _finRec;
+  let base = getProxyBase();
+  for (let i = 0; i < 20 && !base; i++) { await new Promise(r => setTimeout(r, 250)); base = getProxyBase(); }
+  if (!base) base = 'https://jdm-proxy.josed-jdm.workers.dev';
+  const r = await fetch(`${base}/api/finance`, { signal: AbortSignal.timeout(20000) });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const d = await r.json();
+  if (d.error) throw new Error(d.error);
+  d._t = Date.now(); _finRec = d; return d;
+}
+
+// A sparkline drawn from the real end-of-day series. One scale places every
+// point; the endpoint is emphasised because that is the value the label names.
+function finSpark(series, w, h){
+  if (!series || series.length < 2) return '';
+  const vs = series.map(p => p.c);
+  const min = Math.min(...vs), max = Math.max(...vs), span = (max - min) || 1;
+  const pad = 3;
+  const x = i => pad + (i * (w - pad * 2)) / (series.length - 1);
+  const y = v => (h - pad) - ((v - min) / span) * (h - pad * 2);
+  const pts = series.map((p, i) => `${x(i).toFixed(1)},${y(p.c).toFixed(1)}`).join(' ');
+  const last = series[series.length - 1], first = series[0];
+  const up = last.c >= first.c;
+  const col = up ? 'var(--green)' : 'var(--red)';
+  return `<svg class="fin-spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img"
+     aria-label="${series.length} trading days, ${first.c.toFixed(2)} to ${last.c.toFixed(2)}">
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5"
+      stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${x(series.length - 1).toFixed(1)}" cy="${y(last.c).toFixed(1)}" r="2.6" fill="${col}"/>
+  </svg>`;
+}
+
+const finPeso = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+async function openFinance(){
+  const el = document.getElementById('finance-page');
+  el.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  const body = document.getElementById('fin-body');
+  body.innerHTML = '<div class="nw-empty">Reading the tape&hellip;</div>';
+  try{
+    const d = await fetchFinance();
+    const p = d.peso;
+    const dir = p.change === null ? '' : p.change > 0 ? 'up' : p.change < 0 ? 'down' : '';
+    // A weaker peso is GOOD for the person receiving a remittance and bad for
+    // the person buying fuel. Colour alone cannot say that, so the page says it
+    // in words rather than implying a verdict with red or green.
+    const arrow = p.change === null ? '' : p.change > 0 ? '▲' : p.change < 0 ? '▼' : '—';
+
+    document.getElementById('fin-meta').innerHTML =
+      escHtml(new Date(d.generated_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })) +
+      '<br>' + escHtml((d.sources || []).join(' · ') || 'no source');
+
+    const hero = `
+      <section class="fin-hero">
+        <div class="fin-hero-main">
+          <span class="fin-k">THE PESO</span>
+          <div class="fin-big">${p.usd_php.toFixed(3)}<span class="fin-big-u">per US$1</span></div>
+          ${p.change === null ? '' : `<div class="fin-chg ${dir}">${arrow} ${Math.abs(p.change).toFixed(3)}
+             <span>(${p.change_pct > 0 ? '+' : ''}${p.change_pct}%) against the previous close</span></div>`}
+        </div>
+        <p class="fin-hero-note">A weaker peso pays more to a household receiving money from abroad
+          and costs more on anything imported &mdash; fuel, rice, freight. The same movement is
+          good news and bad news depending on which side of it you stand, so this page reports
+          the number and not a verdict.</p>
+      </section>`;
+
+    const cor = (d.corridors || []);
+    const table = !cor.length ? '' : `
+      <section class="fin-sec">
+        <h3 class="fin-h">What a remittance is worth</h3>
+        <p class="fin-sub">Mid-market rates. A remittance centre pays less &mdash; the spread is
+          theirs, and it is where the real cost of sending money sits. Treat these as the
+          reference point you should measure a payout against, never as the payout itself.</p>
+        <div class="fin-scroll"><table class="fin-table">
+          <thead><tr><th>Sending from</th><th>Unit</th><th>In pesos</th><th>Basis</th></tr></thead>
+          <tbody>${cor.map(c => `<tr>
+            <td class="fin-cn">${escHtml(c.name)}</td>
+            <td class="fin-cc">${c.per > 1 ? c.per + ' ' : ''}${escHtml(c.code)}</td>
+            <td class="fin-cv">${finPeso(c.php)}</td>
+            <td class="fin-cb">${escHtml(c.via || '—')}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </section>`;
+
+    const ps = d.psei;
+    const psei = !ps || !ps.close ? '' : `
+      <section class="fin-sec">
+        <h3 class="fin-h">Philippine Stock Exchange index</h3>
+        <div class="fin-idx">
+          <div class="fin-idx-l">
+            <div class="fin-idx-v">${ps.close.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div class="fin-idx-m">close of ${escHtml(ps.as_of || '—')}${
+              ps.period_change_pct === null ? '' :
+              ` · <span class="${ps.period_change_pct >= 0 ? 'up' : 'down'}">${
+                ps.period_change_pct > 0 ? '+' : ''}${ps.period_change_pct}%</span> over ${ps.period_days} trading days`}</div>
+          </div>
+          <div class="fin-idx-r">${finSpark(ps.series, 220, 52)}</div>
+        </div>
+        <p class="fin-sub">End-of-day only. This is not a live quote and it does not move while the
+          market is open &mdash; the figure is the last settled close, which is the honest thing
+          this data can support.</p>
+      </section>`;
+
+    const cr = (d.crypto || []);
+    const NAMES = { bitcoin: 'Bitcoin', ethereum: 'Ethereum' };
+    const crypto = !cr.length ? '' : `
+      <section class="fin-sec">
+        <h3 class="fin-h">Crypto</h3>
+        <div class="fin-crypto">${cr.map(c => `
+          <div class="fin-coin">
+            <span class="fin-coin-n">${escHtml(NAMES[c.id] || c.id)}</span>
+            <span class="fin-coin-v">${finPeso(c.php)}</span>
+            ${c.change_24h === null ? '' : `<span class="fin-coin-c ${c.change_24h >= 0 ? 'up' : 'down'}">${
+              c.change_24h > 0 ? '+' : ''}${c.change_24h}% &middot; 24h</span>`}
+          </div>`).join('')}</div>
+      </section>`;
+
+    const notes = (d.notes || []).length ? `<ul class="fin-notes">${
+      d.notes.map(n => `<li>${escHtml(n)}</li>`).join('')}</ul>` : '';
+
+    body.innerHTML = hero + table + psei + crypto + `
+      <div class="fin-foot">
+        <strong>Method and limits.</strong> Rates are mid-market, from the sources named above, and are
+        cached for fifteen minutes &mdash; they are not tick-by-tick. Equity and index figures are
+        end-of-day, not live. Currency crosses are computed from the US dollar rate, so a cross carries
+        the error of both legs. Qatari riyal and Kuwaiti dinar are deliberately absent: the dinar is
+        pegged to a basket rather than the dollar, and inventing a cross for it would be a fabricated
+        number on a page about money. Nothing here is financial advice.
+      </div>` + notes;
+  }catch(e){
+    body.innerHTML = `<div class="nw-empty">Could not load the tape (${escHtml(e.message)}).</div>`;
+  }
+}
+function closeFinance(){
+  document.getElementById('finance-page').classList.remove('show');
+  document.body.style.overflow = '';
 }
 
 // ─── OUTLOOK INTERPRETATION + 7-DAY WEATHER ───────────────────────────────
@@ -17089,6 +17312,7 @@ setInterval(() => {
 
 // ─── KEYBOARD SHORTCUT ────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('finance-page')?.classList.contains('show')) { closeFinance(); return; }
   if (e.key === 'Escape' && document.getElementById('pass-sheet')?.classList.contains('show')) { closePassSheet(); return; }
   if (e.key === 'Escape' && cinemaOpen) { closeCinema(); return; }
   if (e.key === 'Escape' && osintActive) { closeOSINT(); return; }
@@ -19852,6 +20076,18 @@ document.addEventListener('click', function resumeAudio() {
       <button class="pass-x" onclick="closePassSheet()" aria-label="Close">&#215;</button>
     </div>
     <div id="pass-body"></div>
+  </div>
+</div>
+<div id="finance-page" role="dialog" aria-modal="true" aria-labelledby="fin-title">
+  <div class="nw-wrap">
+    <div class="nw-mast">
+      <h1 id="fin-title">The <em>Peso</em></h1>
+      <div style="display:flex;align-items:flex-end;gap:18px">
+        <div class="nw-mast-meta" id="fin-meta"></div>
+        <button class="nw-close" onclick="closeFinance()" aria-label="Close the money page">CLOSE &#215;</button>
+      </div>
+    </div>
+    <div id="fin-body"><div class="nw-empty">Loading&hellip;</div></div>
   </div>
 </div>
 <div id="weather-page" role="dialog" aria-modal="true" aria-labelledby="wx-title">

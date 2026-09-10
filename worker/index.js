@@ -1,6 +1,6 @@
 /**
  * JDM Command Center — Cloudflare Worker Proxy
- * Version: 3.4.0 (2026-09-10) — gate swap: outlook/zones FREE, brief archive PAID (+ archive route, TTLs removed)
+ * Version: 3.5.0 (2026-09-10) — adds free /api/finance (peso, OFW corridors, PSEi end-of-day, crypto)
  *
  * Merges the live v1.0.0 worker (domain allowlist, legacy /proxy-* routes) with the
  * repo v2.1.0 worker (keyed /api/* routes) — the dashboard needs BOTH families.
@@ -29,7 +29,7 @@
  * Vars (wrangler.toml): ALLOWED_ORIGINS, RATE_LIMIT, MAX_RESPONSE_SIZE
  */
 
-const VERSION = '3.4.0';
+const VERSION = '3.5.0';
 const UPSTREAM_TIMEOUT_MS = 15000;
 let MAX_BYTES_DEFAULT = 5242880;   // overridden per request from env.MAX_RESPONSE_SIZE
 const FRESH_TTL = 300;          // seconds a cached upstream body is considered fresh
@@ -934,6 +934,149 @@ async function handleBriefRun(request, env, ctx) {
 }
 
 // ─── Router ───────────────────────────────────────────────────────────
+// ─── FINANCE: the peso, the index, and what a remittance is worth ─────────
+// FREE, deliberately. Prices are the purest commodity on this site and the
+// official sources publish them; gating them would repeat the mistake the
+// outlook gate made. This page exists because for most Filipino readers the
+// only financial number that matters is what a dollar sends home.
+//
+// Data-honesty rules are baked in here, because a wrong figure on a money page
+// is worse than no figure:
+//  - EODHD's free tier returns previousClose only for equities and indices,
+//    with "NA" intraday. Those are LABELLED end-of-day, never "live".
+//  - AED and SAR are quoted from live data. QAR and KWD are NOT available and
+//    are omitted rather than derived: KWD is a basket peg, so any derivation
+//    would be an invented number.
+//  - A corridor rate here is MID-MARKET. The spread at the counter is the
+//    whole story for an OFW, so it is labelled indicative, not a payout rate.
+const FIN_TTL = 900;                 // 15 min: FX moves, but not per viewer
+const FIN_CORRIDORS = [
+  // The OFW corridors that actually carry volume. Each is quoted as 1 unit
+  // (or `per` units) -> PHP.
+  { code: 'USD', name: 'United States' },
+  { code: 'SAR', name: 'Saudi Arabia' },
+  { code: 'AED', name: 'United Arab Emirates' },
+  { code: 'SGD', name: 'Singapore' },
+  { code: 'JPY', name: 'Japan', per: 100 },
+  { code: 'HKD', name: 'Hong Kong' },
+  { code: 'GBP', name: 'United Kingdom' },
+  { code: 'CAD', name: 'Canada' },
+  { code: 'AUD', name: 'Australia' },
+  { code: 'EUR', name: 'Euro area' },
+  { code: 'KRW', name: 'South Korea', per: 100 },
+  { code: 'MYR', name: 'Malaysia' },
+];
+
+async function finFetchJson(u, ms = 12000) {
+  const r = await fetch(u, { signal: AbortSignal.timeout(ms), headers: { 'User-Agent': 'jdm-command-center/1.0' } });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+// EODHD writes "NA" (a string) wherever the free tier withholds intraday.
+// Number("NA") is NaN, and a NaN reaching the page renders blank, so every
+// numeric read goes through this.
+const finNum = v => { const n = typeof v === 'string' ? parseFloat(v) : v; return Number.isFinite(n) ? n : null; };
+
+async function handleFinance(url, env, ctx) {
+  return edgeCached('finance-latest', FIN_TTL, ctx, async () => {
+    const key = env.EODHD_KEY || '';
+    const out = { tz: 'Asia/Manila', generated_at: Date.now(), sources: [], notes: [] };
+
+    // The peso, from two independent sources so one bad upstream cannot put a
+    // wrong headline number on the page unchallenged.
+    const [ecb, eod] = await Promise.allSettled([
+      finFetchJson('https://api.frankfurter.dev/v1/latest?from=USD&to=' +
+        FIN_CORRIDORS.filter(c => c.code !== 'USD').map(c => c.code).join(',') + ',PHP'),
+      key ? finFetchJson(`https://eodhd.com/api/real-time/PHP.FOREX?api_token=${key}&fmt=json`)
+          : Promise.reject(new Error('no key')),
+    ]);
+
+    let usdphp = null, usdphpSrc = null, prev = null;
+    if (eod.status === 'fulfilled') {
+      usdphp = finNum(eod.value.close); prev = finNum(eod.value.previousClose);
+      if (usdphp) { usdphpSrc = 'EODHD'; out.sources.push('EODHD — USD/PHP'); }
+    }
+    if (!usdphp && ecb.status === 'fulfilled') {
+      usdphp = finNum(ecb.value.rates && ecb.value.rates.PHP);
+      if (usdphp) { usdphpSrc = 'ECB reference rate'; out.sources.push('ECB reference rate — USD/PHP'); }
+    }
+    out.peso = usdphp ? {
+      usd_php: Math.round(usdphp * 1000) / 1000,
+      prev: prev !== null ? prev : null,
+      change: prev ? Math.round((usdphp - prev) * 1000) / 1000 : null,
+      change_pct: prev ? Math.round(((usdphp - prev) / prev) * 10000) / 100 : null,
+      source: usdphpSrc,
+    } : null;
+
+    // Corridors. ECB publishes USD->X, so X->PHP is (USD->PHP)/(USD->X).
+    // Where ECB carries no pair (the Gulf), quote from EODHD directly.
+    // Nothing is derived from an assumed peg.
+    out.corridors = [];
+    const ecbRates = ecb.status === 'fulfilled' ? (ecb.value.rates || {}) : {};
+    const gulf = {};
+    if (key) {
+      for (const c of ['SAR', 'AED']) {
+        try {
+          const d = await finFetchJson(`https://eodhd.com/api/real-time/${c}.FOREX?api_token=${key}&fmt=json`);
+          const v = finNum(d.close) !== null ? finNum(d.close) : finNum(d.previousClose);
+          if (v) gulf[c] = v;
+        } catch { /* corridor simply does not appear */ }
+      }
+    }
+    for (const c of FIN_CORRIDORS) {
+      let php = null, how = null;
+      if (c.code === 'USD') { php = usdphp; how = usdphpSrc; }
+      else if (ecbRates[c.code] && usdphp) { php = usdphp / finNum(ecbRates[c.code]); how = 'ECB cross'; }
+      else if (gulf[c.code] && usdphp) { php = usdphp / gulf[c.code]; how = 'EODHD cross'; }
+      if (!php) continue;
+      const per = c.per || 1;
+      out.corridors.push({ code: c.code, name: c.name, per,
+                           php: Math.round(php * per * 10000) / 10000, via: how });
+    }
+    out.notes.push('QAR and KWD are not carried: KWD is a basket peg, so no honest cross exists from this data.');
+
+    // PSEi. The free tier gives previous close plus real end-of-day history,
+    // which is enough for a truthful sparkline. Never presented as intraday.
+    if (key) {
+      try {
+        const [rt, hist] = await Promise.allSettled([
+          finFetchJson(`https://eodhd.com/api/real-time/PSEI.INDX?api_token=${key}&fmt=json`),
+          finFetchJson(`https://eodhd.com/api/eod/PSEI.INDX?api_token=${key}&fmt=json&period=d&from=${
+            new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)}`),
+        ]);
+        const series = hist.status === 'fulfilled' && Array.isArray(hist.value)
+          ? hist.value.map(d => ({ d: d.date, c: finNum(d.close) })).filter(x => x.c) : [];
+        const last = series.length ? series[series.length - 1] : null;
+        const first = series.length ? series[0] : null;
+        const pc = rt.status === 'fulfilled' ? finNum(rt.value.previousClose) : null;
+        out.psei = {
+          close: last ? last.c : pc,
+          as_of: last ? last.d : null,
+          intraday: false,                    // the free tier does not carry it; say so
+          period_change_pct: first && last ? Math.round(((last.c - first.c) / first.c) * 10000) / 100 : null,
+          period_days: series.length,
+          series,
+        };
+        if (series.length) out.sources.push('EODHD — PSEi, end-of-day');
+      } catch { out.psei = null; }
+    }
+
+    // Crypto. CoinGecko throttles hard, so it rides the same edge cache and a
+    // failure degrades to absent rather than blanking the page.
+    try {
+      const cg = await finFetchJson('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=php,usd&include_24hr_change=true', 9000);
+      out.crypto = ['bitcoin', 'ethereum'].map(id => cg[id] ? {
+        id, php: cg[id].php, usd: cg[id].usd,
+        change_24h: cg[id].php_24h_change != null ? Math.round(cg[id].php_24h_change * 100) / 100 : null,
+      } : null).filter(Boolean);
+      if (out.crypto.length) out.sources.push('CoinGecko');
+    } catch { out.crypto = []; out.notes.push('CoinGecko was rate-limited this cycle.'); }
+
+    if (!out.peso) return json({ error: 'No FX source answered this cycle.', notes: out.notes }, 503);
+    return json(out);
+  });
+}
+
 // ─── BRIEF ARCHIVE: the paid product ──────────────────────────────────────
 // The archive is the only asset here with no substitute anywhere. PAGASA
 // publishes forecasts for free, so a 7-day outlook is a commodity; nobody
@@ -1273,6 +1416,8 @@ export default {
       else if (path === '/api/outlook') resp = await handleOutlook(env, ctx);
       // The archive IS the paid product.
       else if (path === '/api/archive') resp = await gated(request, env, () => handleArchive(url, env));
+      // Free: prices are a commodity and the official sources publish them.
+      else if (path === '/api/finance') resp = await handleFinance(url, env, ctx);
       else if (path === '/api/outlook/run' && request.method === 'POST') resp = await handleOutlookRun(request, env);
       else if (path === '/api/zones/run' && request.method === 'POST') resp = await handleZonesRun(request, env);
       else resp = json({ error: 'Not found', see: '/health' }, 404);
